@@ -2,6 +2,8 @@ name: Build & Release WordLoop (PC, Android APK, iOS, Web)
 
 on:
   push:
+    branches:
+      - main
     tags:
       - 'v*'
   workflow_dispatch:
@@ -223,10 +225,16 @@ jobs:
           ls -lh all_release_assets/
           echo "========================================="
 
-      - name: Generate Release Notes from docs/PATCH_NOTES.md
-        id: release_notes
+      - name: Generate Release Notes and Dynamic Tag
+        id: release_meta
         run: |
-          TAG="${{ github.ref_name }}"
+          if [ "${{ github.ref_type }}" = "tag" ]; then
+            TAG="${{ github.ref_name }}"
+          else
+            VER=$(node -p "try { require('./package.json').version } catch(e) { '3.13.0' }")
+            TAG="v${VER}"
+          fi
+          echo "tag=${TAG}" >> $GITHUB_OUTPUT
           echo "Processing notes for ${TAG}..."
           if [ -f "docs/PATCH_NOTES.md" ]; then
             head -n 40 docs/PATCH_NOTES.md > current_notes.txt
@@ -237,8 +245,8 @@ jobs:
       - name: Publish to GitHub Releases
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ github.ref_name }}
-          name: WordLoop ${{ github.ref_name }}
+          tag_name: ${{ steps.release_meta.outputs.tag }}
+          name: WordLoop ${{ steps.release_meta.outputs.tag }}
           body_path: current_notes.txt
           draft: false
           prerelease: false

@@ -28,13 +28,13 @@ if "%APP_VER%"=="" (
 )
 
 if "%APP_VER%"=="" (
-    set APP_VER=3.12.0
+    set APP_VER=3.13.0
 )
 
 title WordLoop Android Build Pipeline - v%APP_VER%
 
 echo =========================================================
-echo   WordLoop - Android APK & Native Project Builder
+echo   WordLoop - Android APK and Native Project Builder
 echo   Detected Application Version: v%APP_VER%
 echo =========================================================
 

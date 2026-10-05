@@ -1,19 +1,19 @@
 @echo off
 rem =========================================================
-rem WordLoop - GitHub Automated Sync & Release Script
-rem GitHub Account: AhBiYout
+rem WordLoop - GitHub Automated Sync and Release Script
+rem GitHub Account: ahbiyout-all
 rem Git User Name:  AhBiYout-all
-rem Repository:     AhBiYout/WordLoop
-rem Dynamic Semantic Versioning & Automated Tagging Pipeline
+rem Repository:     ahbiyout-all/WordLoop
+rem Dynamic Semantic Versioning and Automated Tagging Pipeline
 rem =========================================================
 chcp 65001 > nul
 setlocal enabledelayedexpansion
 
 echo =========================================================
-echo   WordLoop - GitHub Auto Sync & Release Tool
-echo   GitHub Account: AhBiYout
+echo   WordLoop - GitHub Auto Sync and Release Tool
+echo   GitHub Account: ahbiyout-all
 echo   Git User Name:  AhBiYout-all
-echo   Target Repo:    https://github.com/AhBiYout/WordLoop.git
+echo   Target Repo:    https://github.com/ahbiyout-all/WordLoop.git
 echo =========================================================
 
 rem ---------------------------------------------------------
@@ -38,7 +38,7 @@ if "%APP_VER%"=="" (
 )
 
 if "%APP_VER%"=="" (
-    set APP_VER=3.12.0
+    set APP_VER=3.13.0
 )
 
 title WordLoop GitHub Auto Sync - v%APP_VER%
@@ -46,21 +46,16 @@ echo [INFO] Detected Application Version: v%APP_VER%
 echo =========================================================
 
 rem ---------------------------------------------------------
-rem Stage 2: Git Repository Verification & Remote Setup
+rem Stage 2: Git Repository Verification and Remote Setup
 rem ---------------------------------------------------------
 if not exist ".git" (
     echo [1/6] Initializing local Git repository...
     git init
-    if %errorlevel% neq 0 (
-        echo [ERROR] Git initialization failed. Is Git installed on this machine?
-        pause
-        exit /b 1
-    )
 ) else (
     echo [1/6] Git repository already initialized.
 )
 
-rem Configure Git User Name & Email for this repository
+rem Configure Git User Name and Email for this repository
 for /f "tokens=*" %%u in ('git config user.name 2^>nul') do set CURRENT_GIT_USER=%%u
 if "%CURRENT_GIT_USER%"=="" (
     echo [GIT] Setting local Git user.name to AhBiYout-all...
@@ -72,14 +67,14 @@ if "%CURRENT_GIT_EMAIL%"=="" (
     git config user.email "redmunlight@hanil.org"
 )
 
-rem Configure Remote Origin (AhBiYout/WordLoop)
+rem Configure Remote Origin (ahbiyout-all/WordLoop)
 git remote get-url origin >nul 2>&1
 if %errorlevel% neq 0 (
-    echo [2/6] Setting remote origin to https://github.com/AhBiYout/WordLoop.git ...
-    git remote add origin https://github.com/AhBiYout/WordLoop.git
+    echo [2/6] Setting remote origin to https://github.com/ahbiyout-all/WordLoop.git ...
+    git remote add origin https://github.com/ahbiyout-all/WordLoop.git
 ) else (
-    echo [2/6] Updating remote origin URL...
-    git remote set-url origin https://github.com/AhBiYout/WordLoop.git
+    echo [2/6] Updating remote origin URL to https://github.com/ahbiyout-all/WordLoop.git ...
+    git remote set-url origin https://github.com/ahbiyout-all/WordLoop.git
 )
 
 rem Ensure main branch
@@ -96,7 +91,7 @@ rem ---------------------------------------------------------
 rem Stage 4: Commit with Dynamic Semantic Versioning
 rem ---------------------------------------------------------
 echo [4/6] Committing changes with dynamic release message...
-git commit -m "chore(release): WordLoop v%APP_VER% - automated sync & documentation" >nul 2>&1
+git commit -m "chore(release): WordLoop v%APP_VER% - automated sync and documentation" >nul 2>&1
 if %errorlevel% equ 0 (
     echo [OK] Committed changes as v%APP_VER%.
 ) else (
@@ -113,11 +108,11 @@ if %errorlevel% neq 0 (
 )
 
 rem ---------------------------------------------------------
-rem Stage 6: Push to Remote Repository & GitHub Releases
+rem Stage 6: Push to Remote Repository and GitHub Releases
 rem ---------------------------------------------------------
 echo [6/6] Pushing to GitHub (origin main and tags)...
 echo ---------------------------------------------------------
-echo Target: https://github.com/AhBiYout/WordLoop.git
+echo Target: https://github.com/ahbiyout-all/WordLoop.git
 echo Branch: main
 echo Release Tag: v%APP_VER%
 echo ---------------------------------------------------------
@@ -129,10 +124,10 @@ if %errorlevel% neq 0 (
 )
 
 echo =========================================================
-echo [SUCCESS] Git Synchronization & Release Completed!
+echo [SUCCESS] Git Synchronization and Release Completed!
 echo Application Version: v%APP_VER%
-echo GitHub Repository: https://github.com/AhBiYout/WordLoop
-echo GitHub Releases: https://github.com/AhBiYout/WordLoop/releases
-echo GitHub Actions: https://github.com/AhBiYout/WordLoop/actions
+echo GitHub Repository: https://github.com/ahbiyout-all/WordLoop
+echo GitHub Releases: https://github.com/ahbiyout-all/WordLoop/releases
+echo GitHub Actions: https://github.com/ahbiyout-all/WordLoop/actions
 echo =========================================================
 pause

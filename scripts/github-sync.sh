@@ -1,17 +1,17 @@
 #!/usr/bin/env bash
 # =========================================================
 # WordLoop - GitHub Automated Sync & Release Script (Bash)
-# GitHub Account: AhBiYout
+# GitHub Account: ahbiyout-all
 # Git User Name:  AhBiYout-all
-# Repository:     AhBiYout/WordLoop
+# Repository:     ahbiyout-all/WordLoop
 # =========================================================
 set -e
 
 echo "========================================================="
 echo "  WordLoop - GitHub Auto Sync & Release Tool (Bash)"
-echo "  GitHub Account: AhBiYout"
+echo "  GitHub Account: ahbiyout-all"
 echo "  Git User Name:  AhBiYout-all"
-echo "  Target Repo:    https://github.com/AhBiYout/WordLoop.git"
+echo "  Target Repo:    https://github.com/ahbiyout-all/WordLoop.git"
 echo "========================================================="
 
 # 1. Dynamic Version Extraction (Single Source of Truth)
@@ -26,7 +26,7 @@ if [ -z "$APP_VER" ] && [ -f "docs/PATCH_NOTES.md" ]; then
 fi
 
 if [ -z "$APP_VER" ]; then
-  APP_VER="3.12.0"
+  APP_VER="3.13.0"
 fi
 
 echo "[INFO] Detected Application Version: v${APP_VER}"
@@ -47,11 +47,11 @@ if [ -z "$(git config user.email 2>/dev/null || true)" ]; then
   git config user.email "redmunlight@hanil.org"
 fi
 
-echo "[2/6] Configuring remote origin (AhBiYout/WordLoop)..."
+echo "[2/6] Configuring remote origin (ahbiyout-all/WordLoop)..."
 if git remote get-url origin >/dev/null 2>&1; then
-  git remote set-url origin https://github.com/AhBiYout/WordLoop.git
+  git remote set-url origin https://github.com/ahbiyout-all/WordLoop.git
 else
-  git remote add origin https://github.com/AhBiYout/WordLoop.git
+  git remote add origin https://github.com/ahbiyout-all/WordLoop.git
 fi
 
 git branch -M main
@@ -76,6 +76,6 @@ git push -u origin main --follow-tags || git push origin "v${APP_VER}" --force
 echo "========================================================="
 echo "🎉 [SUCCESS] Git Synchronization & Release Completed!"
 echo "Version: v${APP_VER}"
-echo "URL: https://github.com/AhBiYout/WordLoop"
-echo "Releases: https://github.com/AhBiYout/WordLoop/releases"
+echo "URL: https://github.com/ahbiyout-all/WordLoop"
+echo "Releases: https://github.com/ahbiyout-all/WordLoop/releases"
 echo "========================================================="

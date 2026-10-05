@@ -1,8 +1,8 @@
 # WordLoop 모듈 및 네이티브 패키지 명세서 (DLL & Module Specs)
 
-**문서 버전:** v3.12.0  
+**문서 버전:** v3.13.0  
 **프로젝트:** WordLoop AI Multi-Platform Suite  
-**레포지토리:** https://github.com/AhBiYout/WordLoop
+**레포지토리:** https://github.com/ahbiyout-all/WordLoop
 
 ---
 
@@ -71,7 +71,7 @@ WordLoop는 크로스 플랫폼 호환성과 독립적인 실행을 보장하기
   - 오답 시 ➔ 0단계 유지 및 상세 오답 리포트(단어, 발음기호, 뜻, 예문) 노출
 
 ### 2.5 🔄 GitHub Releases 실시간 자동 업데이트 엔진 (`githubUpdateService.ts`)
-- **API 엔드포인트:** `https://api.github.com/repos/AhBiYout/WordLoop/releases/latest`
+- **API 엔드포인트:** `https://api.github.com/repos/ahbiyout-all/WordLoop/releases/latest`
 - **동작 방식:**
   - 앱 시작 시 백그라운드로 최신 릴리스 버전 조회
   - 현재 버전과 Semver 비교 (`compareVersions`)

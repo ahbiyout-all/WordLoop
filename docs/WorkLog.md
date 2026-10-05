@@ -2,7 +2,7 @@
 
 **최종 작업 일시:** 2026-10-03  
 **담당 개발자:** AI Engineering Agent  
-**GitHub 리포지토리:** https://github.com/AhBiYout/WordLoop
+**GitHub 리포지토리:** https://github.com/ahbiyout-all/WordLoop
 
 ---
 
@@ -21,7 +21,7 @@
 
 ### 2. GitHub Releases 기반 실시간 자동 업데이트 시스템
 - **업데이트 서비스 구축 (`src/services/githubUpdateService.ts`):**
-  - `https://api.github.com/repos/AhBiYout/WordLoop/releases/latest` 실시간 조회
+  - `https://api.github.com/repos/ahbiyout-all/WordLoop/releases/latest` 실시간 조회
   - Semver 기반 버전 비교 및 로컬 캐싱(30분 주기)
   - PC(.exe), 안드로이드(.apk), iOS 패키지 다운로드 URL 자동 추출
 - **업데이트 센터 UI 구축 (`src/components/GitHubUpdateModal.tsx`):**

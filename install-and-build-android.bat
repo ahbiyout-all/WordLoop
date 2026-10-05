@@ -46,7 +46,7 @@ call node scripts\sync-android.js auto
 
 echo.
 echo =========================================================
-echo   Android build & sync completed successfully!
+echo   Android build and sync completed successfully!
 echo =========================================================
 echo.
 echo Next steps:
