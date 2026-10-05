@@ -1,9 +1,9 @@
 @echo off
 rem =========================================================
 rem WordLoop - GitHub Automated Sync and Release Script
-rem GitHub Account: AhBiYout
+rem GitHub Account: ahbiyout-all
 rem Git User Name:  AhBiYout-all
-rem Repository:     AhBiYout/WordLoop
+rem Repository:     ahbiyout-all/WordLoop
 rem Dynamic Semantic Versioning and Automated Tagging Pipeline
 rem =========================================================
 chcp 65001 > nul
@@ -11,9 +11,9 @@ setlocal enabledelayedexpansion
 
 echo =========================================================
 echo   WordLoop - GitHub Auto Sync and Release Tool
-echo   GitHub Account: AhBiYout
+echo   GitHub Account: ahbiyout-all
 echo   Git User Name:  AhBiYout-all
-echo   Target Repo:    https://github.com/AhBiYout/WordLoop.git
+echo   Target Repo:    https://github.com/ahbiyout-all/WordLoop.git
 echo =========================================================
 
 rem ---------------------------------------------------------
@@ -61,14 +61,14 @@ git config user.name "AhBiYout-all"
 echo [GIT] Configuring local Git user.email to redmunlight@hanil.org...
 git config user.email "redmunlight@hanil.org"
 
-rem Configure Remote Origin (AhBiYout/WordLoop)
+rem Configure Remote Origin (ahbiyout-all/WordLoop)
 git remote get-url origin >nul 2>&1
 if %errorlevel% neq 0 (
-    echo [2/6] Setting remote origin to https://github.com/AhBiYout/WordLoop.git ...
-    git remote add origin https://github.com/AhBiYout/WordLoop.git
+    echo [2/6] Setting remote origin to https://github.com/ahbiyout-all/WordLoop.git ...
+    git remote add origin https://github.com/ahbiyout-all/WordLoop.git
 ) else (
-    echo [2/6] Updating remote origin URL to https://github.com/AhBiYout/WordLoop.git ...
-    git remote set-url origin https://github.com/AhBiYout/WordLoop.git
+    echo [2/6] Updating remote origin URL to https://github.com/ahbiyout-all/WordLoop.git ...
+    git remote set-url origin https://github.com/ahbiyout-all/WordLoop.git
 )
 
 rem Ensure main branch
@@ -106,7 +106,7 @@ rem Stage 6: Push to Remote Repository and GitHub Releases
 rem ---------------------------------------------------------
 echo [6/6] Pushing to GitHub (origin main and tags)...
 echo ---------------------------------------------------------
-echo Target: https://github.com/AhBiYout/WordLoop.git
+echo Target: https://github.com/ahbiyout-all/WordLoop.git
 echo Branch: main
 echo Release Tag: v%APP_VER%
 echo ---------------------------------------------------------
@@ -120,8 +120,8 @@ if %errorlevel% neq 0 (
 echo =========================================================
 echo [SUCCESS] Git Synchronization and Release Completed!
 echo Application Version: v%APP_VER%
-echo GitHub Repository: https://github.com/AhBiYout/WordLoop
-echo GitHub Releases: https://github.com/AhBiYout/WordLoop/releases
-echo GitHub Actions: https://github.com/AhBiYout/WordLoop/actions
+echo GitHub Repository: https://github.com/ahbiyout-all/WordLoop
+echo GitHub Releases: https://github.com/ahbiyout-all/WordLoop/releases
+echo GitHub Actions: https://github.com/ahbiyout-all/WordLoop/actions
 echo =========================================================
 pause

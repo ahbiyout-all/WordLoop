@@ -1,8 +1,8 @@
 # WordLoop - 영어 단어 & 자기계발 연속 발음 학습 어플리케이션
 
 - **🌐 웹 애플리케이션 바로가기 (GitHub Pages):** [https://ahbiyout-all.github.io/WordLoop/](https://ahbiyout-all.github.io/WordLoop/)
-- **📁 GitHub Repository:** [https://github.com/AhBiYout/WordLoop](https://github.com/AhBiYout/WordLoop)
-- **📦 GitHub Releases:** [https://github.com/AhBiYout/WordLoop/releases](https://github.com/AhBiYout/WordLoop/releases)
+- **📁 GitHub Repository:** [https://github.com/ahbiyout-all/WordLoop](https://github.com/ahbiyout-all/WordLoop)
+- **📦 GitHub Releases:** [https://github.com/ahbiyout-all/WordLoop/releases](https://github.com/ahbiyout-all/WordLoop/releases)
 
 ## 📌 프로젝트 개요
 **WordLoop**는 무한 반복 음성 재평가(TTS) 기능과 3단계 암기 관리 시스템(미암기, 학습중, 완벽암기)을 기반으로 한 영단어 및 생활 영어 문장 학습 & 목표 관리 어플리케이션입니다.
