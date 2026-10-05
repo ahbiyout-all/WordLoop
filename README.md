@@ -2,8 +2,9 @@
 
 **WordLoop**는 초·중·고·수능 및 비즈니스 영어 어휘(교육부 필수 3,210단어)와 500+ 실전 예문, 13종 인터랙티브 단어·문장 게임, 취약 어휘(0~1단계) 맞춤 복습 퀴즈, 8종 스마트 퀴즈 모드, 실시간 음성 파형 발음 측정, 그리고 초·중·고 교육과정 연계 원어민 AI 대화형 롤플레잉을 결합한 올인원 영어 학습 & 자기계발 플랫폼입니다.
 
-- **GitHub Repository:** [https://github.com/ahbiyout-all/WordLoop](https://github.com/ahbiyout-all/WordLoop)
-- **GitHub Releases (다운로드):** [https://github.com/ahbiyout-all/WordLoop/releases](https://github.com/ahbiyout-all/WordLoop/releases)
+- **🌐 웹 애플리케이션 바로가기 (GitHub Pages):** [https://ahbiyout-all.github.io/WordLoop/](https://ahbiyout-all.github.io/WordLoop/)
+- **📁 GitHub Repository:** [https://github.com/AhBiYout/WordLoop](https://github.com/AhBiYout/WordLoop)
+- **📦 GitHub Releases (기기별 설치파일 다운로드):** [https://github.com/AhBiYout/WordLoop/releases](https://github.com/AhBiYout/WordLoop/releases)
 
 ---
 

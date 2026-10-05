@@ -1,17 +1,17 @@
 #!/usr/bin/env bash
 # =========================================================
 # WordLoop - GitHub Automated Sync & Release Script (Bash)
-# GitHub Account: ahbiyout-all
+# GitHub Account: AhBiYout
 # Git User Name:  AhBiYout-all
-# Repository:     ahbiyout-all/WordLoop
+# Repository:     AhBiYout/WordLoop
 # =========================================================
 set -e
 
 echo "========================================================="
 echo "  WordLoop - GitHub Auto Sync & Release Tool (Bash)"
-echo "  GitHub Account: ahbiyout-all"
+echo "  GitHub Account: AhBiYout"
 echo "  Git User Name:  AhBiYout-all"
-echo "  Target Repo:    https://github.com/ahbiyout-all/WordLoop.git"
+echo "  Target Repo:    https://github.com/AhBiYout/WordLoop.git"
 echo "========================================================="
 
 # 1. Dynamic Version Extraction (Single Source of Truth)
@@ -37,21 +37,17 @@ if [ ! -d ".git" ]; then
   git init
 fi
 
-# Configure Git user.name if empty
-if [ -z "$(git config user.name 2>/dev/null || true)" ]; then
-  echo "[GIT] Setting local Git user.name to AhBiYout-all..."
-  git config user.name "AhBiYout-all"
-fi
-if [ -z "$(git config user.email 2>/dev/null || true)" ]; then
-  echo "[GIT] Setting local Git user.email to redmunlight@hanil.org..."
-  git config user.email "redmunlight@hanil.org"
-fi
+# Configure Git user.name and email
+echo "[GIT] Setting local Git user.name to AhBiYout-all..."
+git config user.name "AhBiYout-all"
+echo "[GIT] Setting local Git user.email to redmunlight@hanil.org..."
+git config user.email "redmunlight@hanil.org"
 
-echo "[2/6] Configuring remote origin (ahbiyout-all/WordLoop)..."
+echo "[2/6] Configuring remote origin (AhBiYout/WordLoop)..."
 if git remote get-url origin >/dev/null 2>&1; then
-  git remote set-url origin https://github.com/ahbiyout-all/WordLoop.git
+  git remote set-url origin https://github.com/AhBiYout/WordLoop.git
 else
-  git remote add origin https://github.com/ahbiyout-all/WordLoop.git
+  git remote add origin https://github.com/AhBiYout/WordLoop.git
 fi
 
 git branch -M main
@@ -76,6 +72,7 @@ git push -u origin main --follow-tags || git push origin "v${APP_VER}" --force
 echo "========================================================="
 echo "🎉 [SUCCESS] Git Synchronization & Release Completed!"
 echo "Version: v${APP_VER}"
-echo "URL: https://github.com/ahbiyout-all/WordLoop"
-echo "Releases: https://github.com/ahbiyout-all/WordLoop/releases"
+echo "URL: https://github.com/AhBiYout/WordLoop"
+echo "Releases: https://github.com/AhBiYout/WordLoop/releases"
+echo "Actions: https://github.com/AhBiYout/WordLoop/actions"
 echo "========================================================="

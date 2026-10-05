@@ -1,12 +1,12 @@
 /**
  * GitHub Releases Real-Time Auto-Update Service
- * Repo: ahbiyout-all/WordLoop
+ * Repo: AhBiYout/WordLoop
  * Target: Real-time update checks, semantic version comparison, and direct installer downloads.
  */
 
 import { APP_VERSION } from '../data/patchNotesData';
 
-export const GITHUB_REPO_OWNER = 'ahbiyout-all';
+export const GITHUB_REPO_OWNER = 'AhBiYout';
 export const GITHUB_REPO_NAME = 'WordLoop';
 export const GITHUB_RELEASES_URL = `https://github.com/${GITHUB_REPO_OWNER}/${GITHUB_REPO_NAME}/releases`;
 export const GITHUB_API_LATEST_RELEASE = `https://api.github.com/repos/${GITHUB_REPO_OWNER}/${GITHUB_REPO_NAME}/releases/latest`;

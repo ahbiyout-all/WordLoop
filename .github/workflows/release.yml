@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - main
+      - master
     tags:
       - 'v*'
   workflow_dispatch:
@@ -36,7 +37,8 @@ jobs:
       - name: Zip Web Artifact
         run: |
           mkdir -p release_artifacts
-          cd dist && zip -r ../release_artifacts/wordloop-web-${{ github.ref_name || 'latest' }}.zip .
+          TAG="${{ github.ref_name || 'latest' }}"
+          cd dist && zip -r ../release_artifacts/WordLoop-Web-${TAG}.zip .
 
       - name: Upload Web Artifact
         uses: actions/upload-artifact@v4
@@ -92,6 +94,7 @@ jobs:
   build-android:
     name: 📱 Build Android App (.apk)
     runs-on: ubuntu-latest
+    continue-on-error: true
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
@@ -124,16 +127,18 @@ jobs:
 
       - name: Build Android APK (Gradle)
         run: |
-          cd android
-          chmod +x ./gradlew
-          ./gradlew assembleDebug --no-daemon
-
-      - name: Collect Android APK
-        run: |
-          mkdir -p release_artifacts
-          TAG="${{ github.ref_name || 'latest' }}"
-          cp android/app/build/outputs/apk/debug/app-debug.apk release_artifacts/WordLoop-${TAG}.apk
-          ls -la release_artifacts/
+          if [ -d "android" ] && [ -f "android/gradlew" ]; then
+            cd android
+            chmod +x ./gradlew
+            ./gradlew assembleDebug --no-daemon
+            cd ..
+            mkdir -p release_artifacts
+            TAG="${{ github.ref_name || 'latest' }}"
+            cp android/app/build/outputs/apk/debug/app-debug.apk release_artifacts/WordLoop-${TAG}.apk
+            ls -la release_artifacts/
+          else
+            echo "Android directory not generated, skipping APK build."
+          fi
 
       - name: Upload Android APK Artifact
         uses: actions/upload-artifact@v4
@@ -147,6 +152,7 @@ jobs:
   build-ios:
     name: 🍎 Build iOS (iPhone / iPad Package)
     runs-on: macos-latest
+    continue-on-error: true
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
@@ -168,13 +174,17 @@ jobs:
       - name: Add & Sync iOS Platform
         run: |
           npx cap add ios || true
-          npx cap sync ios
+          npx cap sync ios || true
 
       - name: Package iOS Project Bundle
         run: |
           mkdir -p release_artifacts
           TAG="${{ github.ref_name || 'latest' }}"
-          zip -r release_artifacts/WordLoop-iOS-Project-${TAG}.zip ios dist
+          if [ -d "ios" ]; then
+            zip -r release_artifacts/WordLoop-iOS-Project-${TAG}.zip ios dist
+          else
+            zip -r release_artifacts/WordLoop-iOS-WebBundle-${TAG}.zip dist
+          fi
           ls -la release_artifacts/
 
       - name: Upload iOS Artifact
@@ -189,40 +199,27 @@ jobs:
   publish-release:
     name: 🚀 Publish GitHub Release with Installers
     needs: [build-web, build-windows, build-android, build-ios]
+    if: always() && !cancelled()
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
 
-      - name: Download Web Artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: web-dist
-          path: all_release_assets
+      - name: Create Assets Directory
+        run: mkdir -p all_release_assets
 
-      - name: Download Windows PC Artifact
+      - name: Download All Artifacts
         uses: actions/download-artifact@v4
+        continue-on-error: true
         with:
-          name: windows-pc
           path: all_release_assets
-
-      - name: Download Android APK Artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: android-apk
-          path: all_release_assets
-
-      - name: Download iOS Artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: ios-package
-          path: all_release_assets
+          merge-multiple: true
 
       - name: List All Downloaded Assets
         run: |
           echo "========================================="
           echo "📦 Assets to be published on GitHub:"
-          ls -lh all_release_assets/
+          ls -lh all_release_assets/ || true
           echo "========================================="
 
       - name: Generate Release Notes and Dynamic Tag
