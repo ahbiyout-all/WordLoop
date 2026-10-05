@@ -1,0 +1,131 @@
+@import "tailwindcss";
+
+:root {
+  /* Dynamic Viewport Fluid Spacing Variables (Auto-calibrates for any mobile/tablet/desktop resolution) */
+  --fluid-px: clamp(0.625rem, 3.2vw, 1.5rem);
+  --fluid-py: clamp(0.5rem, 1.5dvh, 1.5rem);
+  --fluid-gap: clamp(0.5rem, 1.4vmin, 1.25rem);
+  --fluid-card-p: clamp(0.75rem, 2vmin, 1.5rem);
+  --fluid-icon-box: clamp(2.5rem, 5.5vmin, 3.5rem);
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-left: env(safe-area-inset-left, 0px);
+  --safe-right: env(safe-area-inset-right, 0px);
+}
+
+/* Fluid Container that adapts top/bottom/left/right spacing to device resolution */
+.fluid-viewport-main {
+  padding-left: calc(var(--fluid-px) + var(--safe-left));
+  padding-right: calc(var(--fluid-px) + var(--safe-right));
+  padding-top: var(--fluid-py);
+  padding-bottom: calc(var(--fluid-py) + var(--safe-bottom));
+}
+
+/* Fluid Launcher Shell: fills remaining 100dvh and distributes vertical spacing evenly */
+.fluid-launcher-shell {
+  min-height: calc(100dvh - 6.25rem - var(--safe-top) - var(--safe-bottom));
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: var(--fluid-gap);
+}
+
+@media (min-width: 768px) {
+  .fluid-launcher-shell {
+    min-height: calc(100dvh - 5.5rem);
+  }
+}
+
+.fluid-launcher-grid {
+  display: grid;
+  gap: var(--fluid-gap);
+  flex: 1 1 auto;
+  align-content: stretch;
+}
+
+.fluid-launcher-card {
+  padding: var(--fluid-card-p);
+}
+
+/* Hide scrollbars for sleek mobile/tablet navigation and chip carousels */
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+  width: 0;
+  height: 0;
+}
+
+@keyframes dropSlow {
+  0% {
+    transform: translateY(-90px) scale(0.8);
+    opacity: 0;
+  }
+  60% {
+    transform: translateY(8px) scale(1.05);
+    opacity: 1;
+  }
+  80% {
+    transform: translateY(-3px) scale(0.98);
+  }
+  100% {
+    transform: translateY(0) scale(1);
+    opacity: 1;
+  }
+}
+
+.animate-drop-slow {
+  animation: dropSlow 0.65s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  20%, 60% { transform: translateX(-6px); }
+  40%, 80% { transform: translateX(6px); }
+}
+
+.animate-shake {
+  animation: shake 0.3s ease-in-out;
+}
+
+/* Custom Sleek Scrollbar for modals and scroll containers */
+.custom-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(148, 163, 184, 0.4) transparent;
+  -webkit-overflow-scrolling: touch;
+}
+
+.custom-scrollbar::-webkit-scrollbar {
+  width: 5px;
+  height: 5px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+  margin: 4px 0;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: rgba(148, 163, 184, 0.4);
+  border-radius: 9999px;
+  transition: background-color 0.2s ease;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: rgba(100, 116, 139, 0.7);
+}
+
+.dark .custom-scrollbar {
+  scrollbar-color: rgba(100, 116, 139, 0.4) transparent;
+}
+
+.dark .custom-scrollbar::-webkit-scrollbar-thumb {
+  background: rgba(100, 116, 139, 0.4);
+}
+
+.dark .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: rgba(148, 163, 184, 0.7);
+}

@@ -1,0 +1,251 @@
+name: Build & Release WordLoop (PC, Android APK, iOS, Web)
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  # ============================================================
+  # 1. BUILD WEB APP
+  # ============================================================
+  build-web:
+    name: 🌐 Build Web Distribution
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: Install Dependencies
+        run: npm ci
+
+      - name: Build Web Application
+        run: npm run build:web
+
+      - name: Zip Web Artifact
+        run: |
+          mkdir -p release_artifacts
+          cd dist && zip -r ../release_artifacts/wordloop-web-${{ github.ref_name || 'latest' }}.zip .
+
+      - name: Upload Web Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: web-dist
+          path: release_artifacts/*
+
+  # ============================================================
+  # 2. BUILD PC DESKTOP (WINDOWS .EXE)
+  # ============================================================
+  build-windows:
+    name: 💻 Build Windows PC Desktop (.exe)
+    runs-on: windows-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: Install Dependencies
+        run: npm ci
+
+      - name: Build Web App
+        run: node scripts/build-web.js
+
+      - name: Install Electron & Electron-Builder
+        run: npm install --save-dev electron electron-builder
+
+      - name: Package Windows Executable
+        env:
+          ELECTRON_BUILDER_ALLOW_UNRESOLVED_DEPENDENCIES: 'true'
+        run: node scripts/build-electron.js
+
+      - name: Collect Windows Executables
+        shell: bash
+        run: |
+          mkdir -p release_artifacts
+          find dist_electron -maxdepth 1 -type f -name "*.exe" -exec cp {} release_artifacts/ \;
+          ls -la release_artifacts/
+
+      - name: Upload Windows PC Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-pc
+          path: release_artifacts/*
+
+  # ============================================================
+  # 3. BUILD ANDROID APP (.APK)
+  # ============================================================
+  build-android:
+    name: 📱 Build Android App (.apk)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: Setup Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install Dependencies
+        run: npm ci
+
+      - name: Build Web Assets
+        run: node scripts/build-web.js
+
+      - name: Install Capacitor Android
+        run: npm install @capacitor/core --save && npm install @capacitor/cli @capacitor/android --save-dev
+
+      - name: Sync Capacitor Android
+        run: node scripts/sync-android.js auto
+
+      - name: Build Android APK (Gradle)
+        run: |
+          cd android
+          chmod +x ./gradlew
+          ./gradlew assembleDebug --no-daemon
+
+      - name: Collect Android APK
+        run: |
+          mkdir -p release_artifacts
+          TAG="${{ github.ref_name || 'latest' }}"
+          cp android/app/build/outputs/apk/debug/app-debug.apk release_artifacts/WordLoop-${TAG}.apk
+          ls -la release_artifacts/
+
+      - name: Upload Android APK Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-apk
+          path: release_artifacts/*
+
+  # ============================================================
+  # 4. BUILD IOS PACKAGE (PWA / XCODE ARCHIVE)
+  # ============================================================
+  build-ios:
+    name: 🍎 Build iOS (iPhone / iPad Package)
+    runs-on: macos-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: Install Dependencies
+        run: npm ci
+
+      - name: Build Web Application
+        run: npm run build:web
+
+      - name: Install Capacitor iOS
+        run: npm install @capacitor/core --save && npm install @capacitor/cli @capacitor/ios --save-dev
+
+      - name: Add & Sync iOS Platform
+        run: |
+          npx cap add ios || true
+          npx cap sync ios
+
+      - name: Package iOS Project Bundle
+        run: |
+          mkdir -p release_artifacts
+          TAG="${{ github.ref_name || 'latest' }}"
+          zip -r release_artifacts/WordLoop-iOS-Project-${TAG}.zip ios dist
+          ls -la release_artifacts/
+
+      - name: Upload iOS Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ios-package
+          path: release_artifacts/*
+
+  # ============================================================
+  # 5. CREATE GITHUB RELEASE WITH ALL ASSETS
+  # ============================================================
+  publish-release:
+    name: 🚀 Publish GitHub Release with Installers
+    needs: [build-web, build-windows, build-android, build-ios]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Download Web Artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: web-dist
+          path: all_release_assets
+
+      - name: Download Windows PC Artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: windows-pc
+          path: all_release_assets
+
+      - name: Download Android APK Artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: android-apk
+          path: all_release_assets
+
+      - name: Download iOS Artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: ios-package
+          path: all_release_assets
+
+      - name: List All Downloaded Assets
+        run: |
+          echo "========================================="
+          echo "📦 Assets to be published on GitHub:"
+          ls -lh all_release_assets/
+          echo "========================================="
+
+      - name: Generate Release Notes from docs/PATCH_NOTES.md
+        id: release_notes
+        run: |
+          TAG="${{ github.ref_name }}"
+          echo "Processing notes for ${TAG}..."
+          if [ -f "docs/PATCH_NOTES.md" ]; then
+            head -n 40 docs/PATCH_NOTES.md > current_notes.txt
+          else
+            echo "WordLoop Release ${TAG}" > current_notes.txt
+          fi
+
+      - name: Publish to GitHub Releases
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: WordLoop ${{ github.ref_name }}
+          body_path: current_notes.txt
+          draft: false
+          prerelease: false
+          files: all_release_assets/*
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

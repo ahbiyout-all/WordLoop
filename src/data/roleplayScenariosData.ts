@@ -1,0 +1,1256 @@
+export interface RoleplayMission {
+  id: string;
+  text: string;
+  description: string;
+  hint: string;
+}
+
+export interface RoleplayPhrase {
+  en: string;
+  ko: string;
+  situation?: string;
+}
+
+export type RoleplayGradeLevel = 'elementary' | 'middle' | 'high_sat' | 'general';
+
+export interface RoleplayScenario {
+  id: string;
+  title: string;
+  category: 'elementary' | 'middle' | 'high_sat' | 'travel' | 'cafe' | 'business' | 'shopping' | 'daily' | 'emergency' | 'custom';
+  categoryLabel: string;
+  categoryIcon: string;
+  gradeLevel: RoleplayGradeLevel;
+  gradeLabel: string;
+  targetVocabBadge: string;
+  level: '초급' | '중급' | '고급';
+  levelEn: 'Beginner' | 'Intermediate' | 'Advanced';
+  partnerName: string;
+  partnerAvatar: string;
+  partnerRole: string;
+  userRole: string;
+  description: string;
+  situationContext: string;
+  missions: RoleplayMission[];
+  recommendedPhrases: RoleplayPhrase[];
+  initialAiMessage: {
+    en: string;
+    ko: string;
+  };
+  tips: string[];
+}
+
+export const ROLEPLAY_SCENARIOS: RoleplayScenario[] = [
+  // =========================================================================
+  // 🎒 1. 초등부 (Elementary School: 800~1,000 기초 생활 & 학교 필수 어휘 연계)
+  // =========================================================================
+  {
+    id: 'elementary-classroom-intro',
+    title: '새 학기 외국인 짝꿍과 첫인사 & 취미 나누기',
+    category: 'elementary',
+    categoryLabel: '초등 학교생활',
+    categoryIcon: '🎒',
+    gradeLevel: 'elementary',
+    gradeLabel: '초등 (3~6학년)',
+    targetVocabBadge: '초등 필수 800어휘 연계',
+    level: '초급',
+    levelEn: 'Beginner',
+    partnerName: 'Leo (전학생)',
+    partnerAvatar: '👦',
+    partnerRole: '캐나다에서 전학 온 새 짝꿍 레오',
+    userRole: '초등학교 반 친구',
+    description: '새 학기 첫날 옆자리에 앉은 외국인 전학생 레오에게 반갑게 인사하고 좋아하는 과목과 취미를 물어보세요.',
+    situationContext: 'It is the first day of the new semester in elementary school. Leo, a friendly transfer student from Canada, sits next to you.',
+    missions: [
+      {
+        id: 'mission-1',
+        text: '이름과 만나서 반갑다는 인사 건네기',
+        description: '자신의 이름을 소개하고 반갑다고 말해보세요.',
+        hint: 'Hi! My name is Minjun. Nice to meet you, Leo!',
+      },
+      {
+        id: 'mission-2',
+        text: '좋아하는 학교 과목이나 운동 묻기',
+        description: '체육, 미술, 과학 등 좋아하는 과목을 물어보세요.',
+        hint: 'What is your favorite subject in school? Do you like soccer?',
+      },
+      {
+        id: 'mission-3',
+        text: '쉬는 시간에 같이 놀자고 제안하기',
+        description: '쉬는 시간이나 점심시간에 운동장에 가자고 해보세요.',
+        hint: 'Let\'s go to the playground together during recess!',
+      },
+    ],
+    recommendedPhrases: [
+      { en: 'Welcome to our school!', ko: '우리 학교에 온 걸 환영해!' },
+      { en: 'My favorite color is blue, and I love drawing.', ko: '내가 가장 좋아하는 색은 파란색이고, 나는 그림 그리기를 좋아해.' },
+      { en: 'Can I borrow an eraser, please?', ko: '지우개 하나만 빌려줄 수 있니?' },
+    ],
+    initialAiMessage: {
+      en: 'Hi! Nice to meet you. My name is Leo, and I just moved here from Vancouver. Are you my new desk partner?',
+      ko: '안녕! 만나서 반가워. 내 이름은 레오야, 밴쿠버에서 방금 이사 왔어. 네가 내 새 짝꿍이니?',
+    },
+    tips: [
+      '초등 기본 인사 패턴: "Nice to meet you!", "My name is ~", "I like ~"',
+      '좋아하는 것을 물을 때는 "What is your favorite ~?"를 활용하면 매우 유용합니다.',
+    ],
+  },
+  {
+    id: 'elementary-school-cafeteria',
+    title: '학교 급식실에서 메뉴 선택 & 알레르기 말하기',
+    category: 'elementary',
+    categoryLabel: '초등 학교생활',
+    categoryIcon: '🍎',
+    gradeLevel: 'elementary',
+    gradeLabel: '초등 (3~6학년)',
+    targetVocabBadge: '초등 필수 800어휘 연계',
+    level: '초급',
+    levelEn: 'Beginner',
+    partnerName: 'Chef Mary (급식 영양사)',
+    partnerAvatar: '👩‍🍳',
+    partnerRole: '학교 급식실 조리사 선생님',
+    userRole: '점심 급식을 받는 학생',
+    description: '점심시간에 배식대에서 원하는 반찬과 과일을 요청하고, 땅콩이나 우유 알레르기가 있음을 똑똑하게 말해보세요.',
+    situationContext: 'You are holding your lunch tray at the school cafeteria counter. Chef Mary is serving warm food.',
+    missions: [
+      {
+        id: 'mission-1',
+        text: '원하는 메인 메뉴(치킨/스파게티) 조금 더 달라고 요청하기',
+        description: '공손하게 원하는 메뉴를 가리키며 부탁하세요.',
+        hint: 'Can I have some chicken nuggets and rice, please?',
+      },
+      {
+        id: 'mission-2',
+        text: '알레르기(땅콩 또는 우유)가 있다고 알리기',
+        description: '내가 못 먹는 음식이 포함되어 있는지 물어보세요.',
+        hint: 'I am allergic to peanuts. Is this cookie safe for me?',
+      },
+      {
+        id: 'mission-3',
+        text: '사과나 바나나 등 과일 디저트 선택하고 감사 인사하기',
+        description: '원하는 과일을 고르고 감사 인사를 전하세요.',
+        hint: 'I will take an apple, thank you very much!',
+      },
+    ],
+    recommendedPhrases: [
+      { en: 'May I have some extra potatoes, please?', ko: '감자 조금만 더 주실 수 있나요?' },
+      { en: 'Everything looks so delicious!', ko: '모든 음식이 정말 맛있어 보여요!' },
+      { en: 'Thank you for making delicious lunch for us.', ko: '맛있는 점심 만들어 주셔서 감사합니다.' },
+    ],
+    initialAiMessage: {
+      en: 'Hello sweetie! What would you like on your lunch tray today? We have chicken nuggets, steamed vegetables, and fruit salad!',
+      ko: '안녕! 오늘 급식판에 무엇을 담아줄까? 치킨 너겟, 찐 야채, 그리고 과일 샐러드가 있단다!',
+    },
+    tips: [
+      '음식을 부탁할 때 "Can I have ~ please?" 패턴을 기억하세요.',
+      '알레르기 표현: "I am allergic to ~" (peanuts 땅콩, milk 우유, eggs 달걀)',
+    ],
+  },
+  {
+    id: 'elementary-stationery-store',
+    title: '학교 앞 문구점에서 학용품 가격 묻고 사기',
+    category: 'elementary',
+    categoryLabel: '초등 학교생활',
+    categoryIcon: '✏️',
+    gradeLevel: 'elementary',
+    gradeLabel: '초등 (3~6학년)',
+    targetVocabBadge: '초등 필수 800어휘 연계',
+    level: '초급',
+    levelEn: 'Beginner',
+    partnerName: 'Mr. Brown (문구점 주인)',
+    partnerAvatar: '👴',
+    partnerRole: '친절한 학교 앞 문구점 사장님',
+    userRole: '학용품을 사러 온 학생',
+    description: '미술 시간에 쓸 12색 색연필과 공책을 찾고, 가격이 얼마인지 물어본 후 알맞은 금액을 지불해보세요.',
+    situationContext: 'You walk into the cozy school stationery shop after school to buy supplies for your art project.',
+    missions: [
+      {
+        id: 'mission-1',
+        text: '공책(notebook)과 색연필(colored pencils) 위치 묻기',
+        description: '원하는 물건이 어디 있는지 물어보세요.',
+        hint: 'Excuse me, where can I find the notebooks and colored pencils?',
+      },
+      {
+        id: 'mission-2',
+        text: '가격 물어보기 (How much is it?)',
+        description: '가격을 묻는 기본 표현을 사용해보세요.',
+        hint: 'How much is this blue notebook?',
+      },
+      {
+        id: 'mission-3',
+        text: '구매 결정 및 영수증이나 봉투 요청하기',
+        description: '물건을 사겠다고 말하고 봉투를 부탁하세요.',
+        hint: 'I will buy this. Can I get a small bag, please?',
+      },
+    ],
+    recommendedPhrases: [
+      { en: 'Do you have 12-color colored pencils?', ko: '12색 색연필 있나요?' },
+      { en: 'Here is five dollars.', ko: '여기 5달러 있어요.' },
+      { en: 'Keep the change, thank you!', ko: '거스름돈은 가지세요, 감사합니다!' },
+    ],
+    initialAiMessage: {
+      en: 'Good afternoon! Welcome to Brown\'s Stationery. What school supplies are you looking for today?',
+      ko: '좋은 오후야! 브라운 문구점에 온 걸 환영해. 오늘 어떤 학용품을 찾고 있니?',
+    },
+    tips: [
+      '가격을 물을 때 단수는 "How much is this ~?", 복수는 "How much are these ~?"를 씁니다.',
+    ],
+  },
+  {
+    id: 'elementary-toy-store',
+    title: '장난감 가게에서 생일 선물 고르고 포장 요청하기',
+    category: 'elementary',
+    categoryLabel: '초등 일상·쇼핑',
+    categoryIcon: '🧸',
+    gradeLevel: 'elementary',
+    gradeLabel: '초등 (3~6학년)',
+    targetVocabBadge: '초등 필수 800어휘 연계',
+    level: '초급',
+    levelEn: 'Beginner',
+    partnerName: 'Chloe (장난감 점원)',
+    partnerAvatar: '👩',
+    partnerRole: '장난감 백화점 직원',
+    userRole: '친구 생일 선물을 사러 온 아이',
+    description: '친한 친구의 10번째 생일 파티에 가져갈 레고 블록 장난감을 추천받고 예쁜 포장지로 선물 포장을 부탁하세요.',
+    situationContext: 'You are at a colorful toy store looking for a special birthday present for your best friend.',
+    missions: [
+      {
+        id: 'mission-1',
+        text: '친구 생일 선물 추천 부탁하기',
+        description: '친구가 로봇과 레고를 좋아한다고 설명해보세요.',
+        hint: 'I am looking for a birthday gift. My friend loves robot LEGO sets.',
+      },
+      {
+        id: 'mission-2',
+        text: '가장 인기 있는 장난감인지 확인하기',
+        description: '요즘 어떤 것이 제일 인기 많은지 물어보세요.',
+        hint: 'Which one is the most popular with 10-year-olds?',
+      },
+      {
+        id: 'mission-3',
+        text: '선물 포장(Gift wrapping) 요청하기',
+        description: '선물용으로 포장해 줄 수 있는지 물어보세요.',
+        hint: 'Could you wrap this as a birthday present, please?',
+      },
+    ],
+    recommendedPhrases: [
+      { en: 'How much does this space shuttle LEGO cost?', ko: '이 우주왕복선 레고는 얼마인가요?' },
+      { en: 'My friend will be so happy to get this!', ko: '제 친구가 이걸 받으면 정말 기뻐할 거예요!' },
+    ],
+    initialAiMessage: {
+      en: 'Hi there! Welcome to Toy Wonderland! Are you looking for a fun toy for yourself or a gift for a friend?',
+      ko: '안녕! 토이 원더랜드에 온 걸 환영해! 네가 갖고 놀 장난감을 찾니, 아니면 친구 선물이니?',
+    },
+    tips: [
+      '선물 포장은 "Can you gift wrap this?" 또는 "Gift wrapping, please"로 간단히 말할 수 있습니다.',
+    ],
+  },
+  {
+    id: 'elementary-school-nurse',
+    title: '학교 양호실에서 아픈 증상(배·머리) 말하기',
+    category: 'elementary',
+    categoryLabel: '초등 학교생활',
+    categoryIcon: '🏥',
+    gradeLevel: 'elementary',
+    gradeLabel: '초등 (3~6학년)',
+    targetVocabBadge: '초등 필수 800어휘 연계',
+    level: '초급',
+    levelEn: 'Beginner',
+    partnerName: 'Nurse Kelly',
+    partnerAvatar: '👩‍⚕️',
+    partnerRole: '학교 보건실 간호사 선생님',
+    userRole: '몸이 안 좋아 보건실에 온 학생',
+    description: '체육 시간 후 배가 아프거나 열이 나는 증상을 정확한 기초 신체 단어(stomach, head, fever)로 설명하세요.',
+    situationContext: 'You feel sick during the 4th period and visit the school nurse\'s office.',
+    missions: [
+      {
+        id: 'mission-1',
+        text: '어디가 아픈지 증상 말하기 (stomachache / headache)',
+        description: '배가 아프거나 머리가 지끈거린다고 말하세요.',
+        hint: 'Hello Nurse Kelly, I have a bad stomachache and I feel dizzy.',
+      },
+      {
+        id: 'mission-2',
+        text: '언제부터 아프기 시작했는지 설명하기',
+        description: '체육 시간 이후 또는 아침부터 아팠다고 말하세요.',
+        hint: 'It started after PE class when we were running.',
+      },
+      {
+        id: 'mission-3',
+        text: '보건실 침대에서 30분 쉬고 가도 되는지 묻기',
+        description: '잠시 누워 쉬어도 되는지 물어보세요.',
+        hint: 'Can I lie down on the bed and rest for a little while?',
+      },
+    ],
+    recommendedPhrases: [
+      { en: 'I think I have a slight fever.', ko: '미열이 좀 있는 것 같아요.' },
+      { en: 'Could I have some warm water, please?', ko: '따뜻한 물 한 잔 마실 수 있을까요?' },
+      { en: 'I feel much better now, thank you.', ko: '이제 훨씬 몸이 좋아졌어요. 감사합니다.' },
+    ],
+    initialAiMessage: {
+      en: 'Oh dear, come on in. You look a bit pale. What seems to be the problem today?',
+      ko: '어머, 어서 들어오렴. 얼굴이 조금 창백해 보이는구나. 오늘 어디가 불편하니?',
+    },
+    tips: [
+      '통증 표현: "I have a headache"(두통), "I have a stomachache"(복통), "My throat hurts"(목 통증)',
+    ],
+  },
+  {
+    id: 'elementary-lost-child-help',
+    title: '놀이공원에서 길을 잃었을 때 안내원에게 도움 요청',
+    category: 'elementary',
+    categoryLabel: '초등 안전·일상',
+    categoryIcon: '🎡',
+    gradeLevel: 'elementary',
+    gradeLabel: '초등 (3~6학년)',
+    targetVocabBadge: '초등 필수 800어휘 연계',
+    level: '초급',
+    levelEn: 'Beginner',
+    partnerName: 'Staff Alex',
+    partnerAvatar: '👮',
+    partnerRole: '디즈니월드 테마파크 친절한 안내원',
+    userRole: '부모님을 놓친 어린이',
+    description: '롤러코스터 앞 인파 속에서 부모님과 떨어졌을 때 당황하지 않고 안내원에게 자신의 이름과 부모님 번호를 말하세요.',
+    situationContext: 'You are at a huge amusement park and got separated from your parents near the merry-go-round.',
+    missions: [
+      {
+        id: 'mission-1',
+        text: '길을 잃어버렸다고 침착하게 알리기 (I am lost)',
+        description: '안내원에게 부모님을 잃어버렸다고 도움을 청하세요.',
+        hint: 'Excuse me, I am lost and I cannot find my mom and dad.',
+      },
+      {
+        id: 'mission-2',
+        text: '자신의 이름과 부모님 전화번호 말하기',
+        description: '이름과 연락처를 또박또박 말하세요.',
+        hint: 'My name is Jinho, and my mom\'s phone number is 010-1234-5678.',
+      },
+      {
+        id: 'mission-3',
+        text: '부모님이 입고 계신 옷 색깔이나 특징 묘사하기',
+        description: '엄마의 노란색 재킷이나 모자를 설명하세요.',
+        hint: 'My mom is wearing a yellow jacket and a white hat.',
+      },
+    ],
+    recommendedPhrases: [
+      { en: 'We were standing in front of the gift shop.', ko: '우리는 기념품 가게 앞에 서 있었어요.' },
+      { en: 'Thank you for helping me, Officer.', ko: '도와주셔서 정말 감사합니다, 선생님.' },
+    ],
+    initialAiMessage: {
+      en: 'Hey buddy, don\'t worry at all! You are completely safe with me. Take a deep breath. Can you tell me your name?',
+      ko: '안녕 친구야, 전혀 걱정하지 마! 아저씨랑 있으면 안전하단다. 숨 깊게 쉬고, 이름이 무엇인지 말해줄 수 있겠니?',
+    },
+    tips: [
+      '긴급 상황에서는 "I am lost", "Please help me", "My phone number is ~"를 명확하게 발음합니다.',
+    ],
+  },
+  {
+    id: 'elementary-fastfood-burger',
+    title: '패스트푸드점에서 키즈 버거 세트 & 아이스크림 주문',
+    category: 'elementary',
+    categoryLabel: '초등 일상·식당',
+    categoryIcon: '🍔',
+    gradeLevel: 'elementary',
+    gradeLabel: '초등 (3~6학년)',
+    targetVocabBadge: '초등 필수 800어휘 연계',
+    level: '초급',
+    levelEn: 'Beginner',
+    partnerName: 'Sam (카운터 점원)',
+    partnerAvatar: '🧑‍🍳',
+    partnerRole: '버거킹 카운터 직원',
+    userRole: '햄버거를 직접 주문하는 어린이',
+    description: '치즈버거 세트, 감자튀김, 오렌지 주스를 선택하고 바닐라 아이스크림 콘을 추가로 주문해보세요.',
+    situationContext: 'You are ordering at the counter of a busy fast food restaurant on a sunny Saturday afternoon.',
+    missions: [
+      {
+        id: 'mission-1',
+        text: '치즈버거 세트(Cheeseburger combo) 주문하기',
+        description: '버거 세트를 원한다고 말하세요.',
+        hint: 'Can I get a cheeseburger combo with French fries, please?',
+      },
+      {
+        id: 'mission-2',
+        text: '음료 종류로 오렌지 주스 선택하기',
+        description: '탄산음료 대신 오렌지 주스로 변경해 달라고 하세요.',
+        hint: 'For the drink, I would like orange juice instead of soda.',
+      },
+      {
+        id: 'mission-3',
+        text: '바닐라 아이스크림 추가 및 매장 식사(For here) 말하기',
+        description: '디저트 콘을 추가하고 매장에서 먹겠다고 하세요.',
+        hint: 'Can I also add a vanilla ice cream cone? It is for here.',
+      },
+    ],
+    recommendedPhrases: [
+      { en: 'Could you please remove onions from the burger?', ko: '버거에서 양파는 빼주실 수 있나요?' },
+      { en: 'Can I get extra ketchup packets, please?', ko: '케첩 소스 몇 개 더 주실 수 있나요?' },
+    ],
+    initialAiMessage: {
+      en: 'Welcome to Burger King! What tasty meal can I get started for you today?',
+      ko: '버거킹에 오신 것을 환영합니다! 오늘 어떤 맛있는 메뉴로 준비해 드릴까요?',
+    },
+    tips: [
+      '매장 식사는 "For here", 포장은 "To go"로 간단히 답변합니다.',
+      '싫어하는 재료를 뺄 때는 "No onions, please" 또는 "Without onions"라고 표현합니다.',
+    ],
+  },
+
+  // =========================================================================
+  // 🏫 2. 중학부 (Middle School: 1,200~1,500 중학 핵심 빈출 & 청소년 일상 연계)
+  // =========================================================================
+  {
+    id: 'middle-homestay-firstday',
+    title: '어학연수 영국 홈스테이 첫날 생활 규칙 & 안내 받기',
+    category: 'middle',
+    categoryLabel: '중학 교환학생',
+    categoryIcon: '🏡',
+    gradeLevel: 'middle',
+    gradeLabel: '중학 (1~3학년)',
+    targetVocabBadge: '중학 1,200어휘 연계',
+    level: '중급',
+    levelEn: 'Intermediate',
+    partnerName: 'Mrs. Watson (호스트 마더)',
+    partnerAvatar: '👵',
+    partnerRole: '런던 홈스테이 호스트 마더',
+    userRole: '한국에서 온 중학생 교환학생',
+    description: '런던 홈스테이 가정에 도착해 와이파이 비밀번호, 세탁기 사용법, 저녁 식사 시간 등의 생활 규칙을 상냥하게 물어보세요.',
+    situationContext: 'You have just arrived at Mrs. Watson\'s house in London for a 4-week student exchange program.',
+    missions: [
+      {
+        id: 'mission-1',
+        text: '따뜻하게 맞이해 준 호스트 가족에게 감사 인사 전하기',
+        description: '환영해 주셔서 감사하다고 첫인사를 건네세요.',
+        hint: 'Thank you so much for welcoming me into your lovely home, Mrs. Watson.',
+      },
+      {
+        id: 'mission-2',
+        text: '와이파이 비밀번호와 세탁기(Laundry) 요일 문의하기',
+        description: '인터넷 연결 및 빨래하는 요일을 물어보세요.',
+        hint: 'Could you tell me the Wi-Fi password and how often I can do my laundry?',
+      },
+      {
+        id: 'mission-3',
+        text: '저녁 식사 시간 및 귀가 통금 시간(Curfew) 확인하기',
+        description: '저녁 몇 시에 식사하는지, 언제까지 돌아와야 하는지 확인하세요.',
+        hint: 'What time is dinner usually served, and is there a curfew in the evening?',
+      },
+    ],
+    recommendedPhrases: [
+      { en: 'I am so excited to learn British culture and improve my English.', ko: '영국 문화를 배우고 영어 실력을 늘릴 수 있어서 정말 설렙니다.' },
+      { en: 'Please let me know if there are any specific house rules I should follow.', ko: '제가 지켜야 할 특별한 집안 규칙이 있다면 알려주세요.' },
+      { en: 'The room is very comfortable and clean, thank you.', ko: '방이 정말 아늑하고 깨끗해요, 감사합니다.' },
+    ],
+    initialAiMessage: {
+      en: 'Welcome to London, Minsoo! We are so thrilled to have you stay with our family. Come on in, let me show you to your room.',
+      ko: '런던에 온 걸 환영해, 민수야! 우리 가족과 함께 지내게 되어 정말 기쁘단다. 들어오렴, 네 방을 안내해 줄게.',
+    },
+    tips: [
+      '정중한 질문 패턴: "Could you please tell me ~?", "Would it be okay if I ~?"',
+      '홈스테이 핵심 어휘: curfew(귀가 시간), laundry(세탁), house rules(가정 생활 규칙)',
+    ],
+  },
+  {
+    id: 'middle-school-library',
+    title: '학교 도서관에서 과학 수행평가 참고도서 찾기',
+    category: 'middle',
+    categoryLabel: '중학 학교생활',
+    categoryIcon: '📚',
+    gradeLevel: 'middle',
+    gradeLabel: '중학 (1~3학년)',
+    targetVocabBadge: '중학 1,200어휘 연계',
+    level: '중급',
+    levelEn: 'Intermediate',
+    partnerName: 'Mr. Henderson (사서 교사)',
+    partnerAvatar: '👨‍🏫',
+    partnerRole: '학교 도서관 사서 선생님',
+    userRole: '수행평가 자료를 찾는 중학생',
+    description: '기후 변화와 신재생 에너지를 다룬 과학 도서를 검색하고, 대출 가능 여부와 대출 기한을 확인하세요.',
+    situationContext: 'You are at the school media center searching for reliable source books for your science group project.',
+    missions: [
+      {
+        id: 'mission-1',
+        text: '수행평가 주제(신재생 에너지 / 기후) 관련 도서 위치 묻기',
+        description: '찾고 있는 책 분야를 사서 선생님께 설명하세요.',
+        hint: 'Excuse me, I am looking for reference books about renewable energy and climate change.',
+      },
+      {
+        id: 'mission-2',
+        text: '도서 대출 기간(Loan period)과 최대 권수 묻기',
+        description: '책을 며칠 동안 빌릴 수 있는지 확인하세요.',
+        hint: 'How long can I borrow these books, and how many books am I allowed to check out?',
+      },
+      {
+        id: 'mission-3',
+        text: '대출 중인 책 예약(Reserve) 가능한지 문의하기',
+        description: '다른 학생이 빌려간 책을 예약해 둘 수 있는지 물어보세요.',
+        hint: 'If a book is currently checked out, is it possible to put it on hold?',
+      },
+    ],
+    recommendedPhrases: [
+      { en: 'Here is my student ID card for the checkout.', ko: '도서 대출을 위한 제 학생증 여기 있습니다.' },
+      { en: 'Can you recommend an introductory book suitable for middle schoolers?', ko: '중학생이 읽기 좋은 입문용 도서를 추천해 주실 수 있나요?' },
+    ],
+    initialAiMessage: {
+      en: 'Hello there! Welcome to the library. Are you working on a research assignment today?',
+      ko: '안녕! 도서관에 온 것을 환영해. 오늘 조사 과제나 수행평가를 준비하고 있니?',
+    },
+    tips: [
+      '도서관 관련 핵심 어휘: check out(대출하다), return(반납하다), overdue(연체된), reference section(참고도서 서가)',
+    ],
+  },
+  {
+    id: 'middle-shopping-refund',
+    title: '해외 매장에서 사이즈가 안 맞는 옷 교환 & 환불 요청',
+    category: 'middle',
+    categoryLabel: '중학 일상·쇼핑',
+    categoryIcon: '🛍️',
+    gradeLevel: 'middle',
+    gradeLabel: '중학 (1~3학년)',
+    targetVocabBadge: '중학 1,200어휘 연계',
+    level: '중급',
+    levelEn: 'Intermediate',
+    partnerName: 'Lisa (의류 매장 직원)',
+    partnerAvatar: '👩‍💼',
+    partnerRole: 'ZARA 글로벌 매장 고객 응대 직원',
+    userRole: '후드티를 교환하러 온 손님',
+    description: '어제 구입한 후드티가 생각보다 작아서 한 치수 큰 Medium 사이즈로 교환하거나 환불받을 수 있는지 문의하세요.',
+    situationContext: 'You bought a hoodie yesterday but realized the sleeves are too short. You are back at the store with the receipt.',
+    missions: [
+      {
+        id: 'mission-1',
+        text: '교환(Exchange)을 원한다는 사실과 영수증 제시하기',
+        description: '어제 산 옷을 영수증과 함께 보여주며 교환 의사를 밝히세요.',
+        hint: 'Hi, I bought this hoodie yesterday, and I would like to exchange it for a bigger size. Here is the receipt.',
+      },
+      {
+        id: 'mission-2',
+        text: '한 치수 더 큰 사이즈(Medium / Large) 재고 문의하기',
+        description: '원하는 사이즈가 남아 있는지 물어보세요.',
+        hint: 'Do you have this exact color in a size Medium in stock?',
+      },
+      {
+        id: 'mission-3',
+        text: '재고가 없을 경우 결제한 카드로 환불(Refund) 요청하기',
+        description: '재고가 없으면 환불해 달라고 요청하세요.',
+        hint: 'If Medium is sold out, could I get a full refund to my original payment card?',
+      },
+    ],
+    recommendedPhrases: [
+      { en: 'The tag is still attached and it has never been worn.', ko: '가격 태그는 그대로 달려 있고 한 번도 입지 않았습니다.' },
+      { en: 'Is there a fitting room where I can try the new size on?', ko: '새 사이즈를 입어볼 수 있는 탈의실이 있나요?' },
+    ],
+    initialAiMessage: {
+      en: 'Hi! How can I help you today? Are you looking to make a return or an exchange?',
+      ko: '안녕하세요! 오늘 어떻게 도와드릴까요? 반품이나 교환을 원하시나요?',
+    },
+    tips: [
+      '교환은 "exchange A for B", 환불은 "get a refund"라고 합니다.',
+      '"The tag is still attached(태그가 그대로 붙어있다)"는 교환/환불 시 가장 강력한 근거가 됩니다.',
+    ],
+  },
+  {
+    id: 'middle-subway-directions',
+    title: '지하철역에서 환승 방법 묻기 & 길 찾기',
+    category: 'middle',
+    categoryLabel: '중학 여행·교통',
+    categoryIcon: '🚇',
+    gradeLevel: 'middle',
+    gradeLabel: '중학 (1~3학년)',
+    targetVocabBadge: '중학 1,200어휘 연계',
+    level: '중급',
+    levelEn: 'Intermediate',
+    partnerName: 'Officer Daniel',
+    partnerAvatar: '👮‍♂️',
+    partnerRole: '런던 언더그라운드 지하철 역무원',
+    userRole: '빅벤으로 가려는 학생 여행자',
+    description: '빅벤(Big Ben)과 대영박물관으로 가기 위해 몇 번 플랫폼에서 타야 하는지, 어디서 환승(Transfer)해야 하는지 역무원에게 물어보세요.',
+    situationContext: 'You are standing at Kings Cross Station looking at the complicated tube map.',
+    missions: [
+      {
+        id: 'mission-1',
+        text: '목적지(Big Ben / Westminster 역)까지 가는 노선 묻기',
+        description: '목적지에 가려면 어떤 라인을 타야 하는지 물어보세요.',
+        hint: 'Excuse me, could you tell me which tube line I should take to get to Big Ben?',
+      },
+      {
+        id: 'mission-2',
+        text: '환승역(Transfer station)과 소요 시간 확인하기',
+        description: '어디서 갈아타야 하고 얼마나 걸리는지 물어보세요.',
+        hint: 'Do I need to transfer at another station, and how many stops is it?',
+      },
+      {
+        id: 'mission-3',
+        text: '몇 번 플랫폼(Platform)으로 내려가야 하는지 묻기',
+        description: '어느 방향 승강장으로 가야 하는지 물어보세요.',
+        hint: 'Which platform should I head to for the southbound Piccadilly line?',
+      },
+    ],
+    recommendedPhrases: [
+      { en: 'Does this train stop at Westminster Station?', ko: '이 열차가 웨스트민스터 역에 정차하나요?' },
+      { en: 'How often do the trains come during rush hour?', ko: '출퇴근 시간에는 열차가 얼마나 자주 오나요?' },
+    ],
+    initialAiMessage: {
+      en: 'Hello! You look a bit puzzled by the station map. Where are you trying to travel to today?',
+      ko: '안녕하세요! 역 노선도를 보고 조금 헷갈려 하시는 것 같네요. 오늘 어디로 가시려고 하나요?',
+    },
+    tips: [
+      '길 묻기 기본 표현: "How do I get to ~?", "Which line goes to ~?", "Where do I transfer?"',
+    ],
+  },
+  {
+    id: 'middle-friend-reschedule',
+    title: '방과 후 친구와의 약속 시간 변경 & 사과하기',
+    category: 'middle',
+    categoryLabel: '중학 사교·스몰토크',
+    categoryIcon: '⏰',
+    gradeLevel: 'middle',
+    gradeLabel: '중학 (1~3학년)',
+    targetVocabBadge: '중학 1,200어휘 연계',
+    level: '중급',
+    levelEn: 'Intermediate',
+    partnerName: 'Sarah (친구)',
+    partnerAvatar: '👧',
+    partnerRole: '주말에 보드게임 카페에 가기로 한 단짝 친구',
+    userRole: '급한 가족 행사가 생긴 학생',
+    description: '토요일 오후 2시 약속이었으나 할머니 댁 방문 일정이 생겨 일요일 오후로 시간을 미룰 수 있는지 정중하게 양해를 구하세요.',
+    situationContext: 'You call or message your classmate Sarah to reschedule your weekend hangout.',
+    missions: [
+      {
+        id: 'mission-1',
+        text: '사정이 생겨 약속을 변경해야 함을 솔직하게 말하고 사과하기',
+        description: '가족 일정이 생겼다고 설명하고 미안하다고 전하세요.',
+        hint: 'Hey Sarah, I am really sorry, but something unexpected came up with my family this Saturday.',
+      },
+      {
+        id: 'mission-2',
+        text: '대안으로 일요일 오후 약속 제안하기',
+        description: '일요일 3시는 괜찮은지 새 시간을 제안하세요.',
+        hint: 'Would it be okay if we reschedule our meetup to Sunday at 3 PM instead?',
+      },
+      {
+        id: 'mission-3',
+        text: '미안한 마음에 음료를 사겠다고 약속하기',
+        description: '내가 맛있는 밀크티를 사겠다고 기분 좋게 마무리하세요.',
+        hint: 'I will definitely treat you to some delicious bubble tea to make up for it!',
+      },
+    ],
+    recommendedPhrases: [
+      { en: 'I really appreciate your understanding.', ko: '이해해줘서 정말 고마워.' },
+      { en: 'Let me know if that time works for you.', ko: '그 시간이 너한테 괜찮은지 알려줘.' },
+    ],
+    initialAiMessage: {
+      en: 'Hey! Are we still on for the board game cafe this Saturday at 2 PM? I am super excited!',
+      ko: '안녕! 우리 이번 주 토요일 2시에 보드게임 카페 가는 거 그대로 맞지? 나 완전 기대 중이야!',
+    },
+    tips: [
+      '약속 조정: reschedule(일정을 변경하다), make it up to you(보상하다/만회하다), work for you(시간이 맞다)',
+    ],
+  },
+  {
+    id: 'middle-lost-and-found',
+    title: '버스 분실물 센터에서 잃어버린 백팩 찾기',
+    category: 'middle',
+    categoryLabel: '중학 일상·안전',
+    categoryIcon: '🎒',
+    gradeLevel: 'middle',
+    gradeLabel: '중학 (1~3학년)',
+    targetVocabBadge: '중학 1,200어휘 연계',
+    level: '중급',
+    levelEn: 'Intermediate',
+    partnerName: 'Agent Cooper',
+    partnerAvatar: '👨‍💼',
+    partnerRole: '시내 대중교통 분실물 센터 담당자',
+    userRole: '버스에 가방을 두고 내린 승객',
+    description: '24번 버스 뒷좌석에 두고 내린 검은색 나이키 백팩의 브랜드, 색상, 내부 소지품(수학 교과서, 필통)을 구체적으로 설명하세요.',
+    situationContext: 'You left your backpack on the City Bus #24 this morning and came to the Lost & Found office.',
+    missions: [
+      {
+        id: 'mission-1',
+        text: '언제 몇 번 버스에서 물건을 분실했는지 알리기',
+        description: '탑승 시간과 버스 노선 번호를 전달하세요.',
+        hint: 'I accidentally left my backpack on Bus #24 around 8:30 AM this morning.',
+      },
+      {
+        id: 'mission-2',
+        text: '가방의 외관(색상, 브랜드, 특징) 묘사하기',
+        description: '검은색 나이키 가방과 인형 키링을 묘사하세요.',
+        hint: 'It is a black Nike backpack with a cute yellow duck keychain on the zipper.',
+      },
+      {
+        id: 'mission-3',
+        text: '가방 안에 들어있는 물건(교과서, 필통) 상세 진술하기',
+        description: '내용물을 통해 본인 소유임을 증명하세요.',
+        hint: 'Inside, there is a Grade 8 Math textbook with my name on it and a blue pencil case.',
+      },
+    ],
+    recommendedPhrases: [
+      { en: 'Has anyone turned in a backpack matching this description?', ko: '이 설명과 일치하는 가방이 접수된 적이 있나요?' },
+      { en: 'Here is my contact number in case it gets found later.', ko: '나중에 발견될 경우를 대비해 제 연락처를 남겨둘게요.' },
+    ],
+    initialAiMessage: {
+      en: 'Lost and Found center, hello! What item did you misplace, and when did you lose it?',
+      ko: '분실물 센터입니다, 안녕하세요! 어떤 물건을 분실하셨고, 언제 잃어버리셨나요?',
+    },
+    tips: [
+      '분실물 설명 시 색상(color), 재질(material), 브랜드(brand), 특이 표식(keychain, name tag)을 구체적으로 제시합니다.',
+    ],
+  },
+
+  // =========================================================================
+  // 🎓 3. 고등/수능/실전부 (High School & SAT & Global: 2,000 심화 어휘 & 학술·비즈니스)
+  // =========================================================================
+  {
+    id: 'high-model-un-debate',
+    title: '모의 UN 학술 토론: 기후 변화 대응 및 탄소 배출 규제',
+    category: 'high_sat',
+    categoryLabel: '고등 학술·토론',
+    categoryIcon: '🌐',
+    gradeLevel: 'high_sat',
+    gradeLabel: '고등 / 수능 / EBS',
+    targetVocabBadge: '수능·학술 2,000어휘 연계',
+    level: '고급',
+    levelEn: 'Advanced',
+    partnerName: 'Delegate Arthur (독일 대표단)',
+    partnerAvatar: '👔',
+    partnerRole: '모의 UN 환경위원회 독일 수석 대표',
+    userRole: '대한민국 청소년 수석 대표',
+    description: '2050 탄소 중립 목표와 재생 에너지 전환 정책에 대한 국가 입장을 발표하고, 개발도상국 기술 지원 방안에 대해 논리적으로 토론하세요.',
+    situationContext: 'You are representing South Korea at a High School International Model United Nations conference on Climate Action.',
+    missions: [
+      {
+        id: 'mission-1',
+        text: '탄소 중립 달성을 위한 국가적 비전과 재생 에너지 투자 계획 밝히기',
+        description: '태양광, 수소 에너지 및 탄소 배출권 거래제 확대를 언급하세요.',
+        hint: 'Our delegation strongly advocates for accelerating the transition towards green hydrogen and renewable energy infrastructures.',
+      },
+      {
+        id: 'mission-2',
+        text: '개발도상국에 대한 기술 이전 및 녹색 기후 기금(GCF) 지원 강조하기',
+        description: '선진국과 개도국 간의 기후 불평등 해소 방안을 제시하세요.',
+        hint: 'We must bridge the technological divide by providing substantial green climate funding and intellectual property sharing for developing nations.',
+      },
+      {
+        id: 'mission-3',
+        text: '상대 대표의 급진적 탄소세 인상안에 대해 단계적 도입 반론 펼치기',
+        description: '제조업 충격을 최소화하는 현실적인 로드맵을 제안하세요.',
+        hint: 'While we respect the German proposal, an abrupt carbon tax could destabilize manufacturing sectors; therefore, a phased implementation is essential.',
+      },
+    ],
+    recommendedPhrases: [
+      { en: 'I yield the floor back to the chair.', ko: '발언권을 의장에게 반환합니다.' },
+      { en: 'We firmly believe that sustainable development and economic growth can co-exist.', ko: '우리는 지속 가능한 발전과 경제 성장이 상생할 수 있다고 굳게 믿습니다.' },
+      { en: 'Let us collaborate on drafting a comprehensive resolution.', ko: '포괄적인 결의안 초안 작성을 위해 함께 협력합시다.' },
+    ],
+    initialAiMessage: {
+      en: 'Honorable delegate of South Korea, Germany welcomes your presence. How does your nation intend to meet the stringent carbon reduction targets without compromising industrial competitiveness?',
+      ko: '존경하는 대한민국 대표님, 독일 대표단은 귀국의 참석을 환영합니다. 귀국은 산업 경쟁력을 훼손하지 않으면서 엄격한 탄소 감축 목표를 어떻게 달성할 계획이십니까?',
+    },
+    tips: [
+      '학술 토론 표현: "Our delegation advocates ~", "In response to the delegate\'s inquiry", "A phased approach"',
+      '수능 빈출 어휘: renewable(재생 가능한), infrastructure(인프라), sustainable(지속 가능한), compromise(타협하다/손상시키다)',
+    ],
+  },
+  {
+    id: 'high-ai-ethics-presentation',
+    title: '학술 심포지엄: 생성형 AI 저작권 & 윤리적 가이드라인 질의응답',
+    category: 'high_sat',
+    categoryLabel: '고등 학술·토론',
+    categoryIcon: '🤖',
+    gradeLevel: 'high_sat',
+    gradeLabel: '고등 / 수능 / EBS',
+    targetVocabBadge: '수능·학술 2,000어휘 연계',
+    level: '고급',
+    levelEn: 'Advanced',
+    partnerName: 'Prof. Vance (AI 윤리학 교수)',
+    partnerAvatar: '🎓',
+    partnerRole: 'MIT 인공지능 연구소 초빙 심사위원',
+    userRole: '고교 청소년 과학논문 발표자',
+    description: '인공지능 학습 데이터의 공정 이용(Fair Use) 한계와 창작자 보상 시스템에 대한 연구 결과를 발표하고 심사위원의 날카로운 질문에 답변하세요.',
+    situationContext: 'You have just concluded your 15-minute presentation at the Global Youth Science Fair. Professor Vance is asking defense questions.',
+    missions: [
+      {
+        id: 'mission-1',
+        text: '학습 데이터 출처 투명성(Transparency) 확보의 중요성 논증하기',
+        description: 'AI 모델의 데이터셋 공개 의무화 필요성을 설명하세요.',
+        hint: 'To mitigate copyright infringement, AI developers must guarantee algorithmic transparency and disclose their pre-training datasets.',
+      },
+      {
+        id: 'mission-2',
+        text: '창작자에 대한 마이크로 로열티(Micro-royalty) 보상 체계 제시하기',
+        description: 'AI 산출물에 기여한 원작자에게 수익을 배분하는 모델을 설명하세요.',
+        hint: 'We propose an automated smart-contract system that distributes micro-royalties to original artists whenever their style is referenced.',
+      },
+      {
+        id: 'mission-3',
+        text: '혁신과 규제 사이의 균형점을 찾는 결론 도출하기',
+        description: '과도한 규제가 혁신을 저해하지 않도록 균형 잡힌 가이드라인을 역설하세요.',
+        hint: 'Regulation should not stifle innovation; rather, it should foster an equitable ecosystem where both creators and developers thrive.',
+      },
+    ],
+    recommendedPhrases: [
+      { en: 'Thank you for raising such an insightful and critical question, Professor.', ko: '교수님, 매우 통찰력 있고 핵심적인 질문을 던져주셔서 감사드립니다.' },
+      { en: 'Empirical data indicates a significant increase in user adoption.', ko: '실증 데이터는 사용자 도입률의 유의미한 증가를 보여줍니다.' },
+    ],
+    initialAiMessage: {
+      en: 'Fascinating presentation! You argued that AI training data should be strictly regulated. However, wouldn\'t excessive restrictions severely hamper the progress of open-source foundational models?',
+      ko: '매우 흥미로운 발표였습니다! 학생께서는 AI 학습 데이터가 엄격히 규제되어야 한다고 주장하셨는데, 지나친 규제가 오픈소스 파운데이션 모델의 발전을 심각하게 가로막지는 않을까요?',
+    },
+    tips: [
+      '수능/학술 필수 어휘: transparency(투명성), infringement(침해), mitigate(완화하다), stifle(억누르다), empirical(실증적인)',
+    ],
+  },
+  {
+    id: 'high-college-campus-tour',
+    title: '해외 명문대 입학 사정관 인터뷰 & 컴퓨터공학 장학금 문의',
+    category: 'high_sat',
+    categoryLabel: '고등 진로·대학',
+    categoryIcon: '🏛️',
+    gradeLevel: 'high_sat',
+    gradeLabel: '고등 / 수능 / EBS',
+    targetVocabBadge: '수능·학술 2,000어휘 연계',
+    level: '고급',
+    levelEn: 'Advanced',
+    partnerName: 'Dean Edwards (입학 사정관)',
+    partnerAvatar: '👨‍💼',
+    partnerRole: '스탠퍼드 대학교 공과대학 입학처 부학장',
+    userRole: '컴퓨터공학과 진학을 희망하는 고3 유학 준비생',
+    description: '자신의 코딩 프로젝트 경험과 오픈소스 기여 내역을 어필하고, 국제학생을 위한 장학금 제도와 산학 협력 인턴십 기회를 정중히 질문하세요.',
+    situationContext: 'You are attending an exclusive Admissions Information Session and meeting Dean Edwards one-on-one.',
+    missions: [
+      {
+        id: 'mission-1',
+        text: '학업 관심 분야(AI/소프트웨어 엔지니어링) 및 포부 소개하기',
+        description: '자신의 열정과 개발 프로젝트 경험을 요약하세요.',
+        hint: 'I am deeply passionate about machine learning and have built an open-source accessibility tool for visually impaired students.',
+      },
+      {
+        id: 'mission-2',
+        text: '국제 학생 대상 성적 우수 장학금(Merit-based scholarship) 문의하기',
+        description: '지원 가능한 장학금 프로그램 요건을 물어보세요.',
+        hint: 'Could you elaborate on the merit-based scholarship opportunities and financial aid criteria available for international applicants?',
+      },
+      {
+        id: 'mission-3',
+        text: '실리콘밸리 기업과의 산학 협력(Industry Co-op) 인턴십 연계 묻기',
+        description: '학부 재학 중 현장 실습 기회를 문의하세요.',
+        hint: 'What kind of co-op programs and industry partnerships does the university offer with Silicon Valley tech firms?',
+      },
+    ],
+    recommendedPhrases: [
+      { en: 'I am drawn to your institution\'s collaborative research culture.', ko: '저는 귀교의 협력적 연구 문화에 깊이 매료되었습니다.' },
+      { en: 'Here is a copy of my curriculum vitae and research summary.', ko: '여기 제 이력서와 연구 요약본 사본이 있습니다.' },
+    ],
+    initialAiMessage: {
+      en: 'Welcome to Stanford School of Engineering! It is always a pleasure meeting prospective students with high aspirations. What specific domain in computing are you eager to explore?',
+      ko: '스탠퍼드 공과대학에 오신 것을 환영합니다! 높은 포부를 가진 예비 학생을 만나는 것은 언제나 큰 기쁨이죠. 컴퓨터 과학 분야 중 구체적으로 어떤 영역을 탐구하고 싶으신가요?',
+    },
+    tips: [
+      '대학 입학 인터뷰 핵심 어휘: prospective student(예비 입학생), financial aid(재정 지원), merit-based(성적 우수 기반), curriculum(교육과정)',
+    ],
+  },
+  {
+    id: 'high-flight-delay-voucher',
+    title: '항공편 결항/지연 시 대체편 예약 및 호텔 바우처 요구',
+    category: 'travel',
+    categoryLabel: '여행·공항',
+    categoryIcon: '✈️',
+    gradeLevel: 'high_sat',
+    gradeLabel: '고등 / 수능 / 실전',
+    targetVocabBadge: '실전 고급 회화 연계',
+    level: '고급',
+    levelEn: 'Advanced',
+    partnerName: 'Agent Ramirez (항공사 슈퍼바이저)',
+    partnerAvatar: '👩‍💼',
+    partnerRole: '델타 항공 환승 데스크 총괄 슈퍼바이저',
+    userRole: '환승 항공편이 기상 악화로 결항된 승객',
+    description: '기상 악화로 다음 연결편이 결항되어 중요한 일정을 놓치게 되었을 때, 당당하면서도 정중하게 가장 빠른 대체 항공편과 호텔 숙박 바우처를 요구하세요.',
+    situationContext: 'Your connecting flight from Atlanta to London has been cancelled due to a mechanical issue and stormy weather.',
+    missions: [
+      {
+        id: 'mission-1',
+        text: '결항된 항공편 번호를 밝히고 가장 빠른 대체편 재예약 요청하기',
+        description: '타사 항공편을 포함해 가장 빠른 좌석을 요구하세요.',
+        hint: 'My connecting flight DL128 was cancelled. Could you please rebook me onto the earliest available flight, even on a partner airline?',
+      },
+      {
+        id: 'mission-2',
+        text: '항공사 과실/기체 결함에 따른 무료 호텔 숙박 및 식사 바우처 요구하기',
+        description: '밤새 대기해야 하므로 숙소와 식사권을 정중히 요구하세요.',
+        hint: 'Since the layover exceeds 10 hours due to mechanical issues, I kindly request a complimentary hotel voucher and meal coupons.',
+      },
+      {
+        id: 'mission-3',
+        text: '위탁 수하물(Checked baggage)이 최종 목적지로 자동 연결되는지 확인하기',
+        description: '내 캐리어가 호텔로 나오는지 다음 비행기로 가는지 확인하세요.',
+        hint: 'Will my checked luggage automatically transfer to tomorrow\'s flight, or do I need to retrieve it from baggage claim?',
+      },
+    ],
+    recommendedPhrases: [
+      { en: 'I have an urgent conference tomorrow morning that I cannot afford to miss.', ko: '내일 아침 절대 놓칠 수 없는 긴급한 학술 회의가 있습니다.' },
+      { en: 'Could I get written confirmation of this cancellation for insurance purposes?', ko: '여행자 보험 청구를 위해 이 결항에 대한 서면 증명서를 발급해 주실 수 있나요?' },
+    ],
+    initialAiMessage: {
+      en: 'I understand this is a very frustrating situation, sir. Our flight DL128 had to be grounded due to severe turbulence forecasts. How can I assist you with rebooking?',
+      ko: '매우 답답하고 힘든 상황이심을 충분히 이해합니다, 고객님. 저희 DL128 항공편이 심한 난기류 예보로 인해 결항 조치되었습니다. 재예약 관련하여 어떻게 도와드릴까요?',
+    },
+    tips: [
+      '컴플레인 및 협상 시 화를 내기보다 "Under passenger rights regulations(승객 권리 규정에 의거하여)", "complimentary accommodation(무료 숙소)" 단어를 사용하면 훨씬 효과적입니다.',
+    ],
+  },
+  {
+    id: 'high-hotel-billing-dispute',
+    title: '해외 호텔 퇴실 시 과다 청구된 룸서비스/미니바 비용 정정 요청',
+    category: 'travel',
+    categoryLabel: '여행·호텔',
+    categoryIcon: '🏨',
+    gradeLevel: 'high_sat',
+    gradeLabel: '고등 / 수능 / 실전',
+    targetVocabBadge: '실전 고급 회화 연계',
+    level: '고급',
+    levelEn: 'Advanced',
+    partnerName: 'Marc (프론트 매니저)',
+    partnerAvatar: '🤵',
+    partnerRole: '파리 5성급 럭셔리 호텔 프론트 지배인',
+    userRole: '체크아웃 중인 투숙객',
+    description: '체크아웃 청구서에 본인이 이용하지 않은 미니바 샴페인과 룸서비스 요금이 청구된 것을 발견하고 정중하고 단호하게 내역 삭제를 요청하세요.',
+    situationContext: 'You are checking out of Hotel Le Paris and reviewing the itemized folio at the counter.',
+    missions: [
+      {
+        id: 'mission-1',
+        text: '영수증 세부 내역(Itemized bill)의 미사용 청구 항목 지적하기',
+        description: '룸 402호에 청구된 미니바 항목이 잘못되었음을 알리세요.',
+        hint: 'Excuse me, I noticed an error on my itemized folio. There is an 85 Euro charge for minibar champagne that I did not consume.',
+      },
+      {
+        id: 'mission-2',
+        text: '객실 미니바 센서 오작동 가능성을 설명하고 재확인 요청하기',
+        description: '센서 오류나 다른 방 청구서 혼선인지 확인해 달라고 하세요.',
+        hint: 'The automated minibar sensor might have malfunctioned. Could you please double-check with the housekeeping supervisor?',
+      },
+      {
+        id: 'mission-3',
+        text: '수정된 청구서로 카드 승인 및 최종 영수증 발급받기',
+        description: '수정된 최종 결제 금액을 확인하고 영수증을 받으세요.',
+        hint: 'Thank you for updating the total. Please charge the corrected balance to my card and print the final receipt.',
+      },
+    ],
+    recommendedPhrases: [
+      { en: 'I appreciate your prompt handling of this billing discrepancy.', ko: '이 청구 불일치 문제를 신속하게 처리해 주셔서 감사합니다.' },
+      { en: 'Aside from this minor issue, my overall stay was wonderful.', ko: '이 사소한 문제를 제외하고는 전반적인 숙박 경험은 아주 훌륭했습니다.' },
+    ],
+    initialAiMessage: {
+      en: 'Good morning, monsieur! I hope you enjoyed your stay with us. Here is your final invoice for Room 402. Would you like to settle the balance with the card on file?',
+      ko: '좋은 아침입니다, 손님! 저희 호텔에서의 투숙이 즐거우셨기를 바랍니다. 402호 최종 청구서 여기 있습니다. 등록된 카드로 잔액을 결제하시겠습니까?',
+    },
+    tips: [
+      '호텔/금융 핵심 어휘: itemized folio(상세 청구서), discrepancy(불일치), invoice(송장), housekeeping(객실 관리부)',
+    ],
+  },
+  {
+    id: 'high-hospital-emergency',
+    title: '해외 응급실에서 급성 복통 증상 상세 설명 및 알레르기 고지',
+    category: 'emergency',
+    categoryLabel: '병원·응급',
+    categoryIcon: '🏥',
+    gradeLevel: 'high_sat',
+    gradeLabel: '고등 / 수능 / 실전',
+    targetVocabBadge: '의학·실전 고급 어휘',
+    level: '고급',
+    levelEn: 'Advanced',
+    partnerName: 'Dr. Harrison (응급의학과 전문의)',
+    partnerAvatar: '👨‍⚕️',
+    partnerRole: '싱가포르 종합병원 응급실 당직 전문의',
+    userRole: '급성 맹장염 의심 환자',
+    description: '오른쪽 아랫배의 찌르는 듯한 통증(sharp pain) 척도와 메스꺼움, 페니실린 약물 알레르기 이력을 의사에게 정확히 전달하세요.',
+    situationContext: 'You have been rushed to the emergency room at Mount Elizabeth Hospital with severe lower right abdominal pain.',
+    missions: [
+      {
+        id: 'mission-1',
+        text: '통증의 정확한 위치(오른쪽 아랫배)와 성격(찌르는 듯한 통증) 묘사하기',
+        description: '통증 척도(1부터 10 중 8)와 시작 시점을 말하세요.',
+        hint: 'Doctor, I have a sharp, throbbing pain in my lower right abdomen. On a scale of 1 to 10, it is definitely an 8.',
+      },
+      {
+        id: 'mission-2',
+        text: '동반 증상(메스꺼움, 오한, 식은땀) 설명하기',
+        description: '구토감과 미열이 동반되고 있음을 알리세요.',
+        hint: 'I also feel nauseous, have chills, and threw up twice earlier this morning.',
+      },
+      {
+        id: 'mission-3',
+        text: '약물 알레르기(페니실린 항생제) 및 복용 중인 약 알리기',
+        description: '치료 전 페니실린 알레르기가 있음을 반드시 강조하세요.',
+        hint: 'Please note that I am severely allergic to Penicillin antibiotics. I currently take no other daily medications.',
+      },
+    ],
+    recommendedPhrases: [
+      { en: 'Does the pain worsen when you press down or when you release?', ko: '눌렀을 때 아픈가요, 아니면 손을 뗄 때 더 아픈가요?' },
+      { en: 'I suspect it could be acute appendicitis.', ko: '급성 맹장염(충수염)일 가능성이 의심됩니다.' },
+      { en: 'Will I need an ultrasound or a CT scan?', ko: '초음파나 CT 촬영을 받아야 하나요?' },
+    ],
+    initialAiMessage: {
+      en: 'Hello, I am Dr. Harrison. Try to take steady breaths. Can you point directly to where the pain is most intense and describe how it feels?',
+      ko: '안녕하세요, 당직 의사 해리슨입니다. 숨을 천천히 들이쉬어 보세요. 가장 극심하게 아픈 부위를 짚어주시고, 어떤 느낌의 통증인지 설명해 주실 수 있나요?',
+    },
+    tips: [
+      '의학 통증 어휘: sharp pain(찌르는 통증), throbbing(욱신거리는), dull ache(뻐근한 둔통), appendicitis(맹장염), allergic to Penicillin(페니실린 알레르기)',
+    ],
+  },
+  {
+    id: 'high-startup-pitch-qa',
+    title: '글로벌 스타트업 투자 유치 IR 피칭 & Q&A 방어',
+    category: 'business',
+    categoryLabel: '비즈니스·투자',
+    categoryIcon: '💼',
+    gradeLevel: 'high_sat',
+    gradeLabel: '고등 / 수능 / 실전',
+    targetVocabBadge: '비즈니스·경제 고급 어휘',
+    level: '고급',
+    levelEn: 'Advanced',
+    partnerName: 'Victoria (실리콘밸리 벤처캐피털 파트너)',
+    partnerAvatar: '👩‍💼',
+    partnerRole: '안드레센 호로위츠 벤처캐피탈(VC) 파트너 투자자',
+    userRole: 'AI 에듀테크 스타트업 대표(CEO)',
+    description: '구독 기반 비즈니스 모델의 고객 획득 비용(CAC)과 생애 가치(LTV), 글로벌 시장 확장 전략에 대한 투자자의 날카로운 질문을 방어하세요.',
+    situationContext: 'You have just pitched your AI language learning app to a panel of top-tier Silicon Valley investors.',
+    missions: [
+      {
+        id: 'mission-1',
+        text: '고객 획득 비용(CAC) 대비 고객 생애 가치(LTV)의 우수성 증명하기',
+        description: 'LTV/CAC 비율이 4.5배 이상으로 높은 수익성을 설명하세요.',
+        hint: 'Our LTV to CAC ratio currently stands at an impressive 4.5x, demonstrating outstanding unit economics and viral organic growth.',
+      },
+      {
+        id: 'mission-2',
+        text: '기존 글로벌 경쟁사(듀오링고 등) 대비 차별화된 AI 기술 해자(Moat) 강조하기',
+        description: '실시간 음절 진단과 개인화 대화 엔진의 독점성을 피력하세요.',
+        hint: 'Unlike gamified flashcard apps, our proprietary acoustic analysis engine provides real-time syllable-level diagnostics and dynamic conversation loops.',
+      },
+      {
+        id: 'mission-3',
+        text: '향후 18개월간의 투자금(Seed/Series A) 집행 계획 및 글로벌 로드맵 제시하기',
+        description: '연구 개발 및 아시아/북미 시장 확장에 투자금을 집중할 계획임을 밝히세요.',
+        hint: 'We intend to allocate 60% of this round to R&D and machine learning talent acquisition, and 40% to expanding our footprint in North America.',
+      },
+    ],
+    recommendedPhrases: [
+      { en: 'Our monthly recurring revenue (MRR) has grown by 30% month-over-month.', ko: '저희 월간 반복 매출(MRR)은 매월 30%씩 꾸준히 성장하고 있습니다.' },
+      { en: 'We have maintained an industry-leading retention rate of 72% at Day 30.', ko: '저희는 30일 차 리텐션 72%라는 업계 최고 수준의 사용자 유지율을 유지하고 있습니다.' },
+    ],
+    initialAiMessage: {
+      en: 'Great presentation! The product demo looked sleek. However, the language tech space is notoriously crowded. What is your definitive technological moat that prevents big players from replicating your features?',
+      ko: '훌륭한 발표였습니다! 제품 데모가 아주 매력적이네요. 하지만 어학 테크 분야는 경쟁이 매우 치열합니다. 거대 테크 기업들이 귀사의 기능을 그대로 복제하는 것을 막아줄 확실한 기술적 해자(Moat)는 무엇입니까?',
+    },
+    tips: [
+      '스타트업/투자 핵심 어휘: unit economics(단위 경제성), retention rate(잔존율), moat(경쟁 우위 해자), recurring revenue(반복 매출), allocate(배분하다)',
+    ],
+  },
+
+  // =========================================================================
+  // ☕ 4. 대표 인기 상황 (카페 & 레스토랑 & 소셜 & 비즈니스)
+  // =========================================================================
+  {
+    id: 'cafe-starbucks-custom',
+    title: '스타벅스에서 커스텀 음료 & 디저트 주문하기',
+    category: 'cafe',
+    categoryLabel: '카페 & 식당',
+    categoryIcon: '☕',
+    gradeLevel: 'general',
+    gradeLabel: '실전 일상회화',
+    targetVocabBadge: '실전 필수 회화 연계',
+    level: '초급',
+    levelEn: 'Beginner',
+    partnerName: 'Emma (바리스타)',
+    partnerAvatar: '👩‍🍳',
+    partnerRole: '스타벅스 바리스타',
+    userRole: '카페 손님',
+    description: '사이즈, 우유 종류(오트밀크), 얼음 양을 직접 커스텀하여 원하는 커피와 베이커리를 주문해 보세요.',
+    situationContext: 'You are a customer at a busy downtown Seattle coffee shop. Emma is taking your order at the counter.',
+    missions: [
+      {
+        id: 'mission-1',
+        text: '음료 종류와 사이즈 지정하기',
+        description: '라떼, 아메리카노 등 원하는 음료와 사이즈(Tall/Grande/Venti)를 말해보세요.',
+        hint: 'I would like a Grande iced latte, please.',
+      },
+      {
+        id: 'mission-2',
+        text: '우유 변경 또는 시럽/얼음 커스텀 요청하기',
+        description: '오트밀크 변경, 덜 달게, 얼음 적게 등의 맞춤 옵션을 요청하세요.',
+        hint: 'Could I get that with oat milk and less ice?',
+      },
+      {
+        id: 'mission-3',
+        text: '디저트 추가 및 결제 수단 언급하기',
+        description: '쿠키나 머핀을 추가하고 카드로 결제하겠다고 말해보세요.',
+        hint: 'Can I also get a chocolate croissant? I will pay by credit card.',
+      },
+    ],
+    recommendedPhrases: [
+      { en: 'Can I get a Grande iced vanilla latte with oat milk?', ko: '그란데 아이스 바닐라 라떼에 오트밀크로 변경해 주시겠어요?' },
+      { en: 'Could you make it less sweet, please?', ko: '덜 달게 만들어 주실 수 있나요?' },
+      { en: 'Is this muffin warmed up?', ko: '이 머핀 따뜻하게 데워 주시나요?' },
+      { en: 'Can I get the receipt, please?', ko: '영수증 챙겨 주시겠어요?' },
+    ],
+    initialAiMessage: {
+      en: 'Hi there! Welcome to Coffee Haven. What can I get started for you today?',
+      ko: '안녕하세요! 커피 헤이븐에 오신 것을 환영합니다. 오늘 어떤 음료로 준비해 드릴까요?',
+    },
+    tips: [
+      '미국 카페에서는 주문 시 "Can I get ~" 또는 "I would like ~" 패턴을 가장 흔하고 정중하게 사용합니다.',
+      '테이크아웃 여부는 "To go" 또는 "For here"로 간단히 답변합니다.',
+    ],
+  },
+  {
+    id: 'dining-steakhouse-reservation',
+    title: '뉴욕 스테이크하우스 디너 주문 & 굽기 요청',
+    category: 'cafe',
+    categoryLabel: '카페 & 식당',
+    categoryIcon: '🍷',
+    gradeLevel: 'general',
+    gradeLabel: '실전 일상회화',
+    targetVocabBadge: '실전 다이닝 회화 연계',
+    level: '중급',
+    levelEn: 'Intermediate',
+    partnerName: 'Julian (웨이터)',
+    partnerAvatar: '🤵',
+    partnerRole: '파인 다이닝 레스토랑 웨이터',
+    userRole: '저녁 식사 손님',
+    description: '추천 메인 요리를 묻고, 스테이크 굽기 정도와 사이드 메뉴를 세련되게 주문합니다.',
+    situationContext: 'You are dining at an upscale steakhouse in Manhattan. Julian is serving your table.',
+    missions: [
+      {
+        id: 'mission-1',
+        text: '오늘의 셰프 추천 메뉴 또는 인기 요리 묻기',
+        description: '웨이터에게 시그니처 메뉴나 추천 와인을 물어보세요.',
+        hint: 'What do you recommend for the main course tonight?',
+      },
+      {
+        id: 'mission-2',
+        text: '스테이크 굽기 정도와 사이드 디시 선택하기',
+        description: '미디엄 레어 등 원하는 굽기와 사이드(매쉬드 포테이토 등)를 주문하세요.',
+        hint: 'I will have the ribeye, medium rare, with mashed potatoes.',
+      },
+      {
+        id: 'mission-3',
+        text: '식사 마무리 후 계산서 요청 및 분할 결제 묻기',
+        description: '식사가 끝난 후 계산서를 요청하세요.',
+        hint: 'Could we get the check, please?',
+      },
+    ],
+    recommendedPhrases: [
+      { en: 'Could you give us a few more minutes to decide?', ko: '메뉴 결정할 시간 조금만 더 주시겠어요?' },
+      { en: 'How would you describe the house special?', ko: '이곳의 하우스 스페셜 메뉴는 어떤 특징이 있나요?' },
+      { en: 'Can we have the dressing on the side?', ko: '샐러드 드레싱은 따로 담아 주실 수 있나요?' },
+      { en: 'Everything was delicious, thank you.', ko: '음식이 전부 훌륭했습니다. 감사합니다.' },
+    ],
+    initialAiMessage: {
+      en: 'Good evening! Welcome to Manhattan Prime. My name is Julian, and I will be taking care of you tonight. Can I start you off with something to drink or some appetizers?',
+      ko: '좋은 저녁입니다! 맨해튼 프라임에 오신 것을 환영합니다. 오늘 서빙을 맡은 줄리안입니다. 음료나 식전 애피타이저 먼저 주문하시겠어요?',
+    },
+    tips: [
+      '스테이크 굽기는 Rare, Medium Rare, Medium, Medium Well, Well-done으로 표현합니다.',
+      '계산서를 요청할 때는 미국에서는 "Check", 영국/유럽에서는 "Bill"을 주로 씁니다.',
+    ],
+  },
+  {
+    id: 'travel-airport-immigration',
+    title: '뉴욕 JFK 공항 미국 입국 심사',
+    category: 'travel',
+    categoryLabel: '여행 & 공항',
+    categoryIcon: '✈️',
+    gradeLevel: 'general',
+    gradeLabel: '실전 여행회화',
+    targetVocabBadge: '공항·입국 필수 어휘 연계',
+    level: '초급',
+    levelEn: 'Beginner',
+    partnerName: 'Officer Miller',
+    partnerAvatar: '👮‍♂️',
+    partnerRole: 'JFK 공항 입국 심사관',
+    userRole: '해외 입국 여행자',
+    description: '방문 목적, 체류 기간, 숙소 위치를 당당하고 명확하게 답변하여 입국 심사를 통과하세요.',
+    situationContext: 'You just landed at JFK International Airport in New York. You are at the immigration counter.',
+    missions: [
+      {
+        id: 'mission-1',
+        text: '방문 목적(관광/휴가) 명확히 밝히기',
+        description: '휴가, 관광, 출장 등 방문 목적을 간단명료하게 말하세요.',
+        hint: 'I am here for vacation and sightseeing.',
+      },
+      {
+        id: 'mission-2',
+        text: '체류 기간 및 귀국 일정 답변하기',
+        description: '미국에 얼마나 머무를 예정인지(예: 10 days) 말하세요.',
+        hint: 'I will be staying for 10 days.',
+      },
+      {
+        id: 'mission-3',
+        text: '체류 숙소(호텔명 또는 도시) 언급하기',
+        description: '머무를 호텔이나 에어비앤비 위치를 답변하세요.',
+        hint: 'I will be staying at the Hilton Hotel in Manhattan.',
+      },
+    ],
+    recommendedPhrases: [
+      { en: 'Here is my passport and return ticket.', ko: '여기 제 여권과 왕복 항공권입니다.' },
+      { en: 'I am traveling alone for sightseeing.', ko: '관광 목적으로 혼자 여행 중입니다.' },
+      { en: 'I have a return flight booked for October 15th.', ko: '10월 15일에 돌아가는 귀국 항공편을 예약해 두었습니다.' },
+    ],
+    initialAiMessage: {
+      en: 'Next in line, please. Passport and customs declaration form, please. What is the primary purpose of your visit to the United States?',
+      ko: '다음 분 앞으로 오세요. 여권과 세관신고서 보여주세요. 미국 방문의 주 목적이 무엇인가요?',
+    },
+    tips: [
+      '입국 심사에서는 단답형으로 당당하고 솔직하게 핵심만 답변하는 것이 가장 좋습니다.',
+      '왕복 항공권(Return ticket)이나 숙소 예약 확인서를 준비해 두면 신뢰도가 높아집니다.',
+    ],
+  },
+  {
+    id: 'daily-party-smalltalk',
+    title: '글로벌 네트워킹 파티에서 새로운 친구와 스몰토크',
+    category: 'daily',
+    categoryLabel: '사교 & 스몰토크',
+    categoryIcon: '🎉',
+    gradeLevel: 'general',
+    gradeLabel: '실전 일상회화',
+    targetVocabBadge: '사교·네트워킹 회화 연계',
+    level: '중급',
+    levelEn: 'Intermediate',
+    partnerName: 'Chloe (파티 참석자)',
+    partnerAvatar: '👩‍🦰',
+    partnerRole: '뉴욕에서 활동하는 UX 디자이너',
+    userRole: '파티 참가자',
+    description: '루프탑 파티에서 자연스럽게 날씨, 음악, 고향, 취미를 소재로 대화를 시작하고 연락처를 교환해 보세요.',
+    situationContext: 'You are at a vibrant rooftop networking mixer in Brooklyn on a pleasant Friday evening.',
+    missions: [
+      {
+        id: 'mission-1',
+        text: '분위기나 음악에 대해 칭찬하며 대화 열기',
+        description: '파티 장소나 음악에 대한 느낌으로 대화를 시작하세요.',
+        hint: 'Hi! The view of Manhattan from this rooftop is breathtaking, isn\'t it?',
+      },
+      {
+        id: 'mission-2',
+        text: '하는 일이나 취미에 대해 이야기 나누기',
+        description: '자신의 관심사나 직업을 소개하세요.',
+        hint: 'I work in tech and love exploring local coffee shops and photography on weekends.',
+      },
+      {
+        id: 'mission-3',
+        text: '연락처나 SNS 인스타그램 교환 제안하기',
+        description: '다음에 또 이야기 나누자며 SNS를 교환해보세요.',
+        hint: 'It was great chatting with you! Do you have Instagram or LinkedIn so we can keep in touch?',
+      },
+    ],
+    recommendedPhrases: [
+      { en: 'What brings you to the event tonight?', ko: '오늘 저녁 어떤 계기로 이 파티에 오게 되셨어요?' },
+      { en: 'How long have you been living in the city?', ko: '이 도시에 사신 지는 얼마나 되셨나요?' },
+      { en: 'I am originally from Seoul, Korea.', ko: '저는 한국 서울 출신입니다.' },
+    ],
+    initialAiMessage: {
+      en: 'Hi! I love the music they are playing tonight. It is great to meet you! How are you enjoying the party so far?',
+      ko: '안녕하세요! 오늘 나오는 음악 정말 좋네요. 만나서 반갑습니다! 오늘 파티 재미있게 즐기고 계신가요?',
+    },
+    tips: [
+      '스몰토크는 날씨, 분위기, 가벼운 공통 관심사로 시작하여 상대방에게 열린 질문(Open-ended question)을 던지는 것이 핵심입니다.',
+    ],
+  },
+];
