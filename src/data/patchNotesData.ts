@@ -9,13 +9,29 @@ export interface PatchNoteVersion {
   }[];
 }
 
-export const APP_VERSION = '3.13.0';
+export const APP_VERSION = '3.14.0';
 
 export const PATCH_NOTES_DATA: PatchNoteVersion[] = [
   {
-    version: '3.13.0',
+    version: '3.14.0',
     date: '2026-10',
     isLatest: true,
+    tagline: '업데이트 알림 팝업창 전면 개편: 버전 정보·깃허브 경로·업데이트 액션 3대 핵심 구조 완성',
+    highlights: [
+      {
+        category: '🔔 업데이트 알림 팝업창 3대 핵심 컴포넌트 구조화',
+        items: [
+          '🏷️ [버전 정보 (Version Info)]: 현재 로컬 설치 버전과 GitHub Releases 최신 배포 버전을 한눈에 직관적으로 대조하는 시각화 박스 탑재.',
+          '🔗 [깃허브 경로 (GitHub Paths)]: GitHub 공식 저장소(Repo), 릴리스 페이지(Releases), GitHub Pages 웹 주소 3종을 원클릭 복사 및 바로가기 링크로 완비.',
+          '🚀 [업데이트 버튼 & 기기별 다운로드]: 대형 메인 업데이트 액션 버튼과 PC(.exe), Android(.apk), iOS, Web 브라우저 맞춤 다운로드 버튼 제공.',
+        ],
+      },
+    ],
+  },
+  {
+    version: '3.13.0',
+    date: '2026-10',
+    isLatest: false,
     tagline: 'GitHub Releases 신규 버전 감지 시 업데이트 알림 팝업창 자동 실행 시스템 탑재',
     highlights: [
       {

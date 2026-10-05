@@ -2,7 +2,24 @@
 
 ---
 
-## 🚀 Version 3.13.0 (최신 업데이트)
+## 🚀 Version 3.14.0 (최신 업데이트)
+
+### 🔔 업데이트 알림 팝업창 전면 개편: 버전 정보·깃허브 경로·업데이트 버튼 3대 핵심 구조 완성
+- **🏷️ 1. 버전 정보 (Version Info) 시각화 대조 영역**:
+  - 현재 기기에 설치된 로컬 버전(`Local v3.14.0`)과 GitHub Releases 최신 배포 버전(`GitHub v3.14.0`)을 1:1로 명확하게 대조하는 시각화 영역 탑재.
+  - 최신 상태/신규 업데이트 여부에 따른 상태 피드백 뱃지 및 안내 메시지 실시간 표기.
+- **🔗 2. 깃허브 경로 (GitHub Paths) 공식 주소 및 복사 도구 완비**:
+  - **GitHub Repository**: `https://github.com/ahbiyout-all/WordLoop` (원클릭 주소 복사 + 새 창 바로가기)
+  - **GitHub Releases**: `https://github.com/ahbiyout-all/WordLoop/releases` (원클릭 주소 복사 + 새 창 바로가기)
+  - **GitHub Pages (Web App)**: `https://ahbiyout-all.github.io/WordLoop/` (원클릭 주소 복사 + 새 창 바로가기)
+- **🚀 3. 업데이트 액션 & 기기별 원클릭 다운로드 버튼**:
+  - **대형 대표 액션 버튼**: [🚀 최신 버전으로 업데이트 / 📦 Releases 다운로드 센터 열기] 메인 CTA 버튼 제공.
+  - **기기별 맞춤 버튼**: Windows PC(.exe 인스톨러), Android 스마트폰(.apk), iOS 아이폰/아이패드(홈 화면 가이드/패키지), Web 브라우저 캐시 새로고침 버튼을 그리드로 직관적 배치.
+  - **릴리스 패치노트 프리뷰 & 수동 재확인 버튼**: 최신 릴리스 내역을 팝업 내에서 바로 확인하고 원클릭으로 GitHub 상태를 즉시 재확인.
+
+---
+
+## 📜 Version 3.13.0
 
 ### 🔔 GitHub Releases 신규 버전 감지 시 업데이트 알림 팝업창 자동 실행 시스템 탑재
 - **🚀 앱 시작 시 신규 버전 자동 감지 & 팝업 즉시 실행**:
