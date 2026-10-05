@@ -44,6 +44,11 @@ if (result.status === 0) {
       // 2. Ensure GitHub Pages SPA fallback routing works by creating dist/404.html
       fs.copyFileSync(distIndex, dist404);
       console.log('📄 [GitHub Pages] 404.html SPA 라우팅 폴백 생성 완료');
+
+      // 3. Create .nojekyll to prevent GitHub Pages Jekyll processing
+      const distNoJekyll = path.join(rootDir, 'dist', '.nojekyll');
+      fs.writeFileSync(distNoJekyll, '', 'utf8');
+      console.log('📄 [GitHub Pages] .nojekyll 파일 생성 완료');
     } catch (e) {
       console.warn('⚠️ [Post-process 경고]', e);
     }
