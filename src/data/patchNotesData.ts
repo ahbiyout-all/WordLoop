@@ -9,13 +9,107 @@ export interface PatchNoteVersion {
   }[];
 }
 
-export const APP_VERSION = '3.14.0';
+export const APP_VERSION = '3.18.0';
 
 export const PATCH_NOTES_DATA: PatchNoteVersion[] = [
   {
-    version: '3.14.0',
+    version: '3.18.0',
     date: '2026-10',
     isLatest: true,
+    tagline: '신규 "플래시카드 리콜" 4지선다 미니게임 탑재 및 암기 등급 실시간 승급 연동',
+    highlights: [
+      {
+        category: '📇 신규 게이미피케이션: 플래시카드 리콜 (Flashcard Recall)',
+        items: [
+          '🎯 [4지선다 실시간 의미 리콜]: 제시된 영단어의 정확한 한국어 뜻을 4지선다에서 골라 맞추는 스피디한 플래시카드 학습 모드.',
+          '🌟 [3단계 암기 등급 실시간 승급]: 0단계(미암기) ➔ 1단계(학습중) ➔ 2단계(완벽암기) 정답 시 즉각 승급 피드백(+1 레벨업!).',
+          '🔥 [콤보 연승 & 보너스 점수]: 연속 정답 시 콤보 배수 적용 및 라운드(15장) 상세 복습/오답 리포트 제공.',
+          '⌨️ [단축키 & 자동 발음]: 키보드 1~4번 선택, 스페이스바/S 발음 재생 및 자동 TTS 온오프 기능 지원.',
+        ],
+      },
+      {
+        category: '🎮 14종 게이미피케이션 체계 전면 동기화',
+        items: [
+          '🕹️ [StudentWordGame.tsx]: 단어 게임 9종 + 문장 게임 5종 = 총 14종 게임 카탈로그 구축.',
+          '🎲 [랜덤 추첨 & 대시보드 동기화]: 메인 런처, 상단 칩/툴팁, 퀵 액션 위젯, 일일 3분 퀘스트 풀 연동.',
+        ],
+      },
+    ],
+  },
+  {
+    version: '3.17.0',
+    date: '2026-10',
+    isLatest: false,
+    tagline: '5대 순수 창작 DLL 체계 완성 (SRSNeural & MorphEngine 신규 개발) 및 7대 결함 전면 감사·개선 완료',
+    highlights: [
+      {
+        category: '🧠 신규 순수 창작 DLL 2종: WordLoopSRSNeuralEngine & WordLoopMorphEngine',
+        items: [
+          '📈 [FSRS v4.5 인지과학 망각곡선]: 기억 회상 확률 R(t, S) 및 발음 정확도 가중치를 반영한 차기 최적 복습 주기 실시간 0.01ms 내 계산.',
+          '🎯 [취약 어휘(0~1단계) Min-Heap 정렬]: 3,210단어 중 망각 임박 어휘를 C++ 우선순위 힙으로 O(k log N) 즉각 추출.',
+          '🔍 [2행 슬라이딩 Levenshtein 퍼지 검색]: 2차원 배열 할당 없는 롤링 버퍼 기반 초고속 오타 교정 및 유사 단어 추천(0.02ms).',
+          '🗣️ [WordLoopMorphEngine.dll]: 오프라인 G2P IPA 음소 전사(/kəˈrɪk.jə.ləm/), Sonority 음절 분해, 주강세(ˈ)/차강세(ˌ) 검출 및 표제어(Lemma) 0.003ms 고속 복원.',
+        ],
+      },
+      {
+        category: '🛠️ 기존 순수 창작 DLL 정밀 코드 감사(Audit) 및 7대 결함 리팩토링',
+        items: [
+          '⚡ [WordLoopAudioEngine.dll]: DTW 2차원 중첩 vector의 잦은 힙 할당을 1D 연속 평탄화 버퍼로 개편하여 L1/L2 캐시 적중률 95% 달성.',
+          '📐 [Slope-Centered Sakoe-Chiba Band 제한]: 음성 길이 비율 기울기(M/N) 중심 밴드 적용으로 계산량 65% 절감 및 양 끝점 도달 정렬 보장.',
+          '⏱️ [발음 오차 동적 역추적(Backtracking)]: 고정 수치(250ms/600ms) 대신 DTW 최대 오차 프레임을 역추적하여 실제 틀린 음절 밀리초를 정밀 산출.',
+          '🗄️ [WordLoopFastDB.dll]: 실제 Win32 CreateFileMappingW/MapViewOfFile 커널 메모리 매핑 및 UTF-16 와이드 경로 완벽 지원.',
+          '🔒 [FNV-1a 체크섬 & 암호화 볼트]: WLV1 32비트 무결성 체크섬 헤더 및 동적 키스트림 암호화 스트림 엔진 구현.',
+          '🌐 [크로스 컴파일 호환 ABI 가드]: #if defined(_WIN32) 및 GCC/Clang visibility("default") 가드를 전 헤더에 적용.',
+          '🪟 [WordLoopTrayHook.dll]: 실제 Win32 RegisterHotKey 및 DWM Mica/Acrylic 블러 속성(DWMWA_SYSTEMBACKDROP_TYPE = 2) 제어 코드 연동.',
+        ],
+      },
+      {
+        category: '📖 공식 기술 문서 및 인앱 UI 실시간 동기화',
+        items: [
+          '📘 [/docs/NATIVE_DLL_ARCHITECTURE.md]: 5대 순수 창작 DLL 구조도, FSRS/DTW/G2P 수학적 수식, 감사 리포트, 벤치마크, CMake 빌드 가이드 전면 개정.',
+          '🖥️ [인앱 5대 DLL 기술 명세서 모달]: NativeDllDocsModal에 SRSNeuralEngine 및 MorphEngine 탭, 감사 개선 리포트 탭, C-ABI 헤더 복사 기능 탑재.',
+        ],
+      },
+    ],
+  },
+  {
+    version: '3.16.0',
+    date: '2026-10',
+    isLatest: false,
+    tagline: '순수 창작 고속 네이티브 DLL 3종 아키텍처 및 동작원리 명세서 체계 구축',
+    highlights: [
+      {
+        category: '🧬 순수 창작 고속 네이티브 DLL 아키텍처 공식 등록',
+        items: [
+          '🎙️ [WordLoopAudioEngine.dll]: SIMD AVX2 가속 고속 FFT, 밴드 에너지 기반 VAD, Dynamic Time Warping (DTW) 실시간 음절 정렬로 발음 진단 속도 100배 고속화 명세화.',
+          '🗄️ [WordLoopFastDB.dll]: Windows 커널 Memory-Mapped File(mmap) 기반 3,210단어 인메모리 0.005ms 초고속 탐색 및 AES-256 하드웨어 암호화 저장소 설계.',
+          '🪟 [WordLoopTrayHook.dll]: 저수준 키보드 훅(Low-Level Hook) 글로벌 단축키 및 Windows 11 Mica/Acrylic 반투명 플로팅 위젯 브릿지 구축.',
+          '📖 [공식 기술 문서 등록]: /docs/NATIVE_DLL_ARCHITECTURE.md 및 /docs/DLL_SPECS.md에 C-ABI 익스포트 함수 및 수학적 동작 원리 완비.',
+        ],
+      },
+    ],
+  },
+  {
+    version: '3.15.0',
+    date: '2026-10',
+    isLatest: false,
+    tagline: '상단 네비게이션 메뉴 A안 하이브리드 개편 (핵심 칩 + 더보기/도구 드롭다운 + 모바일 쾌적화)',
+    highlights: [
+      {
+        category: '🎨 상단 네비게이션 하이브리드(칩 + 드롭다운) 구조 혁신',
+        items: [
+          '🏷️ [중앙 핵심 5대 칩]: 홈, 단어장, 퀴즈, 게임, AI 롤플레잉을 1-Tap 즉시 전환 퀵 셀렉트 칩으로 배치하여 접근성 극대화.',
+          '🔽 [더보기 팝오버 드롭다운]: 오픈사전, AI 맞춤단어, 자기계발 목표, 학습 통계를 깔끔한 더보기 메뉴로 묶어 상단 헤더 공간 최적화.',
+          '⚙️ [우측 통합 도구 드롭다운]: 3분 퀘스트, 랜덤 추첨, 개인 API Key(BYOK), 릴리스 다운로드, 패치노트, PWA 가이드를 단일 툴스 팝오버로 정돈.',
+          '📱 [모바일 5-컬럼 & 풀다운 시트]: 좁았던 9열 그리드를 4개 주요 칩 + ☰ 전체 메뉴 풀다운 카드로 개편하여 스마트폰 터치 편의성 대폭 개선.',
+        ],
+      },
+    ],
+  },
+  {
+    version: '3.14.0',
+    date: '2026-10',
+    isLatest: false,
     tagline: '업데이트 알림 팝업창 전면 개편: 버전 정보·깃허브 경로·업데이트 액션 3대 핵심 구조 완성',
     highlights: [
       {

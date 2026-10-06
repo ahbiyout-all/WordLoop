@@ -1,14 +1,15 @@
 # WordLoop 모듈 및 네이티브 패키지 명세서 (DLL & Module Specs)
 
-**문서 버전:** v3.13.0  
+**문서 버전:** v3.17.0  
 **프로젝트:** WordLoop AI Multi-Platform Suite  
-**레포지토리:** https://github.com/ahbiyout-all/WordLoop
+**레포지토리:** https://github.com/ahbiyout-all/WordLoop  
+**순수 창작 DLL 상세 기술 문서:** [/docs/NATIVE_DLL_ARCHITECTURE.md](./NATIVE_DLL_ARCHITECTURE.md)
 
 ---
 
 ## 1. 🏗️ 아키텍처 및 모듈 계층 구조
 
-WordLoop는 크로스 플랫폼 호환성과 독립적인 실행을 보장하기 위해 다음과 같은 5대 핵심 모듈 계층으로 분리 설계되었습니다:
+WordLoop는 크로스 플랫폼 호환성과 독립적인 실행을 보장하기 위해 다음과 같은 6대 핵심 모듈 계층으로 분리 설계되었습니다:
 
 ```
 [UI / Presentation Layer (React 19 + Tailwind CSS + Lucide)]
@@ -19,6 +20,12 @@ WordLoop는 크로스 플랫폼 호환성과 독립적인 실행을 보장하기
                         │
 [Cross-Platform Native Bridge / Wrapper]
   ├─ 💻 Electron Desktop Bridge (Windows x64 / macOS / Linux)
+  │    └─ 🧬 5대 순수 창작 고속 DLL
+  │         ├─ WordLoopAudioEngine.dll (DSP / DTW / VAD)
+  │         ├─ WordLoopFastDB.dll (Win32 MMap / Trie / Vault)
+  │         ├─ WordLoopSRSNeuralEngine.dll (FSRS v4.5 / Fuzzy / Min-Heap)
+  │         ├─ WordLoopMorphEngine.dll (G2P IPA / Syllables / Stress / Lemma)
+  │         └─ WordLoopTrayHook.dll (Low-Level Hook / Mica Overlay)
   ├─ 📱 Capacitor Mobile Bridge (Android Java/Kotlin + iOS Swift)
   └─ 🌐 Modern Browser Web Worker / PWA Layer
                         │
@@ -29,6 +36,14 @@ WordLoop는 크로스 플랫폼 호환성과 독립적인 실행을 보장하기
 
 ## 2. 📦 핵심 모듈 및 컴포넌트 명세
 
+### 2.0 🧬 Windows 전용 순수 창작 네이티브 DLL (Proprietary C/C++ DLL Suite 5종)
+- **상세 사양서:** `docs/NATIVE_DLL_ARCHITECTURE.md` 참조
+- **1. `WordLoopAudioEngine.dll`**: SIMD AVX2 기반 초고속 DTW 음절 정렬, 기울기 중심 Sakoe-Chiba 밴드 제한, 1D 연속 버퍼 캐시 최적화, 동적 역추적 오차 밀리초 추출, 0.8ms 이내 발음 일치도 판정
+- **2. `WordLoopFastDB.dll`**: Windows 커널 Memory-Mapped File(`CreateFileMappingW`) 기반 3,210단어 인메모리 0.005ms 초고속 탐색, FNV-1a 체크섬 & AES-256 하드웨어 암호화 볼트
+- **3. `WordLoopSRSNeuralEngine.dll` (신규)**: FSRS v4.5 인지과학 망각곡선 주기 산출, 3,210단어 Min-Heap 취약 어휘 실시간 추출, 2행 슬라이딩 Levenshtein 오타 교정 퍼지 검색
+- **4. `WordLoopMorphEngine.dll` (신규)**: 오프라인 G2P IPA 음소 전사, Sonority 음향 강도 순서 기반 음절 분해, 주강세(ˈ)/차강세(ˌ) 위치 인덱스 검출, 굴절어 표제어(Lemma) 고속 복원
+- **5. `WordLoopTrayHook.dll`**: 저수준 키보드 훅(`WH_KEYBOARD_LL`) 기반 글로벌 단축키(`Ctrl+Alt+W`) 및 Windows 11 Mica/Acrylic 반투명 플로팅 위젯 지원
+
 ### 2.1 💻 PC 데스크톱 네이티브 래퍼 (Electron Native Wrapper)
 - **엔트리 포인트:** `electron/main.cjs`, `electron/preload.cjs`
 - **실행 모드:** 단일 인스턴스 락(Single Instance Lock), 하드웨어 가속 최적화, 보안 샌드박스
@@ -38,7 +53,7 @@ WordLoop는 크로스 플랫폼 호환성과 독립적인 실행을 보장하기
   - 무설치 포터블: `WordLoop-v{version}-Windows-Portable.exe`
 - **주요 기능:**
   - 창 크기 자동 저장 및 복원
-  - 로컬 오프라인 모드(인터넷 연결 없이도 3,000단어 및 13종 게임 100% 실행)
+  - 로컬 오프라인 모드(인터넷 연결 없이도 3,210단어 및 14종 게임 100% 실행)
   - 마이크 권한 네이티브 요청 및 백그라운드 오디오 유지
 
 ### 2.2 📱 모바일 네이티브 브릿지 (Capacitor Android & iOS)

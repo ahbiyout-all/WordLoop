@@ -52,6 +52,7 @@ import { SentenceListeningFillGame } from './SentenceGames/SentenceListeningFill
 import { SentenceSpeedRushGame } from './SentenceGames/SentenceSpeedRushGame';
 import { SentenceTrueFalseGame } from './SentenceGames/SentenceTrueFalseGame';
 import { SentenceShadowingGame } from './SentenceGames/SentenceShadowingGame';
+import { FlashcardRecallGame } from './FlashcardRecallGame';
 
 interface StudentWordGameProps {
   vocabList: VocabItem[];
@@ -63,6 +64,7 @@ interface StudentWordGameProps {
 
 type SchoolGrade = 'all' | 'elementary' | 'middle' | 'high_sat';
 export type GameType =
+  | 'flashcard_recall'
   | 'memory'
   | 'spelling'
   | 'speed'
@@ -580,6 +582,13 @@ export const StudentWordGame: React.FC<StudentWordGameProps> = ({ vocabList, sen
 
   const wordGamesCatalog = [
     {
+      id: 'flashcard_recall' as GameType,
+      title: '📇 플래시카드 리콜',
+      badge: '4지선다 리콜',
+      desc: '제시된 영단어의 정확한 한국어 뜻을 4지선다에서 선택하며 암기 레벨 승급',
+      icon: <BookOpen className="w-6 h-6 text-emerald-500" />,
+    },
+    {
       id: 'memory' as GameType,
       title: '🃏 단어 짝맞추기',
       badge: '메모리 카드',
@@ -752,7 +761,7 @@ export const StudentWordGame: React.FC<StudentWordGameProps> = ({ vocabList, sen
           </div>
         </div>
 
-        {/* Category Mode Switcher: 🔤 단어 게임 (8종) vs 💬 문장 게임 (5종) */}
+        {/* Category Mode Switcher: 🔤 단어 게임 (9종) vs 💬 문장 게임 (5종) */}
         <div className="flex items-center gap-2 p-1 rounded-2xl bg-slate-200/80 dark:bg-slate-800/80 border border-slate-300 dark:border-slate-700 shadow-inner">
           <button
             onClick={() => setGameCategory('word')}
@@ -762,7 +771,7 @@ export const StudentWordGame: React.FC<StudentWordGameProps> = ({ vocabList, sen
                 : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
             }`}
           >
-            <span>🔤 단어 게임 (8종)</span>
+            <span>🔤 단어 게임 (9종)</span>
           </button>
           <button
             onClick={() => setGameCategory('sentence')}
@@ -914,6 +923,29 @@ export const StudentWordGame: React.FC<StudentWordGameProps> = ({ vocabList, sen
       </div>
 
       <div className="flex-1 min-h-0 max-w-4xl w-full mx-auto flex flex-col justify-start overflow-y-auto">
+
+      {/* ==================================================== */}
+      {/* GAME 0 UI: FLASHCARD RECALL (4지선다 리콜 & 암기 승급) */}
+      {/* ==================================================== */}
+      {activeGame === 'flashcard_recall' && (
+        <FlashcardRecallGame
+          words={currentGradeWords}
+          gradeName={
+            selectedGrade === 'all'
+              ? '전체 통합'
+              : selectedGrade === 'elementary'
+              ? '초등 필수'
+              : selectedGrade === 'middle'
+              ? '중등 필수'
+              : '고등·수능'
+          }
+          qaMode={qaMode}
+          onChangeQAMode={setQaMode}
+          onUpdateHighScore={updateHighScore}
+          onChangeMastery={onChangeMastery}
+          onQuit={handleCloseGame}
+        />
+      )}
 
       {/* ==================================================== */}
       {/* GAME 1 UI: MEMORY CARD MATCHING (단어 짝맞추기) */}

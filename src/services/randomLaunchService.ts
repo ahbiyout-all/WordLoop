@@ -89,7 +89,19 @@ export const RANDOM_ACTIVITIES_CATALOG: RandomActivity[] = [
     gameType: 'sentence_shadowing',
   },
 
-  // 2. Word Games (8종)
+  // 2. Word Games (9종)
+  {
+    id: 'game-word-flashcard-recall',
+    title: '플래시카드 4지선다 리콜 챌린지',
+    categoryName: '단어 실전 게임',
+    scope: 'games',
+    icon: '📇',
+    badge: '4지선다 리콜',
+    description: '제시된 영단어의 정확한 한국어 뜻을 4지선다에서 선택하며 암기 등급을 승급합니다.',
+    targetTab: 'game',
+    gameCategory: 'word',
+    gameType: 'flashcard_recall',
+  },
   {
     id: 'game-word-memory',
     title: '집중 기억 카드 플립 (Memory Match)',

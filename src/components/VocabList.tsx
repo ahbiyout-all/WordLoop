@@ -1672,8 +1672,8 @@ export const VocabList: React.FC<VocabListProps> = React.memo(({
                     </label>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 sm:gap-2">
                       {[
-                        { id: 'all', label: '🎲 전체 모드 랜덤', desc: '모든 게임, 퀴즈, DB 탐색 (20종)' },
-                        { id: 'games', label: '🎮 단어·문장 게임', desc: '타자, 슈팅, 매칭, 행맨 등 (13종)' },
+                        { id: 'all', label: '🎲 전체 모드 랜덤', desc: '모든 게임, 퀴즈, DB 탐색 (21종)' },
+                        { id: 'games', label: '🎮 단어·문장 게임', desc: '리콜, 매칭, 스펠링, 퍼즐 등 (14종)' },
                         { id: 'sentences', label: '💬 문장 전용 게임', desc: '문장 어순, 빈칸, 스피드 퀴즈 (5종)' },
                         { id: 'quiz', label: '🎴 퀴즈 & 플래시카드', desc: '4지선다, 플래시카드, 철자 (4종)' },
                         { id: 'daily', label: '🔮 일일 행운 & DB', desc: '오늘의 단어, 3,000 DB 탐색' },

@@ -143,7 +143,7 @@ export const QuickActionWidgets: React.FC<QuickActionWidgetsProps> = ({
               <Gamepad2 className="w-4 h-4 sm:w-4.5 sm:h-4.5" />
             </div>
             <span className="text-[10px] font-black text-orange-600 dark:text-orange-400 bg-orange-500/10 px-1.5 py-0.5 rounded-md flex items-center gap-0.5">
-              <span>13종 모드</span>
+              <span>14종 모드</span>
             </span>
           </div>
 

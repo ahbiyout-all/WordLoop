@@ -18,6 +18,7 @@ import { AudioPlayerBar } from './components/AudioPlayerBar';
 import { PronunciationModal } from './components/PronunciationModal';
 import { ApiKeyModal } from './components/ApiKeyModal';
 import { PatchNotesModal } from './components/PatchNotesModal';
+import { NativeDllDocsModal } from './components/NativeDllDocsModal';
 import { GitHubUpdateModal } from './components/GitHubUpdateModal';
 import { UserProfileModal } from './components/UserProfileModal';
 import { DailyQuestModal } from './components/DailyQuestModal';
@@ -291,6 +292,7 @@ export default function App() {
   // Modals
   const [showApiKeyModal, setShowApiKeyModal] = useState<boolean>(false);
   const [showPatchNotesModal, setShowPatchNotesModal] = useState<boolean>(false);
+  const [showNativeDllModal, setShowNativeDllModal] = useState<boolean>(false);
   const [showGitHubUpdateModal, setShowGitHubUpdateModal] = useState<boolean>(false);
   const [showAudioSettingsModal, setShowAudioSettingsModal] = useState<boolean>(false);
   const [updateData, setUpdateData] = useState<UpdateCheckResult | null>(() => GitHubUpdateService.getCachedResult());
@@ -789,6 +791,7 @@ export default function App() {
         setDarkMode={setDarkMode}
         onOpenApiKeyModal={() => setShowApiKeyModal(true)}
         onOpenPatchNotesModal={() => setShowPatchNotesModal(true)}
+        onOpenNativeDllModal={() => setShowNativeDllModal(true)}
         onOpenGitHubUpdateModal={() => setShowGitHubUpdateModal(true)}
         updateData={updateData}
         userProfile={userProfile}
@@ -1131,6 +1134,12 @@ export default function App() {
           setShowPatchNotesModal(false);
           setShowGitHubUpdateModal(true);
         }}
+      />
+
+      {/* Pure Proprietary Native DLL Technical Architecture Modal */}
+      <NativeDllDocsModal
+        isOpen={showNativeDllModal}
+        onClose={() => setShowNativeDllModal(false)}
       />
 
       {/* GitHub Releases Real-Time Auto-Update Modal */}

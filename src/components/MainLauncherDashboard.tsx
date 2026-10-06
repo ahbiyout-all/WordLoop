@@ -153,9 +153,9 @@ export const MainLauncherDashboard: React.FC<MainLauncherDashboardProps> = ({
     },
     {
       id: 'game',
-      title: '13종 아케이드 게임존',
-      subtitle: '버블팝, 크로스워드, 리듬 단어, 스와이프 매치 등',
-      badge: '13가지 챌린지',
+      title: '14종 아케이드 게임존',
+      subtitle: '플래시카드 리콜, 버블팝, 크로스워드, 리듬 단어, 스와이프 등',
+      badge: '14가지 챌린지',
       badgeColor: 'bg-purple-500/20 text-purple-300 border-purple-500/40',
       icon: '🎮',
       gradient: 'from-purple-900/60 via-fuchsia-950/40 to-slate-900/90 border-purple-500/40 hover:border-purple-400 hover:shadow-purple-500/20',
