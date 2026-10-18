@@ -13,53 +13,165 @@ const PORT = 3000;
 // Disable Express server signature header
 app.disable("x-powered-by");
 
-// Security HTTP response headers middleware
+// Comprehensive Security HTTP response headers middleware
 app.use((_req, res, next) => {
   res.setHeader("X-Content-Type-Options", "nosniff");
   res.setHeader("Referrer-Policy", "strict-origin-when-cross-origin");
   res.setHeader("X-Download-Options", "noopen");
   res.setHeader("X-Permitted-Cross-Domain-Policies", "none");
+  res.setHeader("X-DNS-Prefetch-Control", "off");
+  res.setHeader("Cross-Origin-Opener-Policy", "same-origin-allow-popups");
+  res.setHeader(
+    "Permissions-Policy",
+    "camera=(), microphone=(self), geolocation=(), payment=(), usb=()"
+  );
+  // Allow secure embedding in Google Cloud / AI Studio preview while defending against rogue clickjacking
+  res.setHeader(
+    "Content-Security-Policy",
+    "frame-ancestors 'self' https://*.google.com https://*.run.app https://*.aistudio.google.com;"
+  );
   next();
 });
 
 // Strict JSON body payload limit (256KB) to prevent payload DoS
 app.use(express.json({ limit: "256kb" }));
 
-// Lightweight in-memory rate limiter for /api/* endpoints (max 60 req/min per IP)
-const rateLimitMap = new Map<string, { count: number; resetAt: number }>();
-const RATE_LIMIT_WINDOW_MS = 60 * 1000;
-const RATE_LIMIT_MAX_REQUESTS = 60;
-
+// Origin & CSRF validation middleware for /api/* to prevent cross-site request abuse
 app.use("/api", (req, res, next) => {
-  const now = Date.now();
-  const clientIp = req.ip || req.socket.remoteAddress || "unknown";
-  const record = rateLimitMap.get(clientIp);
-
-  if (!record || now > record.resetAt) {
-    rateLimitMap.set(clientIp, { count: 1, resetAt: now + RATE_LIMIT_WINDOW_MS });
-  } else {
-    record.count += 1;
-    if (record.count > RATE_LIMIT_MAX_REQUESTS) {
-      return res.status(429).json({
-        error: "요청이 너무 많습니다. 잠시 후 다시 시도해주세요.",
-      });
-    }
+  // Allow safe read-only health checks
+  if (req.path === "/health" || req.method === "GET" || req.method === "HEAD" || req.method === "OPTIONS") {
+    return next();
   }
 
-  // Periodic cleanup of expired rate limit entries
-  if (rateLimitMap.size > 500) {
-    for (const [ip, data] of rateLimitMap.entries()) {
-      if (now > data.resetAt) rateLimitMap.delete(ip);
+  const origin = req.headers.origin || req.headers.referer || "";
+  if (origin) {
+    try {
+      const parsedUrl = new URL(origin);
+      const host = parsedUrl.hostname.toLowerCase();
+      const protocol = parsedUrl.protocol.toLowerCase();
+
+      const isAllowedOrigin =
+        host === "localhost" ||
+        host === "127.0.0.1" ||
+        host === "0.0.0.0" ||
+        host.endsWith(".run.app") ||
+        host.endsWith(".google.com") ||
+        host.endsWith(".aistudio.google.com") ||
+        protocol === "capacitor:" ||
+        protocol === "ionic:" ||
+        protocol === "file:" ||
+        protocol === "app:";
+
+      if (!isAllowedOrigin) {
+        console.warn(`[Security Alert] Blocked unauthorized cross-origin API request from: ${origin}`);
+        return res.status(403).json({
+          error: "허용되지 않은 외부 출처에서의 API 접근이 보안 정책에 의해 차단되었습니다.",
+        });
+      }
+    } catch {
+      // Invalid origin URL format
+      return res.status(403).json({ error: "유효하지 않은 요청 출처입니다." });
     }
   }
 
   next();
 });
 
-// Input sanitization & validation helpers
+// Dual-Tier In-Memory Rate Limiter for /api/* and /api/ai/*
+const generalRateLimitMap = new Map<string, { count: number; resetAt: number }>();
+const aiRateLimitMap = new Map<string, { count: number; resetAt: number }>();
+
+const GENERAL_RATE_WINDOW_MS = 60 * 1000;
+const GENERAL_MAX_REQUESTS = 60; // 60 req/min for general API
+
+const AI_RATE_WINDOW_MS = 60 * 1000;
+const AI_MAX_REQUESTS = 20; // 20 req/min for compute-heavy Gemini AI endpoints
+
+app.use("/api", (req, res, next) => {
+  const now = Date.now();
+  const clientIp = req.ip || req.socket.remoteAddress || "unknown";
+
+  // 1. General Rate Limiter
+  const generalRecord = generalRateLimitMap.get(clientIp);
+  if (!generalRecord || now > generalRecord.resetAt) {
+    generalRateLimitMap.set(clientIp, { count: 1, resetAt: now + GENERAL_RATE_WINDOW_MS });
+  } else {
+    generalRecord.count += 1;
+    if (generalRecord.count > GENERAL_MAX_REQUESTS) {
+      res.setHeader("Retry-After", "60");
+      return res.status(429).json({
+        error: "요청이 너무 많습니다. 1분 후 다시 시도해주세요. (General Rate Limit Exceeded)",
+      });
+    }
+  }
+
+  // 2. Strict AI Rate Limiter for /api/ai/* endpoints
+  if (req.path.startsWith("/ai/")) {
+    const aiRecord = aiRateLimitMap.get(clientIp);
+    if (!aiRecord || now > aiRecord.resetAt) {
+      aiRateLimitMap.set(clientIp, { count: 1, resetAt: now + AI_RATE_WINDOW_MS });
+    } else {
+      aiRecord.count += 1;
+      if (aiRecord.count > AI_MAX_REQUESTS) {
+        res.setHeader("Retry-After", "60");
+        return res.status(429).json({
+          error: "AI 생성 요청 한도를 초과했습니다. 잠시 후(1분 뒤) 다시 시도해주세요. (AI Rate Limit Exceeded)",
+        });
+      }
+    }
+  }
+
+  // Periodic cleanup of expired rate limit entries to prevent memory leak
+  if (generalRateLimitMap.size > 500) {
+    for (const [ip, data] of generalRateLimitMap.entries()) {
+      if (now > data.resetAt) generalRateLimitMap.delete(ip);
+    }
+  }
+  if (aiRateLimitMap.size > 500) {
+    for (const [ip, data] of aiRateLimitMap.entries()) {
+      if (now > data.resetAt) aiRateLimitMap.delete(ip);
+    }
+  }
+
+  next();
+});
+
+// Enhanced Input sanitization & Prompt Injection / XSS filter helper
 function sanitizeInputText(val: unknown, maxLength: number = 500): string {
   if (typeof val !== "string") return "";
-  return val.replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g, "").trim().slice(0, maxLength);
+  return val
+    // Strip control characters & null bytes
+    .replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g, "")
+    // Strip script tags and HTML injection patterns
+    .replace(/<\s*script[^>]*>[\s\S]*?<\s*\/\s*script\s*>/gi, "")
+    .replace(/<\s*iframe[^>]*>[\s\S]*?<\s*\/\s*iframe\s*>/gi, "")
+    .replace(/<\s*object[^>]*>[\s\S]*?<\s*\/\s*object\s*>/gi, "")
+    .replace(/javascript\s*:/gi, "")
+    .replace(/on\w+\s*=/gi, "")
+    // Neutralize prompt jailbreak delimiter overrides
+    .replace(/\b(ignore previous instructions|system instruction override)\b/gi, "")
+    .trim()
+    .slice(0, maxLength);
+}
+
+// Deep Object prototype pollution & safety filter
+function sanitizeObjectDeep<T = any>(obj: T, maxDepth: number = 6): T {
+  if (maxDepth <= 0 || !obj || typeof obj !== "object") return obj;
+  if (Array.isArray(obj)) {
+    return obj.slice(0, 200).map((it) => sanitizeObjectDeep(it, maxDepth - 1)) as unknown as T;
+  }
+  const clean: Record<string, any> = {};
+  for (const [k, v] of Object.entries(obj)) {
+    if (k === "__proto__" || k === "constructor" || k === "prototype") continue;
+    if (typeof v === "string") {
+      clean[k] = sanitizeInputText(v, 2000);
+    } else if (typeof v === "object" && v !== null) {
+      clean[k] = sanitizeObjectDeep(v, maxDepth - 1);
+    } else {
+      clean[k] = v;
+    }
+  }
+  return clean as T;
 }
 
 function extractSafeHeaderApiKey(req: express.Request): string {
@@ -930,6 +1042,162 @@ Return valid JSON adhering strictly to the schema.`;
     report: fallbackReport,
     isFallback: true,
   });
+});
+
+// AI custom nag scripts generator endpoint supporting user-defined custom API keys and customizable directions
+app.post("/api/ai/generate-custom-nags", async (req, res) => {
+  const direction = sanitizeInputText(req.body?.direction, 300) || "평범하지만 정감 가는 한국 부모님 스타일";
+  const customKey = extractSafeHeaderApiKey(req);
+  const ai = getGeminiClient(customKey);
+
+  const fallbackCustomScripts = {
+    study_start: {
+      mom: {
+        tsundere: "흥, 이제야 공부하려고 책을 펴는구나? 딴짓하지 말고 집중해서 딱 5개만 외워보시지!",
+        strict: "정신 똑바로 차리고 당장 단어 학습을 시작해라! 오늘 정해진 목표량을 하나도 남김없이 완수하도록!",
+        affectionate: "아들/딸, 오늘도 배움을 시작하는구나! 너무 기특해. 차근차근 즐거운 마음으로 시작해볼까?"
+      },
+      dad: {
+        tsundere: "어허, 드디어 공부할 준비를 마쳤군. 시작한 김에 제대로 끝내봐라. 치킨 내기할래?",
+        strict: "계획을 세웠으면 즉시 성실하게 실행에 옮겨라. 어영부영 하지 말고 집중해서 시작하도록!",
+        affectionate: "우리 멋진 자녀, 오늘도 힘차게 시작하는 모습이 정말 든든하다! 언제나 아빠가 뒤에서 지켜보고 응원할게."
+      }
+    },
+    study_complete: {
+      mom: {
+        tsundere: "어머 세상에, 진짜 다 끝낸 거야? 별일이네... 뭐, 수고했어. 맛있는 간식 저기 뒀으니까 먹든가!",
+        strict: "오늘의 일일 학습 목표를 완벽히 종결했구나. 훌륭하다. 내일도 이 엄격한 성실함을 지켜가거라.",
+        affectionate: "아이고 우리 예쁜이, 오늘 목표를 다 해내다니 너무 대견하고 사랑스러워! 엄마가 꼭 안아줄게!"
+      },
+      dad: {
+        tsundere: "허허, 오늘 할당량을 채웠다고? 제법 쓸 만하군. 내 피를 물려받았으니 이 정도 근성은 당연하지!",
+        strict: "목표 100% 완수! 성실한 이행은 장래의 강력한 자산이 된다. 오늘의 성공을 잊지 말고 계속 정진하라.",
+        affectionate: "대단하다! 아빠는 너의 끈기 있는 노력을 늘 신뢰하고 자랑스러워한단다. 오늘 정말 고생 많았다!"
+      }
+    },
+    study_delay: {
+      mom: {
+        tsundere: "어휴, 폰만 보고 시간 계속 보낼 거야?! 공부하기 싫으면 관두든가! 얼른 단어장이라도 켜서 내 눈치 좀 보지 그래?!",
+        strict: "할 일을 계속 미루는 습관은 인생을 망친다! 당장 스마트폰 내려놓고 3분이라도 단어를 암기해라!",
+        affectionate: "공부하는 게 조금 지루하고 힘들지? 엄마 마음 다 알아. 맛있는 과일 깎아줄 테니까 조금만 힘내서 다시 해보자~"
+      },
+      dad: {
+        tsundere: "어영부영 미루다가 오늘도 다 가겠다, 임마! 아빠 잔소리 듣기 싫으면 얼른 단어 5개만 외워라.",
+        strict: "나태함은 실패로 가는 지름길이다. 지금 미룬 공부는 고스란히 내일의 부담이 된다. 즉시 단어 학습에 착수해라!",
+        affectionate: "지칠 때는 잠시 숨을 골라도 괜찮단다. 하지만 포기하지 않고 한 걸음씩 내딛는 게 중요하단다. 아빠랑 다시 시작해볼까?"
+      }
+    }
+  };
+
+  if (ai) {
+    try {
+      const prompt = `사용자의 지시사항/컨셉 방향: "${direction}"
+      
+위 컨셉 방향에 맞추어 엄마(mom)와 아빠(dad)가 3가지 톤('tsundere' 츤데레, 'strict' 엄격, 'affectionate' 다정)으로 말하는 잔소리 및 칭찬 문구 데이터셋을 생성해주세요.
+대상 상황은 다음 3가지입니다:
+1. study_start (학습 시작할 때)
+2. study_complete (학습 완료했을 때)
+3. study_delay (학습 미루고 딴짓할 때)
+
+응답은 한국어로 작성하며, 아래의 JSON 스키마를 정확히 따르십시오.`;
+
+      const response = await generateGeminiContent(ai, {
+        contents: prompt,
+        config: {
+          systemInstruction: "당신은 한국 부모님 특유의 현실감 넘치고 유머러스한 말투를 구사하는 어휘 교육 대본 작가입니다. 지시사항 컨셉에 맞추어 생동감 넘치고 실감 나는 한국어 구어로만 대본을 작성해 주세요. 반말, 유행어, 부모님 특유의 어조를 적절히 섞어 위트 있게 작성해 주세요. 오직 유효한 JSON 형식만 반환하십시오.",
+          responseMimeType: "application/json",
+          responseSchema: {
+            type: Type.OBJECT,
+            properties: {
+              study_start: {
+                type: Type.OBJECT,
+                properties: {
+                  mom: {
+                    type: Type.OBJECT,
+                    properties: {
+                      tsundere: { type: Type.STRING },
+                      strict: { type: Type.STRING },
+                      affectionate: { type: Type.STRING }
+                    },
+                    required: ["tsundere", "strict", "affectionate"]
+                  },
+                  dad: {
+                    type: Type.OBJECT,
+                    properties: {
+                      tsundere: { type: Type.STRING },
+                      strict: { type: Type.STRING },
+                      affectionate: { type: Type.STRING }
+                    },
+                    required: ["tsundere", "strict", "affectionate"]
+                  }
+                },
+                required: ["mom", "dad"]
+              },
+              study_complete: {
+                type: Type.OBJECT,
+                properties: {
+                  mom: {
+                    type: Type.OBJECT,
+                    properties: {
+                      tsundere: { type: Type.STRING },
+                      strict: { type: Type.STRING },
+                      affectionate: { type: Type.STRING }
+                    },
+                    required: ["tsundere", "strict", "affectionate"]
+                  },
+                  dad: {
+                    type: Type.OBJECT,
+                    properties: {
+                      tsundere: { type: Type.STRING },
+                      strict: { type: Type.STRING },
+                      affectionate: { type: Type.STRING }
+                    },
+                    required: ["tsundere", "strict", "affectionate"]
+                  }
+                },
+                required: ["mom", "dad"]
+              },
+              study_delay: {
+                type: Type.OBJECT,
+                properties: {
+                  mom: {
+                    type: Type.OBJECT,
+                    properties: {
+                      tsundere: { type: Type.STRING },
+                      strict: { type: Type.STRING },
+                      affectionate: { type: Type.STRING }
+                    },
+                    required: ["tsundere", "strict", "affectionate"]
+                  },
+                  dad: {
+                    type: Type.OBJECT,
+                    properties: {
+                      tsundere: { type: Type.STRING },
+                      strict: { type: Type.STRING },
+                      affectionate: { type: Type.STRING }
+                    },
+                    required: ["tsundere", "strict", "affectionate"]
+                  }
+                },
+                required: ["mom", "dad"]
+              }
+            },
+            required: ["study_start", "study_complete", "study_delay"]
+          }
+        }
+      });
+
+      const jsonText = response.text || "{}";
+      const generatedScripts = JSON.parse(jsonText);
+      if (generatedScripts?.study_start?.mom?.tsundere) {
+        return res.json({ success: true, scripts: generatedScripts });
+      }
+    } catch (e: any) {
+      console.warn("Gemini custom nag scripts generation failed, using fallback:", e);
+    }
+  }
+
+  return res.json({ success: true, scripts: fallbackCustomScripts, isFallback: true });
 });
 
 async function startServer() {

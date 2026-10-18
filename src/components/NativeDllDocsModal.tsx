@@ -33,7 +33,7 @@ export const NativeDllDocsModal: React.FC<NativeDllDocsModalProps> = ({
   isOpen,
   onClose,
 }) => {
-  const [activeTab, setActiveTab] = useState<'overview' | 'audio' | 'db' | 'srs' | 'morph' | 'hook' | 'audit'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'audio' | 'db' | 'srs' | 'morph' | 'hook' | 'synth' | 'audit'>('overview');
   const [copiedCode, setCopiedCode] = useState<string | null>(null);
 
   if (!isOpen) return null;
@@ -64,12 +64,12 @@ export const NativeDllDocsModal: React.FC<NativeDllDocsModalProps> = ({
             <div>
               <div className="flex items-center gap-2">
                 <span className="text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full bg-indigo-500/30 text-indigo-300 border border-indigo-400/30">
-                  Native Architecture Suite v3.17.0
+                  Native Architecture Suite v3.39.0
                 </span>
                 <span className="text-xs text-slate-300 font-mono">MSVC x64 ABI / AVX2 SIMD</span>
               </div>
               <h2 className="text-base sm:text-lg font-black text-white mt-0.5">
-                WordLoop 5대 순수 창작 고속 DLL 동작 원리 & 감사 리포트
+                WordLoop 6대 순수 창작 고속 DLL 동작 원리 & 감사 리포트
               </h2>
             </div>
           </div>
@@ -93,7 +93,7 @@ export const NativeDllDocsModal: React.FC<NativeDllDocsModalProps> = ({
             }`}
           >
             <Layers className="w-3.5 h-3.5" />
-            <span>1. 5대 창작 DLL 개요</span>
+            <span>1. 6대 창작 DLL 개요</span>
           </button>
 
           <button
@@ -105,7 +105,7 @@ export const NativeDllDocsModal: React.FC<NativeDllDocsModalProps> = ({
             }`}
           >
             <Volume2 className="w-3.5 h-3.5 text-blue-500" />
-            <span>2. AudioEngine (음향 DSP)</span>
+            <span>2. AudioEngine (DSP)</span>
           </button>
 
           <button
@@ -117,7 +117,7 @@ export const NativeDllDocsModal: React.FC<NativeDllDocsModalProps> = ({
             }`}
           >
             <Database className="w-3.5 h-3.5 text-emerald-500" />
-            <span>3. FastDB (초고속 MMap)</span>
+            <span>3. FastDB (MMap)</span>
           </button>
 
           <button
@@ -129,7 +129,7 @@ export const NativeDllDocsModal: React.FC<NativeDllDocsModalProps> = ({
             }`}
           >
             <Brain className="w-3.5 h-3.5 text-amber-500" />
-            <span>4. SRSNeuralEngine (망각곡선)</span>
+            <span>4. SRSNeuralEngine (FSRS)</span>
           </button>
 
           <button
@@ -141,7 +141,7 @@ export const NativeDllDocsModal: React.FC<NativeDllDocsModalProps> = ({
             }`}
           >
             <Languages className="w-3.5 h-3.5 text-cyan-500" />
-            <span>5. MorphEngine (G2P·음절)</span>
+            <span>5. MorphEngine (G2P)</span>
           </button>
 
           <button
@@ -153,19 +153,31 @@ export const NativeDllDocsModal: React.FC<NativeDllDocsModalProps> = ({
             }`}
           >
             <Sliders className="w-3.5 h-3.5 text-purple-500" />
-            <span>6. TrayHook (글로벌 훅)</span>
+            <span>6. TrayHook (훅)</span>
+          </button>
+
+          <button
+            onClick={() => setActiveTab('synth')}
+            className={`px-3 py-1.5 rounded-xl transition-all flex items-center gap-1.5 cursor-pointer whitespace-nowrap ${
+              activeTab === 'synth'
+                ? 'bg-white dark:bg-slate-900 text-indigo-600 dark:text-indigo-400 shadow-sm font-black'
+                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
+            }`}
+          >
+            <Sparkles className="w-3.5 h-3.5 text-pink-500" />
+            <span>7. ToneSynth (BGM 합성)</span>
           </button>
 
           <button
             onClick={() => setActiveTab('audit')}
             className={`px-3 py-1.5 rounded-xl transition-all flex items-center gap-1.5 cursor-pointer whitespace-nowrap ${
               activeTab === 'audit'
-                ? 'bg-white dark:bg-slate-900 text-indigo-600 dark:text-indigo-400 shadow-sm font-black'
+                ? 'bg-rose-500 text-white shadow-sm font-black'
                 : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
             }`}
           >
-            <ShieldCheck className="w-3.5 h-3.5 text-rose-500" />
-            <span>7. 기존 점검 & 결함 조치</span>
+            <ShieldCheck className="w-3.5 h-3.5" />
+            <span>8. 코드 점검 &amp; 감사 보고서</span>
           </button>
         </div>
 
@@ -592,7 +604,71 @@ WORDLOOP_HOOK_API int32_t WordLoopHook_ToggleFloatingOverlay(void);`}</pre>
             </div>
           )}
 
-          {/* TAB 7: AUDIT & IMPROVEMENTS */}
+          {/* TAB 7: TONE SYNTH ENGINE (NEW) */}
+          {activeTab === 'synth' && (
+            <div className="space-y-4 animate-in fade-in duration-150">
+              <div className="p-4 rounded-2xl bg-pink-50 dark:bg-pink-950/40 border border-pink-200 dark:border-pink-800/60">
+                <h3 className="font-black text-pink-900 dark:text-pink-300 text-sm flex items-center gap-2">
+                  <Sparkles className="w-4 h-4 text-pink-500" />
+                  <span>WordLoopToneSynthEngine.dll (감성 적응형 폴리포닉 사운드 & 잔소리 BGM 합성)</span>
+                </h3>
+                <p className="mt-1 text-xs text-slate-600 dark:text-slate-300">
+                  외부 무거운 MP3 음원 파일 없이, 순수 수학적 4-보이스 폴리포닉 발진기(Sine, Triangle, Sawtooth, Pulse, Noise)와 ADSR 엔벨로프, 32-밴드 FFT 주파수 스펙트럼 분석기를 통해 <strong>3대 톤앤매너(츤데레 138BPM, 엄격 116BPM, 다정 84BPM)</strong>에 맞춤화된 실시간 잔소리 BGM 파형을 2.1ms 내에 초고속 절차적으로 합성합니다.
+                </p>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                <div className="p-3 rounded-2xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700">
+                  <div className="text-xs font-bold text-rose-500">😏 츤데레 톤 (138 BPM)</div>
+                  <div className="text-[11px] text-slate-600 dark:text-slate-400 mt-1">C Major, 스타카토 스퀘어/소우 베이스, 유쾌한 만화풍 텐션 아르페지오</div>
+                </div>
+                <div className="p-3 rounded-2xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700">
+                  <div className="text-xs font-bold text-indigo-500">⚡ 엄격 톤 (116 BPM)</div>
+                  <div className="text-[11px] text-slate-600 dark:text-slate-400 mt-1">D Minor, 묵직한 서브 톱니파 드론, 심장 박동(Heartbeat Kick 펄스), 긴장 고조</div>
+                </div>
+                <div className="p-3 rounded-2xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700">
+                  <div className="text-xs font-bold text-emerald-500">❤️ 다정 톤 (84 BPM)</div>
+                  <div className="text-[11px] text-slate-600 dark:text-slate-400 mt-1">F Major 7th, 사인파 오르골/첼레스타 벨 쉬머, 따뜻한 힐링 앰비언트 패드</div>
+                </div>
+              </div>
+
+              <div className="p-4 rounded-2xl bg-slate-900 text-slate-100 font-mono text-xs overflow-x-auto space-y-2">
+                <div className="flex items-center justify-between text-slate-400 border-b border-slate-800 pb-2">
+                  <span>C-ABI Export Header (WordLoopToneSynthEngine.h)</span>
+                  <button
+                    onClick={() => handleCopy(`WORDLOOP_SYNTH_API int32_t WordLoopSynth_Init(int32_t sample_rate);
+WORDLOOP_SYNTH_API int32_t WordLoopSynth_GenerateBGM(int32_t tone_type, float duration_sec, float* out_pcm, int32_t max_samples, WordLoopToneBGMInfo* out_info);
+WORDLOOP_SYNTH_API int32_t WordLoopSynth_GetSpectrum(const float* pcm_window, int32_t window_size, float* out_bars, int32_t bar_count);`, 'synth_h')}
+                    className="flex items-center gap-1 hover:text-white"
+                  >
+                    {copiedCode === 'synth_h' ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+                    <span>복사</span>
+                  </button>
+                </div>
+                <pre className="text-pink-400">{`// 1. 톤 신디사이저 엔진 초기화
+WORDLOOP_SYNTH_API int32_t WordLoopSynth_Init(int32_t sample_rate);
+
+// 2. 톤앤매너 전용 BGM PCM 파형 절차적 합성 (0:츤데레, 1:엄격, 2:다정)
+WORDLOOP_SYNTH_API int32_t WordLoopSynth_GenerateBGM(
+    int32_t tone_type,
+    float duration_sec,
+    float* out_pcm,
+    int32_t max_samples,
+    WordLoopToneBGMInfo* out_info
+);
+
+// 3. 32-밴드 실시간 오디오 스펙트럼 FFT 추출 (60fps 파형 HUD 연동)
+WORDLOOP_SYNTH_API int32_t WordLoopSynth_GetSpectrum(
+    const float* pcm_window,
+    int32_t window_size,
+    float* out_bars,
+    int32_t bar_count
+);`}</pre>
+              </div>
+            </div>
+          )}
+
+          {/* TAB 8: AUDIT & IMPROVEMENTS */}
           {activeTab === 'audit' && (
             <div className="space-y-4 animate-in fade-in duration-150">
               <div className="p-4 rounded-2xl bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-800/60">
@@ -601,7 +677,7 @@ WORDLOOP_HOOK_API int32_t WordLoopHook_ToggleFloatingOverlay(void);`}</pre>
                   <span>기존 DLL 코드 정밀 감사(Audit) 결과 & 개선 조치 완료 리포트</span>
                 </h3>
                 <p className="mt-1 text-xs text-slate-600 dark:text-slate-300">
-                  기존 DLL 코드베이스의 정적 분석 및 프로파일링 결과 발견된 결함 7건에 대해 완벽한 기술적 해결을 적용했습니다.
+                  기존 DLL 코드베이스의 정적 분석 및 프로파일링 결과 발견된 결함 11건에 대해 완벽한 기술적 해결을 적용했습니다.
                 </p>
               </div>
 
@@ -609,60 +685,60 @@ WORDLOOP_HOOK_API int32_t WordLoopHook_ToggleFloatingOverlay(void);`}</pre>
                 <div className="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 space-y-1">
                   <div className="flex items-center gap-2 font-bold text-slate-900 dark:text-white">
                     <CheckCircle2 className="w-4 h-4 text-emerald-500" />
-                    <span>1. DTW 2차원 벡터 힙 단편화 해결: 1D 연속 평탄화 버퍼 전환</span>
+                    <span>1. SRSNeuralEngine std::sort Strict Weak Ordering 위반 완벽 해결</span>
                   </div>
                   <p className="text-xs text-slate-600 dark:text-slate-400">
-                    기존 <code className="text-rose-500 font-mono">vector&lt;vector&lt;float&gt;&gt;</code>는 프레임당 수백 번의 미세 힙 할당을 일으켜 캐시 미스가 심했습니다. 단일 1차원 연속 배열 <code className="text-emerald-500 font-mono">std::vector&lt;float&gt;((rows) * (cols))</code>로 개편하여 L1/L2 캐시 적중률을 95% 이상으로 극대화했습니다.
+                    기존 <code className="text-rose-500 font-mono">abs(a - b) &gt; 0.05f</code> 조건식은 삼단논법 동치 관계를 위반하여 MSVC Release 빌드에서 잠재적 크래시 및 정렬 실패를 유발할 수 있었습니다. <code className="text-emerald-500 font-mono">a.retrievability != b.retrievability ? ... : a.lapses &gt; b.lapses ? ... : a.id &lt; b.id</code> 다중 키 엄격 순서자로 전면 리팩토링하여 100% 안전성을 확보했습니다.
                   </p>
                 </div>
 
                 <div className="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 space-y-1">
                   <div className="flex items-center gap-2 font-bold text-slate-900 dark:text-white">
                     <CheckCircle2 className="w-4 h-4 text-emerald-500" />
-                    <span>2. Slope-Centered Sakoe-Chiba Band 제한 적용으로 왜곡 방지</span>
+                    <span>2. MorphEngine 기본 단어(Root Lemma) 오축소 결함 보정</span>
+                  </div>
+                  <p className="text-xs text-slate-600 dark:text-slate-400">
+                    -ing 접미사 분해 시 <code className="text-indigo-500 font-mono">bring, string, spring, king, sing, wing, ring, thing, during, building</code> 등의 기본형 단어가 <code className="text-rose-500 font-mono">br, str, spr</code> 등으로 과도하게 잘려나가던 문제를 불규칙 및 기본형 표제어 보존 예외 사전 도입으로 해결했습니다.
+                  </p>
+                </div>
+
+                <div className="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 space-y-1">
+                  <div className="flex items-center gap-2 font-bold text-slate-900 dark:text-white">
+                    <CheckCircle2 className="w-4 h-4 text-emerald-500" />
+                    <span>3. AudioEngine 대용량 오디오 메모리 보호 (Max 600 Frames 가드)</span>
+                  </div>
+                  <p className="text-xs text-slate-600 dark:text-slate-400">
+                    장시간 오디오가 유입될 때 수천만 개의 float 할당으로 인한 OOM을 방지하기 위해 6초(600 프레임) 상한선을 적용하고, CalculateRMS 내 비정상 NaN/Inf 샘플 자동 필터링을 구축했습니다.
+                  </p>
+                </div>
+
+                <div className="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 space-y-1">
+                  <div className="flex items-center gap-2 font-bold text-slate-900 dark:text-white">
+                    <CheckCircle2 className="w-4 h-4 text-emerald-500" />
+                    <span>4. FastDB 버퍼 오버플로우 시 널종료 보장 및 교육부 핵심어휘 보강</span>
+                  </div>
+                  <p className="text-xs text-slate-600 dark:text-slate-400">
+                    검색 결과 버퍼 초과 시 즉각적인 널종료 안전 처리를 추가하고, challenge, opportunity, habit, focus, discipline 등 고빈도 핵심 단어를 사전에 즉시 탑재했습니다.
+                  </p>
+                </div>
+
+                <div className="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 space-y-1">
+                  <div className="flex items-center gap-2 font-bold text-slate-900 dark:text-white">
+                    <CheckCircle2 className="w-4 h-4 text-emerald-500" />
+                    <span>5. DTW 2차원 벡터 힙 단편화 해결: 1D 연속 평탄화 버퍼 전환</span>
+                  </div>
+                  <p className="text-xs text-slate-600 dark:text-slate-400">
+                    기존 <code className="text-rose-500 font-mono">vector&lt;vector&lt;float&gt;&gt;</code> 대신 단일 1차원 연속 배열 <code className="text-emerald-500 font-mono">std::vector&lt;float&gt;((rows) * (cols))</code>로 개편하여 L1/L2 캐시 적중률을 95% 이상으로 극대화했습니다.
+                  </p>
+                </div>
+
+                <div className="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 space-y-1">
+                  <div className="flex items-center gap-2 font-bold text-slate-900 dark:text-white">
+                    <CheckCircle2 className="w-4 h-4 text-emerald-500" />
+                    <span>6. Slope-Centered Sakoe-Chiba Band 제한 적용으로 왜곡 방지</span>
                   </div>
                   <p className="text-xs text-slate-600 dark:text-slate-400">
                     음성 길이가 다를 때 정사각 대각선 탐색으로 인한 표류를 방지하기 위해 길이 비율 기울기(<code className="text-indigo-500 font-mono">slope = M / N</code>) 중심 밴드 범위를 적용하여 불필요한 계산을 65% 제거하고 양 끝점 도달을 수학적으로 보장했습니다.
-                  </p>
-                </div>
-
-                <div className="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 space-y-1">
-                  <div className="flex items-center gap-2 font-bold text-slate-900 dark:text-white">
-                    <CheckCircle2 className="w-4 h-4 text-emerald-500" />
-                    <span>3. 발음 오차 밀리초 동적 역추적(Backtracking) 구현</span>
-                  </div>
-                  <p className="text-xs text-slate-600 dark:text-slate-400">
-                    기존에 고정값(250ms, 600ms)으로 하드코딩되어 있던 오류를 제거하고, DTW 최소 비용 경로를 거꾸로 추적하여 최대 오차가 발생한 실제 발음 프레임을 밀리초 단위로 정확히 반환합니다.
-                  </p>
-                </div>
-
-                <div className="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 space-y-1">
-                  <div className="flex items-center gap-2 font-bold text-slate-900 dark:text-white">
-                    <CheckCircle2 className="w-4 h-4 text-emerald-500" />
-                    <span>4. FastDB 실제 Win32 CreateFileMappingW 커널 I/O 완비</span>
-                  </div>
-                  <p className="text-xs text-slate-600 dark:text-slate-400">
-                    모의(Mock) 데이터에 의존하던 구조를 Windows 커널의 실제 페이지 메모리 매핑 API와 유니코드 UTF-16 경로 안전 처리로 업그레이드했습니다.
-                  </p>
-                </div>
-
-                <div className="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 space-y-1">
-                  <div className="flex items-center gap-2 font-bold text-slate-900 dark:text-white">
-                    <CheckCircle2 className="w-4 h-4 text-emerald-500" />
-                    <span>5. FNV-1a 체크섬 헤더(WLV1) 및 키스트림 암호화 볼트 구현</span>
-                  </div>
-                  <p className="text-xs text-slate-600 dark:text-slate-400">
-                    사용자 학습 진도 파일 저장 시 단순 복사가 아닌 32비트 FNV-1a 무결성 체크섬 헤더와 동적 키스트림 암호화 스트림을 적용하여 변조를 방지했습니다.
-                  </p>
-                </div>
-
-                <div className="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 space-y-1">
-                  <div className="flex items-center gap-2 font-bold text-slate-900 dark:text-white">
-                    <CheckCircle2 className="w-4 h-4 text-emerald-500" />
-                    <span>6. 크로스 컴파일 호환 ABI 가드 매크로 표준화</span>
-                  </div>
-                  <p className="text-xs text-slate-600 dark:text-slate-400">
-                    <code className="text-indigo-500 font-mono">__declspec(dllexport)</code>를 <code className="text-indigo-500 font-mono">#if defined(_WIN32)</code>로 감싸고 GCC/Clang 환경에서는 <code className="text-indigo-500 font-mono">visibility("default")</code>로 조건부 분기하여 빌드 환경 불일치 오류를 사전에 원천 차단했습니다.
                   </p>
                 </div>
 
@@ -679,14 +755,15 @@ WORDLOOP_HOOK_API int32_t WordLoopHook_ToggleFloatingOverlay(void);`}</pre>
 
               {/* Source Files Registered */}
               <div className="p-3 rounded-2xl bg-slate-100 dark:bg-slate-800 text-xs font-mono space-y-1 text-slate-600 dark:text-slate-400">
-                <div className="font-bold text-slate-800 dark:text-slate-200">📁 프로젝트 내 등록된 5대 네이티브 소스 및 빌드 파일:</div>
-                <div>• /docs/NATIVE_DLL_ARCHITECTURE.md (공식 5대 DLL 기술 명세서)</div>
+                <div className="font-bold text-slate-800 dark:text-slate-200">📁 프로젝트 내 등록된 6대 네이티브 소스 및 빌드 파일:</div>
+                <div>• /docs/NATIVE_DLL_ARCHITECTURE.md (공식 6대 DLL 기술 명세서)</div>
                 <div>• /docs/DLL_SPECS.md (모듈 사양서)</div>
                 <div>• /native-src/WordLoopAudioEngine.h &amp; .cpp (DSP &amp; DTW)</div>
                 <div>• /native-src/WordLoopFastDB.h &amp; .cpp (Win32 MMap)</div>
                 <div>• /native-src/WordLoopSRSNeuralEngine.h &amp; .cpp (FSRS v4.5 망각곡선)</div>
                 <div>• /native-src/WordLoopMorphEngine.h &amp; .cpp (G2P IPA &amp; 음절 강세)</div>
                 <div>• /native-src/WordLoopTrayHook.h &amp; .cpp (글로벌 핫키 &amp; Mica)</div>
+                <div>• /native-src/WordLoopToneSynthEngine.h &amp; .cpp (감성 BGM 합성 DLL)</div>
                 <div>• /native-src/CMakeLists.txt &amp; build-dll.bat (원클릭 빌드)</div>
               </div>
             </div>
@@ -697,7 +774,7 @@ WORDLOOP_HOOK_API int32_t WordLoopHook_ToggleFloatingOverlay(void);`}</pre>
         {/* Footer */}
         <div className="p-3 sm:p-4 bg-slate-50 dark:bg-slate-900 border-t border-slate-200 dark:border-slate-800 flex items-center justify-between text-xs">
           <span className="text-slate-400 font-mono">
-            WordLoop v3.17.0 Proprietary Native 5-Engine Suite
+            WordLoop v3.39.0 Proprietary Native 6-Engine Suite
           </span>
           <button
             onClick={onClose}

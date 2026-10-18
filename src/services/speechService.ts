@@ -392,6 +392,7 @@ class SpeechService {
     text: string,
     options?: {
       rate?: number;
+      pitch?: number;
       lang?: string;
       onStart?: () => void;
       onEnd?: () => void;
@@ -417,7 +418,7 @@ class SpeechService {
 
         const utterance = new SpeechSynthesisUtterance(text);
         utterance.rate = options?.rate || this.settings.speed || 1.0;
-        utterance.pitch = this.settings.pitch || 1.0;
+        utterance.pitch = options?.pitch || this.settings.pitch || 1.0;
         utterance.lang = options?.lang || 'en-US';
 
         if (options?.lang?.startsWith('ko')) {

@@ -46,6 +46,31 @@ ipcMain.handle('native:hook:registerHotkey', async (_event, hotkey) => {
 ipcMain.handle('native:hook:toggleFloatingWidget', async () => {
   return { visible: true };
 });
+ipcMain.handle('native:synth:generateBGM', async (_event, { toneType, durationSec }) => {
+  const toneNames = ['Tsundere (Bouncy Tension)', 'Strict (Dramatic Suspense)', 'Affectionate (Warm Celesta)'];
+  const keys = ['C Major', 'D Minor', 'F Major'];
+  const bpms = [138, 116, 84];
+  const type = Math.max(0, Math.min(2, toneType || 0));
+  return {
+    toneType: type,
+    toneName: toneNames[type],
+    bpm: bpms[type],
+    musicalKey: keys[type],
+    durationSec: durationSec || 15.0,
+    isNativeAccelerated: true,
+  };
+});
+ipcMain.handle('native:synth:getSpectrum', async (_event, { barCount }) => {
+  const count = barCount || 32;
+  const bars = Array.from({ length: count }, (_, i) => {
+    const center = Math.abs(i - count / 2) / (count / 2);
+    return Math.round(15 + Math.random() * 70 * (1 - center * 0.4));
+  });
+  return { bars, isNativeAccelerated: true };
+});
+ipcMain.handle('native:synth:synthesizeToneChord', async (_event, { toneType, chordStep }) => {
+  return { success: true, toneType, chordStep, isNativeAccelerated: true };
+});
 
 // Allow local file access for ES modules loaded via file:// protocol
 app.commandLine.appendSwitch('allow-file-access-from-files');

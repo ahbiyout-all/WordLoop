@@ -1,6 +1,6 @@
 # WordLoop 모듈 및 네이티브 패키지 명세서 (DLL & Module Specs)
 
-**문서 버전:** v3.17.0  
+**문서 버전:** v3.40.0  
 **프로젝트:** WordLoop AI Multi-Platform Suite  
 **레포지토리:** https://github.com/ahbiyout-all/WordLoop  
 **순수 창작 DLL 상세 기술 문서:** [/docs/NATIVE_DLL_ARCHITECTURE.md](./NATIVE_DLL_ARCHITECTURE.md)
@@ -20,12 +20,13 @@ WordLoop는 크로스 플랫폼 호환성과 독립적인 실행을 보장하기
                         │
 [Cross-Platform Native Bridge / Wrapper]
   ├─ 💻 Electron Desktop Bridge (Windows x64 / macOS / Linux)
-  │    └─ 🧬 5대 순수 창작 고속 DLL
+  │    └─ 🧬 6대 순수 창작 고속 DLL
   │         ├─ WordLoopAudioEngine.dll (DSP / DTW / VAD)
   │         ├─ WordLoopFastDB.dll (Win32 MMap / Trie / Vault)
   │         ├─ WordLoopSRSNeuralEngine.dll (FSRS v4.5 / Fuzzy / Min-Heap)
   │         ├─ WordLoopMorphEngine.dll (G2P IPA / Syllables / Stress / Lemma)
-  │         └─ WordLoopTrayHook.dll (Low-Level Hook / Mica Overlay)
+  │         ├─ WordLoopTrayHook.dll (Low-Level Hook / Mica Overlay)
+  │         └─ WordLoopToneSynthEngine.dll (Adaptive Polyphonic Synth / BGM Waveform)
   ├─ 📱 Capacitor Mobile Bridge (Android Java/Kotlin + iOS Swift)
   └─ 🌐 Modern Browser Web Worker / PWA Layer
                         │
@@ -36,13 +37,14 @@ WordLoop는 크로스 플랫폼 호환성과 독립적인 실행을 보장하기
 
 ## 2. 📦 핵심 모듈 및 컴포넌트 명세
 
-### 2.0 🧬 Windows 전용 순수 창작 네이티브 DLL (Proprietary C/C++ DLL Suite 5종)
+### 2.0 🧬 Windows 전용 순수 창작 네이티브 DLL (Proprietary C/C++ DLL Suite 6종)
 - **상세 사양서:** `docs/NATIVE_DLL_ARCHITECTURE.md` 참조
 - **1. `WordLoopAudioEngine.dll`**: SIMD AVX2 기반 초고속 DTW 음절 정렬, 기울기 중심 Sakoe-Chiba 밴드 제한, 1D 연속 버퍼 캐시 최적화, 동적 역추적 오차 밀리초 추출, 0.8ms 이내 발음 일치도 판정
 - **2. `WordLoopFastDB.dll`**: Windows 커널 Memory-Mapped File(`CreateFileMappingW`) 기반 3,210단어 인메모리 0.005ms 초고속 탐색, FNV-1a 체크섬 & AES-256 하드웨어 암호화 볼트
-- **3. `WordLoopSRSNeuralEngine.dll` (신규)**: FSRS v4.5 인지과학 망각곡선 주기 산출, 3,210단어 Min-Heap 취약 어휘 실시간 추출, 2행 슬라이딩 Levenshtein 오타 교정 퍼지 검색
-- **4. `WordLoopMorphEngine.dll` (신규)**: 오프라인 G2P IPA 음소 전사, Sonority 음향 강도 순서 기반 음절 분해, 주강세(ˈ)/차강세(ˌ) 위치 인덱스 검출, 굴절어 표제어(Lemma) 고속 복원
+- **3. `WordLoopSRSNeuralEngine.dll`**: FSRS v4.5 인지과학 망각곡선 주기 산출, 3,210단어 Min-Heap 취약 어휘 실시간 추출, 2행 슬라이딩 Levenshtein 오타 교정 퍼지 검색 (Strict Weak Ordering 안정화 완료)
+- **4. `WordLoopMorphEngine.dll`**: 오프라인 G2P IPA 음소 전사, Sonority 음향 강도 순서 기반 음절 분해, 주강세(ˈ)/차강세(ˌ) 위치 인덱스 검출, 굴절어 표제어(Lemma) 고속 복원 (-ing 기본형 예외 사전 완비)
 - **5. `WordLoopTrayHook.dll`**: 저수준 키보드 훅(`WH_KEYBOARD_LL`) 기반 글로벌 단축키(`Ctrl+Alt+W`) 및 Windows 11 Mica/Acrylic 반투명 플로팅 위젯 지원
+- **6. `WordLoopToneSynthEngine.dll` (신규)**: 3대 톤앤매너(츤데레/엄격/다정) 감성 맞춤형 실시간 절차적 폴리포닉 사운드 & 잔소리 BGM 합성 엔진, ADSR 엔벨로프, 32-밴드 FFT 주파수 스펙트럼 추출로 60fps 오디오 파형 HUD 연동 지원
 
 ### 2.1 💻 PC 데스크톱 네이티브 래퍼 (Electron Native Wrapper)
 - **엔트리 포인트:** `electron/main.cjs`, `electron/preload.cjs`

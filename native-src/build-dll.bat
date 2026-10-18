@@ -8,7 +8,7 @@ chcp 65001 > nul
 setlocal enabledelayedexpansion
 
 echo =========================================================
-echo   WordLoop Native Suite - 64-bit DLL Builder (5 Engines)
+echo   WordLoop Native Suite - 64-bit DLL Builder (6 Engines)
 echo =========================================================
 
 where cmake >nul 2>&1
@@ -39,12 +39,13 @@ if %errorlevel% neq 0 (
 )
 
 echo =========================================================
-echo [SUCCESS] WordLoop 5 Native DLLs built successfully!
+echo [SUCCESS] WordLoop 6 Native DLLs built successfully!
 echo Binaries located in: native-src\build\bin\Release\
 echo   1. WordLoopAudioEngine.dll
 echo   2. WordLoopFastDB.dll
 echo   3. WordLoopSRSNeuralEngine.dll
 echo   4. WordLoopMorphEngine.dll
 echo   5. WordLoopTrayHook.dll
+echo   6. WordLoopToneSynthEngine.dll
 echo =========================================================
 pause

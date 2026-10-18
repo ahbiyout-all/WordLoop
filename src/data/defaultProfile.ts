@@ -42,4 +42,5 @@ export const DEFAULT_USER_PROFILE: UserProfile = {
   motto: '매일 꾸준히 20단어로 영단어 완전 정복!',
   createdAt: new Date().toISOString(),
   isLocked: true,
+  nagCharacter: 'mom',
 };

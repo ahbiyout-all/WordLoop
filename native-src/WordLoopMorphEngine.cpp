@@ -96,6 +96,13 @@ namespace {
 
         // -ing
         if (word.length() > 4 && word.rfind("ing") == word.length() - 3) {
+            // Base root exceptions that are not participles
+            if (word == "bring" || word == "string" || word == "spring" || word == "thing" ||
+                word == "swing" || word == "cling" || word == "fling" || word == "sling" ||
+                word == "sting" || word == "wring" || word == "sibling" || word == "ceiling" ||
+                word == "during" || word == "morning" || word == "evening" || word == "building") {
+                return word;
+            }
             std::string stem = word.substr(0, word.length() - 3);
             if (stem.length() >= 3 && stem.back() == stem[stem.length() - 2]) {
                 return stem.substr(0, stem.length() - 1); // e.g. running -> run

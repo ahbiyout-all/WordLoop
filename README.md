@@ -1,6 +1,6 @@
-# 🔤 WordLoop (v3.18.0)
+# 🔤 WordLoop (v3.38.0)
 
-**WordLoop**는 초·중·고·수능 및 비즈니스 영어 어휘(교육부 필수 3,210단어)와 500+ 실전 예문, 5대 순수 창작 고속 네이티브 DLL(AudioEngine, FastDB, SRSNeuralEngine, MorphEngine, TrayHook), 14종 인터랙티브 단어·문장 게임(신규 플래시카드 리콜 포함), 취약 어휘(0~1단계) 맞춤 복습 퀴즈, 8종 스마트 퀴즈 모드, 실시간 음성 파형 발음 측정, 그리고 초·중·고 교육과정 연계 원어민 AI 대화형 롤플레잉을 결합한 올인원 영어 학습 & 자기계발 플랫폼입니다.
+**WordLoop**는 초·중·고·수능 및 비즈니스 영어 어휘(교육부 필수 3,210단어)와 500+ 실전 예문, 실제 엄마·아빠 사진 등록 및 성취도(저조/우수)에 따라 화면 전면 가득 출현하여 텍스트 없이 실제 목소리로만 잔소리/칭찬을 쏟아붓는 풀스크린 코믹 엄빠 잔소리(Surprise Parent Nagging) 음성 코치, 마일스톤 달성 인터랙티브 스케일업 Mastery Growth 바, 어휘 암기 단계 분포(Vocabulary Mastery Distribution) Recharts 바 차트, 취약 어휘 완전 정복 예상 시간(Predicted Mastery Time) 예측 위젯, '1000 Repeats Milestone' Recharts 마커 어노테이션 추이 차트, 시각적 마일스톤 업적 배지 시스템(Milestone Badge System), 일일 목표 요약(Daily Goal Summary) 서머리 카드, 주간 학습 기여도 히트맵(Weekly Contribution Heatmap), 일일 목표 연속 달성(Daily Goal Completion Streak) 인디케이터, 주간 총 반복 학습(Total Repeats) 향상도 Recharts 시각화 차트, 5대 순수 창작 고속 네이티브 DLL(AudioEngine, FastDB, SRSNeuralEngine, MorphEngine, TrayHook), 14종 인터랙티브 단어·문장 게임, 취약 어휘(0~1단계) 맞춤 복습 퀴즈, 8종 스마트 퀴즈 모드, 실시간 음성 파형 발음 측정, 그리고 초·중·고 교육과정 연계 원어민 AI 대화형 롤플레잉을 결합한 올인원 영어 학습 & 자기계발 플랫폼입니다.
 
 - **🌐 웹 애플리케이션 바로가기 (GitHub Pages):** [https://ahbiyout-all.github.io/WordLoop/](https://ahbiyout-all.github.io/WordLoop/)
 - **📁 GitHub Repository:** [https://github.com/ahbiyout-all/WordLoop](https://github.com/ahbiyout-all/WordLoop)

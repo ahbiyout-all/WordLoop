@@ -557,6 +557,32 @@ export const QuizMode: React.FC<QuizModeProps> = ({ vocabList, onChangeMastery, 
     );
   }
 
+  // Trigger surprise nag upon quiz / flashcard completion based on performance (Low vs High)
+  useEffect(() => {
+    if (sessionList.length > 0 && currentIndex >= sessionList.length) {
+      if (mode === 'quiz' || mode === 'review_quiz') {
+        const totalPointsPossible = sessionList.length * 100;
+        const ratio = quizScore / (totalPointsPossible || 1);
+        const nagType = ratio >= 0.7 ? 'high_achievement' : 'low_achievement';
+        const timer = setTimeout(() => {
+          window.dispatchEvent(
+            new CustomEvent('wordloop_trigger_surprise_nag', { detail: { type: nagType } })
+          );
+        }, 600);
+        return () => clearTimeout(timer);
+      } else if (mode === 'flashcard') {
+        const ratio = knownCount / sessionList.length;
+        const nagType = ratio >= 0.7 ? 'high_achievement' : 'low_achievement';
+        const timer = setTimeout(() => {
+          window.dispatchEvent(
+            new CustomEvent('wordloop_trigger_surprise_nag', { detail: { type: nagType } })
+          );
+        }, 600);
+        return () => clearTimeout(timer);
+      }
+    }
+  }, [currentIndex, sessionList.length, mode, quizScore, knownCount]);
+
   const currentItem = sessionList[currentIndex];
 
   const handleNextItem = () => {

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { UserProfile, StudyGradeLevel, VocabItem, SentenceItem, Goal, DailyGoalHistory } from '../types';
+import { UserProfile, StudyGradeLevel, NagCharacterSetting, NagTonePreset, VocabItem, SentenceItem, Goal, DailyGoalHistory } from '../types';
 import { AVATAR_PRESETS, GRADE_LEVEL_OPTIONS, MOTTO_RECOMMENDATIONS, DEFAULT_USER_PROFILE } from '../data/defaultProfile';
 import {
   User,
@@ -26,6 +26,12 @@ import {
   Smartphone,
   Check,
   FileJson,
+  Camera,
+  Key,
+  Image as ImageIcon,
+  Trash2,
+  Eye,
+  Volume2,
 } from 'lucide-react';
 import {
   StartupRandomConfig,
@@ -40,6 +46,14 @@ import {
   DeviceStorageStats,
   saveUserProfileToDevice,
 } from '../services/deviceStorageService';
+import {
+  processImageFileToDataUrl,
+  DEFAULT_MOM_PHOTO,
+  DEFAULT_DAD_PHOTO,
+  MOM_PHOTO_PRESETS,
+  DAD_PHOTO_PRESETS,
+} from '../utils/parentPhotoUtils';
+import { SurpriseParentNagPopup, SurpriseNagType } from './SurpriseParentNagPopup';
 
 interface UserProfileModalProps {
   isOpen: boolean;
@@ -77,13 +91,78 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
   const [grade, setGrade] = useState<StudyGradeLevel>('high');
   const [dailyWordGoal, setDailyWordGoal] = useState<number>(20);
   const [motto, setMotto] = useState('');
-  const [activeTab, setActiveTab] = useState<'profile' | 'device_storage' | 'backup'>('profile');
+  const [nagCharacter, setNagCharacter] = useState<NagCharacterSetting>('mom');
+  const [nagTone, setNagTone] = useState<NagTonePreset>('tsundere');
+  const [momPhotoUrl, setMomPhotoUrl] = useState<string | undefined>(undefined);
+  const [dadPhotoUrl, setDadPhotoUrl] = useState<string | undefined>(undefined);
+  const [activeTab, setActiveTab] = useState<'profile' | 'custom_nags' | 'device_storage' | 'backup'>('profile');
   const [showResetConfirm, setShowResetConfirm] = useState(false);
   const [saveToast, setSaveToast] = useState<string | null>(null);
   const [storageStats, setStorageStats] = useState<DeviceStorageStats>(getDeviceStorageStats());
+  const [previewNag, setPreviewNag] = useState<{ isOpen: boolean; speaker: 'mom' | 'dad'; type: SurpriseNagType } | null>(null);
   
+  // Custom Nag Scripts Customizable States (BYOK support)
+  const [geminiApiKey, setGeminiApiKey] = useState(() => {
+    try {
+      return localStorage.getItem('wordloop_custom_gemini_key') || '';
+    } catch {
+      return '';
+    }
+  });
+  const [conceptDirection, setConceptDirection] = useState('매콤하고 구수한 츤데레 경상도 사투리 부모님 스타일');
+  const [customNagScripts, setCustomNagScripts] = useState<{
+    study_start?: any;
+    study_complete?: any;
+    study_delay?: any;
+  } | null>(() => {
+    try {
+      const saved = localStorage.getItem('wordloop_custom_nag_scripts');
+      return saved ? JSON.parse(saved) : null;
+    } catch {
+      return null;
+    }
+  });
+  const [isGeneratingNags, setIsGeneratingNags] = useState(false);
+
+  const handleGenerateCustomScripts = async () => {
+    setIsGeneratingNags(true);
+    try {
+      const response = await fetch('/api/ai/generate-custom-nags', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-gemini-api-key': geminiApiKey.trim() || '',
+        },
+        body: JSON.stringify({
+          direction: conceptDirection,
+        }),
+      });
+
+      const data = await response.json();
+      if (data.success && data.scripts) {
+        setCustomNagScripts(data.scripts);
+        localStorage.setItem('wordloop_custom_nag_scripts', JSON.stringify(data.scripts));
+        if (geminiApiKey.trim()) {
+          localStorage.setItem('wordloop_custom_gemini_key', geminiApiKey.trim());
+        } else {
+          localStorage.removeItem('wordloop_custom_gemini_key');
+        }
+        setSaveToast('🎉 AI 대본이 안전하게 자동 구축되어 기기에 보관되었습니다!');
+        setTimeout(() => setSaveToast(null), 2500);
+      } else {
+        alert(data.error || '대본 생성 실패. 인터넷 연결 또는 API Key 상태를 확인해주세요.');
+      }
+    } catch (err: any) {
+      alert('오류 발생: ' + (err.message || err));
+    } finally {
+      setIsGeneratingNags(false);
+    }
+  };
+
   const allDataFileInputRef = useRef<HTMLInputElement | null>(null);
   const profileFileInputRef = useRef<HTMLInputElement | null>(null);
+  const momPhotoInputRef = useRef<HTMLInputElement | null>(null);
+  const dadPhotoInputRef = useRef<HTMLInputElement | null>(null);
 
   // Initialize form state from userProfile or default
   useEffect(() => {
@@ -93,12 +172,20 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
       setGrade(userProfile.grade || 'high');
       setDailyWordGoal(userProfile.dailyWordGoal || 20);
       setMotto(userProfile.motto || '');
+      setNagCharacter(userProfile.nagCharacter || 'mom');
+      setNagTone(userProfile.nagTone || 'tsundere');
+      setMomPhotoUrl(userProfile.momPhotoUrl);
+      setDadPhotoUrl(userProfile.dadPhotoUrl);
     } else {
       setName('');
       setAvatar('🎓');
       setGrade('high');
       setDailyWordGoal(20);
       setMotto(MOTTO_RECOMMENDATIONS[0]);
+      setNagCharacter('mom');
+      setNagTone('tsundere');
+      setMomPhotoUrl(undefined);
+      setDadPhotoUrl(undefined);
     }
     setStorageStats(getDeviceStorageStats());
   }, [userProfile, isOpen]);
@@ -127,6 +214,10 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
       gradeLabel: selectedGradeObj?.label || '고등/수능 (1,800단어)',
       dailyWordGoal,
       motto: motto.trim() || MOTTO_RECOMMENDATIONS[0],
+      nagCharacter,
+      nagTone,
+      momPhotoUrl,
+      dadPhotoUrl,
       createdAt: userProfile?.createdAt || new Date().toISOString(),
       isLocked: true,
       lastSavedToDeviceAt: new Date().toISOString(),
@@ -134,11 +225,136 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
     };
 
     onSaveProfile(updatedProfile);
-    setSaveToast('사용자 정보가 장치에 안전하게 저장되었습니다!');
+    try {
+      localStorage.setItem('wordloop_nag_character_pref', nagCharacter);
+      localStorage.setItem('wordloop_nag_tone_pref', nagTone);
+      window.dispatchEvent(new CustomEvent('wordloop_nag_character_changed', { detail: nagCharacter }));
+      window.dispatchEvent(new CustomEvent('wordloop_nag_tone_changed', { detail: nagTone }));
+    } catch {}
+    setSaveToast('사용자 정보와 엄빠 잔소리 사진이 장치에 안전하게 저장되었습니다!');
     setTimeout(() => {
       setSaveToast(null);
       onClose();
     }, 1200);
+  };
+
+  // Helper to instantly persist photo changes to user profile & device storage
+  const persistProfileWithPhotos = (newMomUrl?: string, newDadUrl?: string) => {
+    const finalName = name.trim() || userProfile?.name || '나의 학습자';
+    const selectedGradeObj = GRADE_LEVEL_OPTIONS.find((g) => g.id === grade);
+
+    const updated: UserProfile = {
+      id: userProfile?.id || 'user-primary-owner',
+      name: finalName,
+      avatar,
+      grade,
+      gradeLabel: selectedGradeObj?.label || '고등/수능 (1,800단어)',
+      dailyWordGoal,
+      motto: motto.trim() || userProfile?.motto || MOTTO_RECOMMENDATIONS[0],
+      nagCharacter,
+      nagTone,
+      momPhotoUrl: newMomUrl !== undefined ? newMomUrl : momPhotoUrl,
+      dadPhotoUrl: newDadUrl !== undefined ? newDadUrl : dadPhotoUrl,
+      createdAt: userProfile?.createdAt || new Date().toISOString(),
+      isLocked: true,
+      lastSavedToDeviceAt: new Date().toISOString(),
+      savedToDeviceCount: (userProfile?.savedToDeviceCount || 0) + 1,
+    };
+
+    onSaveProfile(updated);
+    saveUserProfileToDevice(updated);
+    setStorageStats(getDeviceStorageStats());
+    return updated;
+  };
+
+  const handleMomPhotoChange = async (e: React.ChangeEvent<HTMLInputElement> | any) => {
+    let file: File | undefined;
+    if (e instanceof File) {
+      file = e;
+    } else if (e?.dataTransfer?.files?.[0]) {
+      file = e.dataTransfer.files[0];
+    } else if (e?.target?.files?.[0]) {
+      file = e.target.files[0];
+    }
+
+    if (file) {
+      try {
+        const dataUrl = await processImageFileToDataUrl(file, 480, 0.82);
+        setMomPhotoUrl(dataUrl);
+        persistProfileWithPhotos(dataUrl, dadPhotoUrl);
+        setSaveToast('👩 엄마 사진이 안전하게 등록 및 자동 저장되었습니다!');
+        setTimeout(() => setSaveToast(null), 2500);
+      } catch (err: any) {
+        alert(err.message || '사진 업로드 실패');
+      }
+    }
+    if (e?.target && 'value' in e.target) {
+      try { e.target.value = ''; } catch {}
+    }
+  };
+
+  const handleDadPhotoChange = async (e: React.ChangeEvent<HTMLInputElement> | any) => {
+    let file: File | undefined;
+    if (e instanceof File) {
+      file = e;
+    } else if (e?.dataTransfer?.files?.[0]) {
+      file = e.dataTransfer.files[0];
+    } else if (e?.target?.files?.[0]) {
+      file = e.target.files[0];
+    }
+
+    if (file) {
+      try {
+        const dataUrl = await processImageFileToDataUrl(file, 480, 0.82);
+        setDadPhotoUrl(dataUrl);
+        persistProfileWithPhotos(momPhotoUrl, dataUrl);
+        setSaveToast('👨 아빠 사진이 안전하게 등록 및 자동 저장되었습니다!');
+        setTimeout(() => setSaveToast(null), 2500);
+      } catch (err: any) {
+        alert(err.message || '사진 업로드 실패');
+      }
+    }
+    if (e?.target && 'value' in e.target) {
+      try { e.target.value = ''; } catch {}
+    }
+  };
+
+  const handleSelectMomPreset = (presetDataUrl: string) => {
+    setMomPhotoUrl(presetDataUrl);
+    persistProfileWithPhotos(presetDataUrl, dadPhotoUrl);
+    setSaveToast('👩 엄마 추천 캐릭터가 등록 및 저장되었습니다!');
+    setTimeout(() => setSaveToast(null), 2200);
+  };
+
+  const handleSelectDadPreset = (presetDataUrl: string) => {
+    setDadPhotoUrl(presetDataUrl);
+    persistProfileWithPhotos(momPhotoUrl, presetDataUrl);
+    setSaveToast('👨 아빠 추천 캐릭터가 등록 및 저장되었습니다!');
+    setTimeout(() => setSaveToast(null), 2200);
+  };
+
+  const handleAutoRegisterBothPresetParents = () => {
+    const newMom = DEFAULT_MOM_PHOTO;
+    const newDad = DEFAULT_DAD_PHOTO;
+    setMomPhotoUrl(newMom);
+    setDadPhotoUrl(newDad);
+    persistProfileWithPhotos(newMom, newDad);
+    setSaveToast('🎉 추천 부모님 캐릭터가 즉시 등록되어 모든 학습 게임을 바로 즐기실 수 있습니다!');
+    setTimeout(() => setSaveToast(null), 3000);
+  };
+
+  const handleRemoveMomPhoto = () => {
+    setMomPhotoUrl(undefined);
+    persistProfileWithPhotos(undefined, dadPhotoUrl);
+    setSaveToast('엄마 사진이 기본 상태로 복원되었습니다.');
+    setTimeout(() => setSaveToast(null), 2000);
+  };
+
+  const handleRemoveDadPhoto = () => {
+    setDadPhotoUrl(undefined);
+    persistProfileWithPhotos(momPhotoUrl, undefined);
+    setSaveToast('아빠 사진이 기본 상태로 복원되었습니다.');
+    setTimeout(() => setSaveToast(null), 2000);
   };
 
   const handleProfileFileImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -152,6 +368,9 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
         setGrade(imported.grade);
         setDailyWordGoal(imported.dailyWordGoal);
         setMotto(imported.motto);
+        setNagCharacter(imported.nagCharacter || 'mom');
+        setMomPhotoUrl(imported.momPhotoUrl);
+        setDadPhotoUrl(imported.dadPhotoUrl);
         setSaveToast('프로필 파일을 성공적으로 장치에 불러왔습니다!');
         setTimeout(() => setSaveToast(null), 2500);
       } catch (err: any) {
@@ -231,41 +450,57 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
 
         {/* Tab switch */}
         {!isOnboarding && (
-          <div className="grid grid-cols-3 gap-1 bg-slate-100 dark:bg-slate-800/80 p-1 mt-2.5 rounded-2xl border border-slate-200/80 dark:border-slate-700/80 shrink-0">
+          <div className="grid grid-cols-4 gap-1 bg-slate-100 dark:bg-slate-800/80 p-1 mt-2.5 rounded-2xl border border-slate-200/80 dark:border-slate-700/80 shrink-0">
             <button
+              type="button"
               onClick={() => setActiveTab('profile')}
-              className={`py-1.5 px-2 rounded-xl text-xs font-black transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+              className={`py-1.5 px-1 rounded-xl text-[10px] sm:text-xs font-black transition-all flex items-center justify-center gap-1 cursor-pointer ${
                 activeTab === 'profile'
                   ? 'bg-white dark:bg-slate-900 text-emerald-600 dark:text-emerald-400 shadow-sm'
                   : 'text-slate-500 hover:text-slate-900 dark:hover:text-slate-200'
               }`}
             >
               <User className="w-3.5 h-3.5" />
-              <span>프로필 설정</span>
+              <span>프로필</span>
             </button>
 
             <button
+              type="button"
+              onClick={() => setActiveTab('custom_nags')}
+              className={`py-1.5 px-1 rounded-xl text-[10px] sm:text-xs font-black transition-all flex items-center justify-center gap-1 cursor-pointer ${
+                activeTab === 'custom_nags'
+                  ? 'bg-white dark:bg-slate-900 text-purple-600 dark:text-purple-400 shadow-sm'
+                  : 'text-slate-500 hover:text-slate-900 dark:hover:text-slate-200'
+              }`}
+            >
+              <Sparkles className="w-3.5 h-3.5" />
+              <span>대본커스텀</span>
+            </button>
+
+            <button
+              type="button"
               onClick={() => setActiveTab('device_storage')}
-              className={`py-1.5 px-2 rounded-xl text-xs font-black transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+              className={`py-1.5 px-1 rounded-xl text-[10px] sm:text-xs font-black transition-all flex items-center justify-center gap-1 cursor-pointer ${
                 activeTab === 'device_storage'
                   ? 'bg-white dark:bg-slate-900 text-indigo-600 dark:text-indigo-400 shadow-sm'
                   : 'text-slate-500 hover:text-slate-900 dark:hover:text-slate-200'
               }`}
             >
               <HardDrive className="w-3.5 h-3.5" />
-              <span>장치 저장 상태</span>
+              <span>장치상태</span>
             </button>
 
             <button
+              type="button"
               onClick={() => setActiveTab('backup')}
-              className={`py-1.5 px-2 rounded-xl text-xs font-black transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+              className={`py-1.5 px-1 rounded-xl text-[10px] sm:text-xs font-black transition-all flex items-center justify-center gap-1 cursor-pointer ${
                 activeTab === 'backup'
                   ? 'bg-white dark:bg-slate-900 text-teal-600 dark:text-teal-400 shadow-sm'
                   : 'text-slate-500 hover:text-slate-900 dark:hover:text-slate-200'
               }`}
             >
               <ShieldCheck className="w-3.5 h-3.5" />
-              <span>전체 백업/복원</span>
+              <span>백업/복원</span>
             </button>
           </div>
         )}
@@ -438,6 +673,310 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
                 </div>
               </div>
 
+              {/* 6. Nagging Tone & Manner Preset Selection */}
+              <div className="space-y-2 pt-3 border-t border-slate-100 dark:border-slate-800">
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-black text-slate-900 dark:text-white flex items-center gap-1.5">
+                    <Sparkles className="w-4 h-4 text-amber-500" />
+                    <span>엄마·아빠 잔소리 톤앤매너 설정</span>
+                  </label>
+                  <span className="text-[10px] text-slate-400 font-bold">말투 및 캐릭터 특성</span>
+                </div>
+
+                <div className="grid grid-cols-3 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setNagTone('tsundere')}
+                    className={`p-2.5 rounded-2xl border text-left transition-all cursor-pointer ${
+                      nagTone === 'tsundere'
+                        ? 'bg-rose-500/10 border-rose-500 text-rose-900 dark:text-rose-200 ring-1 ring-rose-400 shadow-sm'
+                        : 'bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-100'
+                    }`}
+                  >
+                    <div className="font-black text-xs flex items-center gap-1">
+                      <span>😏 츤데레</span>
+                    </div>
+                    <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5 leading-tight truncate">
+                      무심한 척 챙김
+                    </p>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setNagTone('strict')}
+                    className={`p-2.5 rounded-2xl border text-left transition-all cursor-pointer ${
+                      nagTone === 'strict'
+                        ? 'bg-indigo-500/10 border-indigo-500 text-indigo-900 dark:text-indigo-200 ring-1 ring-indigo-400 shadow-sm'
+                        : 'bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-100'
+                    }`}
+                  >
+                    <div className="font-black text-xs flex items-center gap-1">
+                      <span>⚡ 엄격</span>
+                    </div>
+                    <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5 leading-tight truncate">
+                      단호한 스파르타
+                    </p>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setNagTone('affectionate')}
+                    className={`p-2.5 rounded-2xl border text-left transition-all cursor-pointer ${
+                      nagTone === 'affectionate'
+                        ? 'bg-emerald-500/10 border-emerald-500 text-emerald-900 dark:text-emerald-200 ring-1 ring-emerald-400 shadow-sm'
+                        : 'bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-100'
+                    }`}
+                  >
+                    <div className="font-black text-xs flex items-center gap-1">
+                      <span>❤️ 다정</span>
+                    </div>
+                    <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5 leading-tight truncate">
+                      따뜻한 힐링 응원
+                    </p>
+                  </button>
+                </div>
+              </div>
+
+              {/* 7. Mom & Dad Photo Registration for Full-Screen Voice Nagging */}
+              <div className="space-y-2.5 pt-3 border-t border-slate-100 dark:border-slate-800">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-1.5">
+                    <Camera className="w-4 h-4 text-rose-500" />
+                    <label className="text-xs font-black text-slate-900 dark:text-white">
+                      엄마 & 아빠 사진 등록 (전면 가득 잔소리 전용)
+                    </label>
+                  </div>
+                  <span className="text-[10px] text-slate-400 font-bold hidden sm:inline">
+                    성취 저조/달성 시 전면 가득 출현!
+                  </span>
+                </div>
+                <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-relaxed">
+                  실제 엄마, 아빠 사진을 등록하면 학습 성취도에 따라 화면에 전면 가득 툭 튀어나와 텍스트 없이 실감 나는 실제 목소리로만 잔소리/칭찬을 해줍니다. (미등록 시 코믹 캐릭터 자동 적용)
+                </p>
+
+                {/* Quick Auto-Register Banner for Instant Play */}
+                <div className="p-2.5 rounded-2xl bg-gradient-to-r from-amber-500/15 via-rose-500/10 to-indigo-500/15 border border-amber-500/30 flex items-center justify-between gap-2 flex-wrap">
+                  <div className="flex items-center gap-2">
+                    <span className="text-base">⚡</span>
+                    <div>
+                      <span className="text-xs font-black text-slate-900 dark:text-white">실제 사진 파일이 준비되지 않으셨나요?</span>
+                      <p className="text-[10px] text-slate-500 dark:text-slate-400">원터치로 추천 부모님 캐릭터를 즉시 등록하여 모든 학습 게임을 바로 즐기실 수 있습니다.</p>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleAutoRegisterBothPresetParents}
+                    className="py-1.5 px-3 rounded-xl bg-gradient-to-r from-amber-500 to-rose-500 hover:from-amber-400 hover:to-rose-400 text-white text-xs font-black flex items-center gap-1.5 shadow-md shadow-rose-500/20 cursor-pointer active:scale-95"
+                  >
+                    <Sparkles className="w-3.5 h-3.5 text-amber-200" />
+                    <span>추천 부모님 캐릭터 1초 등록</span>
+                  </button>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                  {/* Mom Photo Box */}
+                  <div className="p-3 rounded-2xl bg-rose-50/70 dark:bg-rose-950/30 border border-rose-200/80 dark:border-rose-900/50 space-y-2.5">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-black text-rose-900 dark:text-rose-200 flex items-center gap-1.5">
+                        <span>👩 엄마 사진</span>
+                        {momPhotoUrl ? (
+                          <span className="text-[9px] bg-rose-500 text-white font-black px-1.5 py-0.2 rounded-full">등록됨</span>
+                        ) : (
+                          <span className="text-[9px] bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-400 px-1.5 py-0.2 rounded-full">기본 캐릭터</span>
+                        )}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => setPreviewNag({ isOpen: true, speaker: 'mom', type: 'low_achievement' })}
+                        className="px-2 py-1 rounded-xl bg-rose-600 hover:bg-rose-500 text-white text-[10px] font-black flex items-center gap-1 shadow-sm cursor-pointer active:scale-95"
+                      >
+                        <Eye className="w-3 h-3" />
+                        <span>전면 잔소리 테스트</span>
+                      </button>
+                    </div>
+
+                    <div className="flex items-center gap-3">
+                      <div
+                        onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); }}
+                        onDrop={(e) => { e.preventDefault(); e.stopPropagation(); handleMomPhotoChange(e); }}
+                        className="w-16 h-16 rounded-2xl overflow-hidden bg-slate-200 dark:bg-slate-800 border-2 border-rose-300 dark:border-rose-700 shrink-0 shadow-inner flex items-center justify-center relative group"
+                        title="사진을 여기에 드래그하거나 아래 버튼을 눌러 등록하세요"
+                      >
+                        <img
+                          src={momPhotoUrl || DEFAULT_MOM_PHOTO}
+                          alt="엄마 사진"
+                          className="w-full h-full object-cover"
+                        />
+                      </div>
+
+                      <div className="flex-1 space-y-1.5">
+                        <input
+                          id="mom-photo-upload-input"
+                          type="file"
+                          ref={momPhotoInputRef}
+                          onChange={handleMomPhotoChange}
+                          accept="image/*,.png,.jpg,.jpeg,.webp,.gif,.bmp,.heic,.heif"
+                          className="sr-only"
+                        />
+                        <label
+                          htmlFor="mom-photo-upload-input"
+                          className="w-full py-1.5 px-2.5 rounded-xl bg-white dark:bg-slate-800 hover:bg-rose-100 dark:hover:bg-rose-900/40 border border-rose-300 dark:border-rose-700 text-rose-700 dark:text-rose-300 text-xs font-black flex items-center justify-center gap-1.5 transition-colors cursor-pointer shadow-sm select-none"
+                        >
+                          <Camera className="w-3.5 h-3.5" />
+                          <span>{momPhotoUrl ? '사진 변경하기' : '실제 사진 등록'}</span>
+                        </label>
+
+                        {/* Mom Preset Chips */}
+                        <div className="flex items-center gap-1 pt-0.5">
+                          <span className="text-[9px] text-slate-400 font-bold shrink-0">추천:</span>
+                          <div className="flex items-center gap-1 overflow-x-auto custom-scrollbar">
+                            {MOM_PHOTO_PRESETS.map((p) => (
+                              <button
+                                key={p.id}
+                                type="button"
+                                onClick={() => handleSelectMomPreset(p.dataUrl)}
+                                title={`${p.name}: ${p.description}`}
+                                className="px-1.5 py-0.5 rounded-md bg-white dark:bg-slate-800 hover:bg-rose-200 dark:hover:bg-rose-900/60 border border-rose-200 dark:border-rose-800 text-rose-800 dark:text-rose-300 text-[9px] font-bold shrink-0 transition-colors cursor-pointer"
+                              >
+                                {p.name.replace(' 엄마', '')}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+
+                        {momPhotoUrl && (
+                          <button
+                            type="button"
+                            onClick={handleRemoveMomPhoto}
+                            className="w-full py-1 px-2 rounded-lg bg-transparent hover:bg-rose-200/50 dark:hover:bg-rose-900/50 text-rose-600 dark:text-rose-400 text-[10px] font-bold flex items-center justify-center gap-1 transition-colors cursor-pointer"
+                          >
+                            <Trash2 className="w-3 h-3" />
+                            <span>기본 캐릭터로 복원</span>
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Dad Photo Box */}
+                  <div className="p-3 rounded-2xl bg-blue-50/70 dark:bg-blue-950/30 border border-blue-200/80 dark:border-blue-900/50 space-y-2.5">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-black text-blue-900 dark:text-blue-200 flex items-center gap-1.5">
+                        <span>👨 아빠 사진</span>
+                        {dadPhotoUrl ? (
+                          <span className="text-[9px] bg-blue-600 text-white font-black px-1.5 py-0.2 rounded-full">등록됨</span>
+                        ) : (
+                          <span className="text-[9px] bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-400 px-1.5 py-0.2 rounded-full">기본 캐릭터</span>
+                        )}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => setPreviewNag({ isOpen: true, speaker: 'dad', type: 'high_achievement' })}
+                        className="px-2 py-1 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-[10px] font-black flex items-center gap-1 shadow-sm cursor-pointer active:scale-95"
+                      >
+                        <Eye className="w-3 h-3" />
+                        <span>전면 잔소리 테스트</span>
+                      </button>
+                    </div>
+
+                    <div className="flex items-center gap-3">
+                      <div
+                        onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); }}
+                        onDrop={(e) => { e.preventDefault(); e.stopPropagation(); handleDadPhotoChange(e); }}
+                        className="w-16 h-16 rounded-2xl overflow-hidden bg-slate-200 dark:bg-slate-800 border-2 border-blue-300 dark:border-blue-700 shrink-0 shadow-inner flex items-center justify-center relative group"
+                        title="사진을 여기에 드래그하거나 아래 버튼을 눌러 등록하세요"
+                      >
+                        <img
+                          src={dadPhotoUrl || DEFAULT_DAD_PHOTO}
+                          alt="아빠 사진"
+                          className="w-full h-full object-cover"
+                        />
+                      </div>
+
+                      <div className="flex-1 space-y-1.5">
+                        <input
+                          id="dad-photo-upload-input"
+                          type="file"
+                          ref={dadPhotoInputRef}
+                          onChange={handleDadPhotoChange}
+                          accept="image/*,.png,.jpg,.jpeg,.webp,.gif,.bmp,.heic,.heif"
+                          className="sr-only"
+                        />
+                        <label
+                          htmlFor="dad-photo-upload-input"
+                          className="w-full py-1.5 px-2.5 rounded-xl bg-white dark:bg-slate-800 hover:bg-blue-100 dark:hover:bg-blue-900/40 border border-blue-300 dark:border-blue-700 text-blue-700 dark:text-blue-300 text-xs font-black flex items-center justify-center gap-1.5 transition-colors cursor-pointer shadow-sm select-none"
+                        >
+                          <Camera className="w-3.5 h-3.5" />
+                          <span>{dadPhotoUrl ? '사진 변경하기' : '실제 사진 등록'}</span>
+                        </label>
+
+                        {/* Dad Preset Chips */}
+                        <div className="flex items-center gap-1 pt-0.5">
+                          <span className="text-[9px] text-slate-400 font-bold shrink-0">추천:</span>
+                          <div className="flex items-center gap-1 overflow-x-auto custom-scrollbar">
+                            {DAD_PHOTO_PRESETS.map((p) => (
+                              <button
+                                key={p.id}
+                                type="button"
+                                onClick={() => handleSelectDadPreset(p.dataUrl)}
+                                title={`${p.name}: ${p.description}`}
+                                className="px-1.5 py-0.5 rounded-md bg-white dark:bg-slate-800 hover:bg-blue-200 dark:hover:bg-blue-900/60 border border-blue-200 dark:border-blue-800 text-blue-800 dark:text-blue-300 text-[9px] font-bold shrink-0 transition-colors cursor-pointer"
+                              >
+                                {p.name.replace(' 아빠', '')}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+
+                        {dadPhotoUrl && (
+                          <button
+                            type="button"
+                            onClick={handleRemoveDadPhoto}
+                            className="w-full py-1 px-2 rounded-lg bg-transparent hover:bg-blue-200/50 dark:hover:bg-blue-900/50 text-blue-600 dark:text-blue-400 text-[10px] font-bold flex items-center justify-center gap-1 transition-colors cursor-pointer"
+                          >
+                            <Trash2 className="w-3 h-3" />
+                            <span>기본 캐릭터로 복원</span>
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* 30-Minute Continuous Study 5-Minute Break Preview Test Bar */}
+                <div className="p-3 rounded-2xl bg-gradient-to-r from-emerald-500/10 via-teal-500/10 to-indigo-500/10 border border-emerald-500/30 flex items-center justify-between gap-2 flex-wrap">
+                  <div className="flex items-center gap-2">
+                    <span className="text-base">☕</span>
+                    <div>
+                      <p className="text-xs font-black text-emerald-950 dark:text-emerald-200">
+                        30분 연속 학습 시 5분 휴식 권장 알림 (부드러운 다정 컨셉)
+                      </p>
+                      <p className="text-[10px] text-slate-500 dark:text-slate-400">
+                        연속 30분 집중 시 부드러운 다정 컨셉으로 5분 힐링 휴식을 권장하는 전면 팝업입니다.
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => setPreviewNag({ isOpen: true, speaker: 'mom', type: 'continuous_study_break' })}
+                      className="px-2.5 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-black text-[10px] flex items-center gap-1 shadow-sm cursor-pointer active:scale-95"
+                    >
+                      <Eye className="w-3 h-3" />
+                      <span>👩 엄마 다정 휴식 테스트</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setPreviewNag({ isOpen: true, speaker: 'dad', type: 'continuous_study_break' })}
+                      className="px-2.5 py-1.5 rounded-xl bg-teal-600 hover:bg-teal-500 text-white font-black text-[10px] flex items-center gap-1 shadow-sm cursor-pointer active:scale-95"
+                    >
+                      <Eye className="w-3 h-3" />
+                      <span>👨 아빠 다정 휴식 테스트</span>
+                    </button>
+                  </div>
+                </div>
+              </div>
+
               {/* Direct Profile File Export/Import in Profile Tab */}
               {!isOnboarding && (
                 <div className="pt-2 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between gap-2">
@@ -452,6 +991,7 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
                           grade,
                           dailyWordGoal,
                           motto,
+                          nagCharacter,
                         });
                       }
                     }}
@@ -480,6 +1020,194 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
               )}
 
             </form>
+          )}
+
+          {/* TAB 1.5: AI Nag Script Customization Section */}
+          {activeTab === 'custom_nags' && (
+            <div className="space-y-4 py-1 animate-in fade-in duration-150">
+              
+              {/* Introduction Card */}
+              <div className="p-4 rounded-2xl bg-gradient-to-br from-purple-500/10 via-pink-500/5 to-indigo-500/10 border border-purple-500/20 space-y-2">
+                <div className="flex items-center gap-2">
+                  <Sparkles className="w-4 h-4 text-purple-500 animate-pulse" />
+                  <span className="font-black text-xs text-slate-900 dark:text-white">
+                    AI 엄빠 잔소리 대본 커스터마이징 (자동 구축)
+                  </span>
+                </div>
+                <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-relaxed">
+                  원하는 잔소리 컨셉이나 사투리, 스파르타식 지시사항을 입력하면 <strong>Gemini AI가 상황별(학습 시작, 완료, 미루기) 및 3가지 톤(츤데레, 엄격, 다정)</strong>에 맞는 입체적인 부모님 대본 데이터를 자동으로 구축해 줍니다.
+                </p>
+              </div>
+
+              {/* API Key Override Setting */}
+              <div className="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200/80 dark:border-slate-700/80 space-y-2">
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-black text-slate-900 dark:text-white flex items-center gap-1.5">
+                    <Key className="w-3.5 h-3.5 text-amber-500" />
+                    <span>개인 Gemini API Key 등록 (선택)</span>
+                  </label>
+                  <span className="text-[10px] text-slate-400 font-bold font-mono">Optional Override</span>
+                </div>
+                <input
+                  type="password"
+                  value={geminiApiKey}
+                  onChange={(e) => setGeminiApiKey(e.target.value)}
+                  placeholder="🔑 API Key를 입력하세요 (공백 시 서버 보안 Key 자동 사용)"
+                  className="w-full px-3 py-2 text-xs rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-600 focus:outline-none focus:ring-1 focus:ring-purple-500"
+                />
+                <p className="text-[10px] text-slate-500 dark:text-slate-400 leading-tight">
+                  💡 개인 API Key가 없어도 비워두시면 <strong>서버 전용 보안 API Key가 자동으로 적용</strong>되어 누구나 즉시 빌드 가능합니다.
+                </p>
+              </div>
+
+              {/* Concept Directive Input */}
+              <div className="space-y-2">
+                <label className="text-xs font-black text-slate-900 dark:text-white flex items-center gap-1.5">
+                  <Sparkles className="w-3.5 h-3.5 text-purple-500" />
+                  <span>원하는 부모님 잔소리 컨셉 / 지시사항</span>
+                </label>
+                <textarea
+                  rows={2}
+                  value={conceptDirection}
+                  onChange={(e) => setConceptDirection(e.target.value)}
+                  placeholder="예: '구수한 전라도 사투리 스타일', '해병대 교관 수준의 초강력 매콤 스파르타식 독설', '칭찬과 우쭈쭈가 가득한 천사표 엄마'"
+                  className="w-full p-2.5 text-xs rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-1 focus:ring-purple-500 resize-none"
+                />
+              </div>
+
+              {/* Trigger Button */}
+              <button
+                type="button"
+                disabled={isGeneratingNags}
+                onClick={handleGenerateCustomScripts}
+                className="w-full py-3 px-4 rounded-2xl bg-gradient-to-r from-purple-600 via-indigo-600 to-pink-500 hover:from-purple-500 hover:to-pink-400 text-white font-black text-xs flex items-center justify-center gap-2 shadow-md shadow-purple-500/20 transition-all active:scale-95 cursor-pointer disabled:opacity-50 disabled:pointer-events-none"
+              >
+                {isGeneratingNags ? (
+                  <>
+                    <span className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                    <span>Gemini AI가 고품격 대본 자동 구축 중...</span>
+                  </>
+                ) : (
+                  <>
+                    <Sparkles className="w-3.5 h-3.5 text-amber-300 animate-pulse" />
+                    <span>AI로 대본 자동 구축 및 덮어쓰기 (학습시작, 완료, 미루기)</span>
+                  </>
+                )}
+              </button>
+
+              {/* Editable scripts display if exist */}
+              {customNagScripts && (
+                <div className="space-y-3.5 pt-3 border-t border-slate-100 dark:border-slate-800">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-black text-slate-900 dark:text-white flex items-center gap-1.5">
+                      <span>📄 구축된 커스텀 대본 리스트 (수정 및 테스트 가능)</span>
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (confirm('모든 AI 커스텀 대본을 초기화하고 기기의 기본값으로 복원할까요?')) {
+                          setCustomNagScripts(null);
+                          localStorage.removeItem('wordloop_custom_nag_scripts');
+                          setSaveToast('초기화 완료! 기본 잔소리 대본으로 복원되었습니다.');
+                          setTimeout(() => setSaveToast(null), 1500);
+                        }
+                      }}
+                      className="text-[10px] text-rose-500 hover:text-rose-600 font-bold cursor-pointer"
+                    >
+                      전체 초기화
+                    </button>
+                  </div>
+
+                  {/* Render editable inputs for the 3 situations */}
+                  {(['study_start', 'study_complete', 'study_delay'] as const).map((sit) => {
+                    const sitLabel = sit === 'study_start'
+                      ? '🎬 학습을 시작할 때'
+                      : sit === 'study_complete'
+                      ? '🎉 학습 목표를 완료했을 때'
+                      : '🚫 학습을 미루고 놀 때';
+
+                    return (
+                      <div key={sit} className="p-3 rounded-2xl bg-slate-50 dark:bg-slate-800/40 border border-slate-200/60 dark:border-slate-700/50 space-y-2.5 text-xs">
+                        <h4 className="font-extrabold text-slate-900 dark:text-white">{sitLabel}</h4>
+                        
+                        {/* Render Mom & Dad for selected tone */}
+                        <div className="grid grid-cols-2 gap-2 text-[11px]">
+                          <div className="space-y-1">
+                            <span className="font-black text-rose-600 dark:text-rose-400">👩 엄마 ({nagTone === 'tsundere' ? '츤데레' : nagTone === 'strict' ? '엄격' : '다정'})</span>
+                            <textarea
+                              rows={2.5}
+                              value={customNagScripts[sit]?.mom?.[nagTone] || ''}
+                              onChange={(e) => {
+                                const val = e.target.value;
+                                setCustomNagScripts(prev => {
+                                  if (!prev) return null;
+                                  const updated = { ...prev };
+                                  if (!updated[sit]) updated[sit] = {};
+                                  if (!updated[sit].mom) updated[sit].mom = {};
+                                  updated[sit].mom[nagTone] = val;
+                                  localStorage.setItem('wordloop_custom_nag_scripts', JSON.stringify(updated));
+                                  return updated;
+                                });
+                              }}
+                              className="w-full p-2 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 resize-none text-[10px]"
+                            />
+                          </div>
+
+                          <div className="space-y-1">
+                            <span className="font-black text-blue-600 dark:text-blue-400">👨 아빠 ({nagTone === 'tsundere' ? '츤데레' : nagTone === 'strict' ? '엄격' : '다정'})</span>
+                            <textarea
+                              rows={2.5}
+                              value={customNagScripts[sit]?.dad?.[nagTone] || ''}
+                              onChange={(e) => {
+                                const val = e.target.value;
+                                setCustomNagScripts(prev => {
+                                  if (!prev) return null;
+                                  const updated = { ...prev };
+                                  if (!updated[sit]) updated[sit] = {};
+                                  if (!updated[sit].dad) updated[sit].dad = {};
+                                  updated[sit].dad[nagTone] = val;
+                                  localStorage.setItem('wordloop_custom_nag_scripts', JSON.stringify(updated));
+                                  return updated;
+                                });
+                              }}
+                              className="w-full p-2 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 resize-none text-[10px]"
+                            />
+                          </div>
+                        </div>
+
+                        <div className="flex justify-end gap-1.5 pt-1">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              // Trigger a preview on the spot
+                              setPreviewNag({ isOpen: true, speaker: 'mom', type: sit as any });
+                            }}
+                            className="px-2.5 py-1 rounded-lg bg-purple-500 hover:bg-purple-600 text-white font-extrabold text-[9px] cursor-pointer"
+                          >
+                            👩 엄마 목소리 테스트
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              // Trigger a preview on the spot
+                              setPreviewNag({ isOpen: true, speaker: 'dad', type: sit as any });
+                            }}
+                            className="px-2.5 py-1 rounded-lg bg-indigo-500 hover:bg-indigo-600 text-white font-extrabold text-[9px] cursor-pointer"
+                          >
+                            👨 아빠 목소리 테스트
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                  
+                  <p className="text-[10px] text-slate-400 dark:text-slate-500 leading-tight">
+                    💡 문구 안에 <code className="text-purple-500 font-mono font-bold">${'{userName}'}</code>, <code className="text-purple-500 font-mono font-bold">${'{todayStudied}'}</code>, <code className="text-purple-500 font-mono font-bold">${'{streakDays}'}</code> 등을 입력하시면 실제 실시간 학습 성취 수치로 치환되어 낭독됩니다.
+                  </p>
+                </div>
+              )}
+
+            </div>
           )}
 
           {/* TAB 2: Device Storage Info & Health */}
@@ -702,6 +1430,26 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
         </div>
 
       </div>
+
+      {/* Full-Screen Photo Nag Test Preview Modal */}
+      {previewNag?.isOpen && (
+        <SurpriseParentNagPopup
+          isOpen={previewNag.isOpen}
+          type={previewNag.type}
+          forceCharacter={previewNag.speaker}
+          onClose={() => setPreviewNag(null)}
+          userProfile={{
+            ...(userProfile || DEFAULT_USER_PROFILE),
+            name: name || userProfile?.name || '학습자',
+            momPhotoUrl,
+            dadPhotoUrl,
+            nagTone,
+          }}
+          completedGoalsCount={previewNag.type === 'low_achievement' ? 0 : 3}
+          totalGoalsCount={3}
+          streak={3}
+        />
+      )}
     </div>
   );
 };

@@ -50,6 +50,17 @@ contextBridge.exposeInMainWorld('WordLoopNative', {
     toggleFloatingWidget: () =>
       ipcRenderer.invoke('native:hook:toggleFloatingWidget'),
   },
+
+  // 6. Emotional Adaptive Tone Polyphonic Sound & Nag BGM Synthesis DLL Bridge
+  toneSynth: {
+    isAvailable: () => process.platform === 'win32',
+    generateBGM: (toneType, durationSec) =>
+      ipcRenderer.invoke('native:synth:generateBGM', { toneType, durationSec }),
+    getSpectrum: (pcmWindow, barCount) =>
+      ipcRenderer.invoke('native:synth:getSpectrum', { pcmWindow, barCount }),
+    synthesizeToneChord: (toneType, chordStep) =>
+      ipcRenderer.invoke('native:synth:synthesizeToneChord', { toneType, chordStep }),
+  },
 });
 
 window.addEventListener('DOMContentLoaded', () => {

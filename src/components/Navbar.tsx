@@ -341,6 +341,21 @@ export const Navbar: React.FC<NavbarProps> = ({
                   </div>
                   <span className="text-[10px] text-blue-500 font-semibold">리포트</span>
                 </button>
+
+                {/* 5. Comical Mom & Dad Nagging Coach */}
+                <button
+                  onClick={() => {
+                    setActiveTab('stats');
+                    setIsMoreMenuOpen(false);
+                  }}
+                  className="w-full px-2.5 py-2 rounded-xl text-xs font-bold flex items-center justify-between transition-colors text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40"
+                >
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm">👩‍🦱</span>
+                    <span>엄빠 사랑의 잔소리</span>
+                  </div>
+                  <span className="text-[10px] text-rose-500 font-bold bg-rose-500/10 px-1.5 py-0.5 rounded">코치</span>
+                </button>
               </div>
             )}
           </div>

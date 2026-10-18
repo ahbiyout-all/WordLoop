@@ -47,6 +47,13 @@ add_library(WordLoopTrayHook SHARED
 )
 target_include_directories(WordLoopTrayHook PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 
+# 6. WordLoopToneSynthEngine.dll (Emotional Tone Polyphonic Sound & Real-Time Nag BGM Synthesis)
+add_library(WordLoopToneSynthEngine SHARED
+    WordLoopToneSynthEngine.h
+    WordLoopToneSynthEngine.cpp
+)
+target_include_directories(WordLoopToneSynthEngine PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
+
 # Output directories
 set_target_properties(
     WordLoopAudioEngine
@@ -54,6 +61,7 @@ set_target_properties(
     WordLoopSRSNeuralEngine
     WordLoopMorphEngine
     WordLoopTrayHook
+    WordLoopToneSynthEngine
     PROPERTIES
     RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin"
     LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/lib"

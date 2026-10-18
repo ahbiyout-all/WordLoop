@@ -27,16 +27,18 @@ namespace {
     float CalculateRMS(const float* data, int32_t count) {
         if (!data || count <= 0) return 0.0f;
         double sum = 0.0;
-        // Unrolled 4-sample accumulator
+        // Unrolled 4-sample accumulator with NaN/Inf sanitization
         int32_t i = 0;
         for (; i + 3 < count; i += 4) {
-            sum += (double)data[i] * data[i] +
-                   (double)data[i + 1] * data[i + 1] +
-                   (double)data[i + 2] * data[i + 2] +
-                   (double)data[i + 3] * data[i + 3];
+            float s0 = std::isfinite(data[i]) ? data[i] : 0.0f;
+            float s1 = std::isfinite(data[i + 1]) ? data[i + 1] : 0.0f;
+            float s2 = std::isfinite(data[i + 2]) ? data[i + 2] : 0.0f;
+            float s3 = std::isfinite(data[i + 3]) ? data[i + 3] : 0.0f;
+            sum += (double)s0 * s0 + (double)s1 * s1 + (double)s2 * s2 + (double)s3 * s3;
         }
         for (; i < count; ++i) {
-            sum += (double)data[i] * data[i];
+            float s = std::isfinite(data[i]) ? data[i] : 0.0f;
+            sum += (double)s * s;
         }
         return (float)std::sqrt(sum / count);
     }
@@ -90,8 +92,8 @@ WORDLOOP_AUDIO_API int32_t WordLoopAudio_ComparePronunciation(
 
     // 1. Calculate Envelope Energy sequences for both native and user audio
     const int32_t frameSize = std::max(160, g_sampleRate / 100); // 10ms frame
-    int32_t nFramesNative = native_count / frameSize;
-    int32_t nFramesUser = user_count / frameSize;
+    int32_t nFramesNative = std::min(600, native_count / frameSize); // Cap at 6s
+    int32_t nFramesUser = std::min(600, user_count / frameSize);     // Cap at 6s
 
     if (nFramesNative == 0 || nFramesUser == 0) return -2;
 

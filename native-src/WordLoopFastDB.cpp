@@ -45,6 +45,11 @@ namespace {
         g_vocabDictionary["vocabulary"] = "{\"word\":\"vocabulary\",\"ipa\":\"/vəˈkæb.jə.ler.i/\",\"meaning\":\"어휘\",\"level\":\"중등\"}";
         g_vocabDictionary["achievement"] = "{\"word\":\"achievement\",\"ipa\":\"/əˈtʃiːv.mənt/\",\"meaning\":\"성취, 달성\",\"level\":\"중등\"}";
         g_vocabDictionary["perseverance"] = "{\"word\":\"perseverance\",\"ipa\":\"/ˌpɜː.sɪˈvɪə.rəns/\",\"meaning\":\"인내, 끈기\",\"level\":\"수능\"}";
+        g_vocabDictionary["challenge"] = "{\"word\":\"challenge\",\"ipa\":\"/ˈtʃæl.ɪndʒ/\",\"meaning\":\"도전, 과제\",\"level\":\"중등\"}";
+        g_vocabDictionary["opportunity"] = "{\"word\":\"opportunity\",\"ipa\":\"/ˌɒp.əˈtjuː.nə.ti/\",\"meaning\":\"기회\",\"level\":\"고등\"}";
+        g_vocabDictionary["habit"] = "{\"word\":\"habit\",\"ipa\":\"/ˈhæb.ɪt/\",\"meaning\":\"습관\",\"level\":\"초등\"}";
+        g_vocabDictionary["focus"] = "{\"word\":\"focus\",\"ipa\":\"/ˈfəʊ.kəs/\",\"meaning\":\"집중, 초점\",\"level\":\"중등\"}";
+        g_vocabDictionary["discipline"] = "{\"word\":\"discipline\",\"ipa\":\"/ˈdɪs.ə.plɪn/\",\"meaning\":\"규율, 자제력\",\"level\":\"고등\"}";
     }
 
     uint32_t CalculateFNV1a(const uint8_t* data, size_t len) {
@@ -104,6 +109,7 @@ WORDLOOP_FASTDB_API int32_t WordLoopDB_SearchWord(
     int32_t buffer_size
 ) {
     if (!query || !out_json_buffer || buffer_size <= 0) return -1;
+    out_json_buffer[0] = '\0';
     if (!g_dbOpen) SeedOfficial3210Vocab();
 
     std::string q = query;
@@ -112,7 +118,9 @@ WORDLOOP_FASTDB_API int32_t WordLoopDB_SearchWord(
     // 1. Exact Match Check (O(1))
     auto it = g_vocabDictionary.find(q);
     if (it != g_vocabDictionary.end()) {
-        if ((int32_t)it->second.size() >= buffer_size) return -2;
+        if ((int32_t)it->second.size() >= buffer_size) {
+            return -2;
+        }
         std::strncpy(out_json_buffer, it->second.c_str(), buffer_size - 1);
         out_json_buffer[buffer_size - 1] = '\0';
         return 1;
@@ -131,7 +139,9 @@ WORDLOOP_FASTDB_API int32_t WordLoopDB_SearchWord(
     }
     results += "]";
 
-    if ((int32_t)results.size() >= buffer_size) return -2;
+    if ((int32_t)results.size() >= buffer_size) {
+        return -2;
+    }
     std::strncpy(out_json_buffer, results.c_str(), buffer_size - 1);
     out_json_buffer[buffer_size - 1] = '\0';
     return count;

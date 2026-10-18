@@ -32,9 +32,10 @@ import {
   ShieldAlert,
   Mic,
   MessageSquare,
-  BookOpen
+  BookOpen,
+  Camera
 } from 'lucide-react';
-import { VocabItem, SentenceItem, QAMode } from '../types';
+import { VocabItem, SentenceItem, QAMode, UserProfile } from '../types';
 import { OFFICIAL_CURRICULUM_3000_LIST } from '../data/officialCurriculum3000';
 import { DEFAULT_SENTENCES } from '../data/defaultVocab';
 import { speechService } from '../services/speechService';
@@ -53,6 +54,11 @@ import { SentenceSpeedRushGame } from './SentenceGames/SentenceSpeedRushGame';
 import { SentenceTrueFalseGame } from './SentenceGames/SentenceTrueFalseGame';
 import { SentenceShadowingGame } from './SentenceGames/SentenceShadowingGame';
 import { FlashcardRecallGame } from './FlashcardRecallGame';
+import {
+  DEFAULT_MOM_PHOTO,
+  DEFAULT_DAD_PHOTO,
+  processImageFileToDataUrl,
+} from '../utils/parentPhotoUtils';
 
 interface StudentWordGameProps {
   vocabList: VocabItem[];
@@ -60,6 +66,9 @@ interface StudentWordGameProps {
   onChangeMastery?: (id: string, level: 0 | 1 | 2) => void;
   onSelectGame?: (game: GameType) => void;
   initialGame?: GameType | null;
+  userProfile?: UserProfile | null;
+  onOpenProfileModal?: () => void;
+  onSaveProfile?: (profile: UserProfile) => void;
 }
 
 type SchoolGrade = 'all' | 'elementary' | 'middle' | 'high_sat';
@@ -140,7 +149,16 @@ const STATIC_OFFICIAL_SENTENCES_BY_GRADE: Record<SchoolGrade, SentenceItem[]> = 
   high_sat: DEFAULT_SENTENCES.filter((s) => s.categoryId === 'high_sat'),
 };
 
-export const StudentWordGame: React.FC<StudentWordGameProps> = ({ vocabList, sentenceList = [], onChangeMastery, onSelectGame, initialGame }) => {
+export const StudentWordGame: React.FC<StudentWordGameProps> = ({
+  vocabList,
+  sentenceList = [],
+  onChangeMastery,
+  onSelectGame,
+  initialGame,
+  userProfile,
+  onOpenProfileModal,
+  onSaveProfile,
+}) => {
   const [selectedGrade, setSelectedGrade] = useState<SchoolGrade>('elementary');
   const [gameCategory, setGameCategory] = useState<'word' | 'sentence'>('word');
   const [activeGame, setActiveGame] = useState<GameType>('memory');
@@ -149,16 +167,112 @@ export const StudentWordGame: React.FC<StudentWordGameProps> = ({ vocabList, sen
   const [qaMode, setQaMode] = useState<QAMode>('ko_to_en');
   const [showGameOptionsModal, setShowGameOptionsModal] = useState<boolean>(false);
 
+  // Mandatory Mom & Dad photo registration check
+  const hasParentPhotos = Boolean(userProfile?.momPhotoUrl && userProfile?.dadPhotoUrl);
+  const [showPhotoReqModal, setShowPhotoReqModal] = useState<boolean>(false);
+
+  const handleAutoRegisterPresetParents = () => {
+    if (!onSaveProfile) {
+      if (onOpenProfileModal) onOpenProfileModal();
+      return;
+    }
+    const base: UserProfile = userProfile || {
+      id: 'user-primary-owner',
+      name: '나의 학습자',
+      avatar: '🎓',
+      grade: 'high',
+      dailyWordGoal: 20,
+      motto: '매일 조금씩 꾸준히!',
+      createdAt: new Date().toISOString(),
+      isLocked: true,
+    };
+    const updated: UserProfile = {
+      ...base,
+      momPhotoUrl: base.momPhotoUrl || DEFAULT_MOM_PHOTO,
+      dadPhotoUrl: base.dadPhotoUrl || DEFAULT_DAD_PHOTO,
+      lastSavedToDeviceAt: new Date().toISOString(),
+      savedToDeviceCount: (base.savedToDeviceCount || 0) + 1,
+    };
+    onSaveProfile(updated);
+    setShowPhotoReqModal(false);
+    if (selectedGame) {
+      handleGameChange(selectedGame);
+    }
+  };
+
+  const handleModalMomPhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file && onSaveProfile) {
+      try {
+        const dataUrl = await processImageFileToDataUrl(file, 480, 0.82);
+        const base: UserProfile = userProfile || {
+          id: 'user-primary-owner',
+          name: '나의 학습자',
+          avatar: '🎓',
+          grade: 'high',
+          dailyWordGoal: 20,
+          motto: '매일 조금씩 꾸준히!',
+          createdAt: new Date().toISOString(),
+          isLocked: true,
+        };
+        const updated: UserProfile = {
+          ...base,
+          momPhotoUrl: dataUrl,
+          lastSavedToDeviceAt: new Date().toISOString(),
+          savedToDeviceCount: (base.savedToDeviceCount || 0) + 1,
+        };
+        onSaveProfile(updated);
+      } catch (err: any) {
+        alert(err.message || '사진 업로드 실패');
+      }
+    }
+    if (e.target) e.target.value = '';
+  };
+
+  const handleModalDadPhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file && onSaveProfile) {
+      try {
+        const dataUrl = await processImageFileToDataUrl(file, 480, 0.82);
+        const base: UserProfile = userProfile || {
+          id: 'user-primary-owner',
+          name: '나의 학습자',
+          avatar: '🎓',
+          grade: 'high',
+          dailyWordGoal: 20,
+          motto: '매일 조금씩 꾸준히!',
+          createdAt: new Date().toISOString(),
+          isLocked: true,
+        };
+        const updated: UserProfile = {
+          ...base,
+          dadPhotoUrl: dataUrl,
+          lastSavedToDeviceAt: new Date().toISOString(),
+          savedToDeviceCount: (base.savedToDeviceCount || 0) + 1,
+        };
+        onSaveProfile(updated);
+      } catch (err: any) {
+        alert(err.message || '사진 업로드 실패');
+      }
+    }
+    if (e.target) e.target.value = '';
+  };
+
   // Auto open initial game if provided
   useEffect(() => {
     if (initialGame) {
+      if (!hasParentPhotos) {
+        setShowPhotoReqModal(true);
+        setSelectedGame(null);
+        return;
+      }
       const isSentence = initialGame.startsWith('sentence_');
       setGameCategory(isSentence ? 'sentence' : 'word');
       setActiveGame(initialGame);
       setSelectedGame(initialGame);
       setLastPlayedGame(initialGame);
     }
-  }, [initialGame]);
+  }, [initialGame, hasParentPhotos]);
 
   const handleGameChange = useCallback((game: GameType) => {
     speechService.stop();
@@ -173,10 +287,14 @@ export const StudentWordGame: React.FC<StudentWordGameProps> = ({ vocabList, sen
 
   const handleOpenGame = useCallback((game: GameType) => {
     speechService.stop();
+    if (!hasParentPhotos) {
+      setShowPhotoReqModal(true);
+      return;
+    }
     setLastPlayedGame(game);
     setSelectedGame(game);
     handleGameChange(game);
-  }, [handleGameChange]);
+  }, [handleGameChange, hasParentPhotos]);
 
   const handleCloseGame = useCallback(() => {
     speechService.stop();
@@ -819,6 +937,11 @@ export const StudentWordGame: React.FC<StudentWordGameProps> = ({ vocabList, sen
                       {item.icon}
                     </div>
                     <div className="flex items-center gap-1">
+                      {!hasParentPhotos && (
+                        <span className="px-1.5 py-0.5 rounded-md text-[9px] font-extrabold bg-rose-500/15 text-rose-600 dark:text-rose-400 border border-rose-500/30 flex items-center gap-0.5">
+                          <span>📸 사진 필요</span>
+                        </span>
+                      )}
                       {isRecentlyPlayed && (
                         <span className="px-1.5 py-0.5 rounded-md text-[9px] font-black bg-emerald-500 text-slate-950 shadow-xs">
                           방금 플레이
@@ -1791,6 +1914,156 @@ export const StudentWordGame: React.FC<StudentWordGameProps> = ({ vocabList, sen
       )}
     </div>
       )}
+
+      {/* MANDATORY MOM & DAD PHOTO REGISTRATION REQUIREMENT OVERLAY MODAL */}
+      {(!hasParentPhotos && selectedGame !== null) || showPhotoReqModal ? (
+        <div className="fixed inset-0 z-[100] bg-slate-950/85 backdrop-blur-md flex items-center justify-center p-4 animate-in fade-in duration-200">
+          <div className="max-w-md w-full p-6 sm:p-7 rounded-3xl bg-slate-900 border-2 border-rose-500/50 shadow-2xl text-center space-y-5 relative overflow-hidden">
+            <div className="w-16 h-16 rounded-2xl bg-gradient-to-tr from-rose-500 via-amber-500 to-indigo-500 text-3xl flex items-center justify-center mx-auto shadow-lg shadow-rose-500/30 animate-bounce">
+              📸
+            </div>
+            
+            <div className="space-y-2">
+              <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-rose-500/20 text-rose-300 border border-rose-500/40 text-xs font-black">
+                <span>⚠️ 게임 시작 필수 조건</span>
+              </div>
+              <h3 className="text-xl font-black text-white tracking-tight">
+                엄마 & 아빠 사진 등록 필수!
+              </h3>
+              <p className="text-xs text-slate-300 leading-relaxed max-w-sm mx-auto">
+                WordLoop 학습 게임을 시작하려면 먼저 <strong className="text-rose-400">엄마 사진과 아빠 사진을 모두 등록</strong>하셔야 합니다.<br/>
+                게임 플레이 중 학습 성취도에 따라 엄마/아빠가 화면에 전면 가득 등장하여 생생하게 응원 및 잔소리를 해줍니다!
+              </p>
+            </div>
+
+            {/* Photo Registration Status Box */}
+            <div className="grid grid-cols-2 gap-2.5 p-3.5 rounded-2xl bg-slate-800/80 border border-slate-700/80 text-xs font-bold">
+              {/* Mom Status & Direct Upload */}
+              <div className={`p-2.5 rounded-xl flex flex-col items-center justify-center gap-1.5 ${
+                userProfile?.momPhotoUrl
+                  ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40'
+                  : 'bg-rose-500/20 text-rose-300 border border-rose-500/40'
+              }`}>
+                <div className="flex items-center gap-1.5">
+                  <span>👩 엄마:</span>
+                  <span>{userProfile?.momPhotoUrl ? '✅ 등록됨' : '❌ 미등록'}</span>
+                </div>
+                {userProfile?.momPhotoUrl ? (
+                  <div className="w-10 h-10 rounded-xl overflow-hidden border border-emerald-400/50 shadow-xs">
+                    <img src={userProfile.momPhotoUrl} alt="엄마" className="w-full h-full object-cover" />
+                  </div>
+                ) : (
+                  <div>
+                    <input
+                      id="modal-direct-mom-photo"
+                      type="file"
+                      onChange={handleModalMomPhotoUpload}
+                      accept="image/*,.png,.jpg,.jpeg,.webp,.gif,.bmp,.heic,.heif"
+                      className="sr-only"
+                    />
+                    <label
+                      htmlFor="modal-direct-mom-photo"
+                      className="px-2.5 py-1 rounded-lg bg-rose-600 hover:bg-rose-500 text-white text-[10px] font-black flex items-center gap-1 cursor-pointer transition-colors"
+                    >
+                      <Camera className="w-3 h-3" />
+                      <span>사진 선택</span>
+                    </label>
+                  </div>
+                )}
+              </div>
+
+              {/* Dad Status & Direct Upload */}
+              <div className={`p-2.5 rounded-xl flex flex-col items-center justify-center gap-1.5 ${
+                userProfile?.dadPhotoUrl
+                  ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40'
+                  : 'bg-rose-500/20 text-rose-300 border border-rose-500/40'
+              }`}>
+                <div className="flex items-center gap-1.5">
+                  <span>👨 아빠:</span>
+                  <span>{userProfile?.dadPhotoUrl ? '✅ 등록됨' : '❌ 미등록'}</span>
+                </div>
+                {userProfile?.dadPhotoUrl ? (
+                  <div className="w-10 h-10 rounded-xl overflow-hidden border border-emerald-400/50 shadow-xs">
+                    <img src={userProfile.dadPhotoUrl} alt="아빠" className="w-full h-full object-cover" />
+                  </div>
+                ) : (
+                  <div>
+                    <input
+                      id="modal-direct-dad-photo"
+                      type="file"
+                      onChange={handleModalDadPhotoUpload}
+                      accept="image/*,.png,.jpg,.jpeg,.webp,.gif,.bmp,.heic,.heif"
+                      className="sr-only"
+                    />
+                    <label
+                      htmlFor="modal-direct-dad-photo"
+                      className="px-2.5 py-1 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-[10px] font-black flex items-center gap-1 cursor-pointer transition-colors"
+                    >
+                      <Camera className="w-3 h-3" />
+                      <span>사진 선택</span>
+                    </label>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className="pt-2 flex flex-col gap-2">
+              {/* Ready to play button if both photos registered */}
+              {hasParentPhotos ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowPhotoReqModal(false);
+                    if (selectedGame) {
+                      handleGameChange(selectedGame);
+                    }
+                  }}
+                  className="w-full py-3.5 px-4 rounded-2xl bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-slate-950 font-black text-sm flex items-center justify-center gap-2 shadow-lg shadow-emerald-500/30 transition-all active:scale-95 cursor-pointer"
+                >
+                  <Play className="w-4 h-4 fill-current" />
+                  <span>등록 완료! 지금 바로 게임 시작</span>
+                </button>
+              ) : (
+                /* Instant 1-click Preset Registration */
+                <button
+                  type="button"
+                  onClick={handleAutoRegisterPresetParents}
+                  className="w-full py-3.5 px-4 rounded-2xl bg-gradient-to-r from-amber-500 via-rose-500 to-indigo-600 hover:from-amber-400 hover:to-indigo-500 text-white font-black text-xs sm:text-sm flex items-center justify-center gap-2 shadow-lg shadow-rose-500/30 transition-all active:scale-95 cursor-pointer"
+                >
+                  <Sparkles className="w-4 h-4 text-amber-200" />
+                  <span>⚡ 추천 부모님 캐릭터로 1초 등록하고 게임 시작</span>
+                </button>
+              )}
+
+              <button
+                type="button"
+                onClick={() => {
+                  setShowPhotoReqModal(false);
+                  setSelectedGame(null);
+                  if (onOpenProfileModal) {
+                    onOpenProfileModal();
+                  }
+                }}
+                className="w-full py-2.5 px-4 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
+              >
+                <Camera className="w-3.5 h-3.5 text-rose-400" />
+                <span>프로필 설정에서 내 앨범 사진 직접 올리기</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setShowPhotoReqModal(false);
+                  setSelectedGame(null);
+                }}
+                className="w-full py-2 px-4 rounded-xl bg-slate-900/60 hover:bg-slate-800 text-slate-400 font-bold text-xs transition-colors cursor-pointer"
+              >
+                돌아가기
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </>
   );
 };

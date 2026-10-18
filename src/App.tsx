@@ -25,6 +25,7 @@ import { DailyQuestModal } from './components/DailyQuestModal';
 import { AddToHomeScreenModal } from './components/AddToHomeScreenModal';
 import { AudioSettingsModal } from './components/AudioSettingsModal';
 import { QuickActionWidgets } from './components/QuickActionWidgets';
+import { SurpriseParentNagPopup, SurpriseNagType } from './components/SurpriseParentNagPopup';
 import { APP_VERSION } from './data/patchNotesData';
 import { GitHubUpdateService, UpdateCheckResult } from './services/githubUpdateService';
 import { getAuthHeaders } from './services/apiClient';
@@ -33,6 +34,7 @@ import {
   loadUserProfileFromDevice,
   safeJsonParse,
   sanitizeCsvCell,
+  sanitizeDeepObject,
 } from './services/deviceStorageService';
 import {
   setupAppTerminationSafeguards,
@@ -299,7 +301,59 @@ export default function App() {
   const [isCheckingUpdate, setIsCheckingUpdate] = useState<boolean>(false);
   const [showDailyQuestModal, setShowDailyQuestModal] = useState<boolean>(false);
   const [showAddToHomeModal, setShowAddToHomeModal] = useState<boolean>(false);
+  const [surpriseNagState, setSurpriseNagState] = useState<{
+    isOpen: boolean;
+    type: SurpriseNagType;
+  }>({
+    isOpen: false,
+    type: 'low_achievement',
+  });
   const [pronunciationModalText, setPronunciationModalText] = useState<string | null>(null);
+
+  // Continuous Study Time Tracker (Auto-triggers 5-min break gentle parent nag popup after 30 minutes)
+  const [continuousStudySeconds, setContinuousStudySeconds] = useState<number>(0);
+  const [breakCountdownSeconds, setBreakCountdownSeconds] = useState<number | null>(null);
+
+  // 1-second interval loop for continuous study & 5-minute break countdown
+  useEffect(() => {
+    const timer = setInterval(() => {
+      // If currently enjoying 5-min break
+      if (breakCountdownSeconds !== null) {
+        if (breakCountdownSeconds <= 1) {
+          setBreakCountdownSeconds(null);
+          setRecoveryToast('☕ 5분간의 달콤한 휴식이 완료되었습니다! 머리가 맑아졌으니 다시 산뜻하게 시작해볼까요? 😊');
+        } else {
+          setBreakCountdownSeconds((prev) => (prev !== null ? prev - 1 : null));
+        }
+        return;
+      }
+
+      // If document is visible and app is actively being used
+      if (typeof document !== 'undefined' && !document.hidden) {
+        setContinuousStudySeconds((prev) => {
+          const next = prev + 1;
+          // When continuous study reaches 30 minutes (1800 seconds)
+          if (next >= 1800) {
+            setSurpriseNagState({ isOpen: true, type: 'continuous_study_break' });
+            return 0; // Reset after triggering
+          }
+          return next;
+        });
+      }
+    }, 1000);
+
+    return () => clearInterval(timer);
+  }, [breakCountdownSeconds]);
+
+  // Global surprise nag event listener
+  useEffect(() => {
+    const handleNagEvent = (e: any) => {
+      const type = (e.detail?.type || 'low_achievement') as SurpriseNagType;
+      setSurpriseNagState({ isOpen: true, type });
+    };
+    window.addEventListener('wordloop_trigger_surprise_nag', handleNagEvent);
+    return () => window.removeEventListener('wordloop_trigger_surprise_nag', handleNagEvent);
+  }, []);
   const [aiExplanationText, setAIExplanationText] = useState<string | null>(null);
   const [aiExplanationContent, setAIExplanationContent] = useState<string | null>(null);
   const [aiExplanationLoading, setAIExplanationLoading] = useState<boolean>(false);
@@ -431,6 +485,30 @@ export default function App() {
     speechService.setOnItemRepeatCallback((itemId, text, count) => {
       setTotalRepeatsCount((prev) => prev + 1);
 
+      // Increment today's repeat count in history for real-time chart reflection
+      const todayStr = new Date().toISOString().split('T')[0];
+      setHistory((prevHist) => {
+        const existingIdx = prevHist.findIndex((h) => h.date === todayStr);
+        if (existingIdx >= 0) {
+          const updated = [...prevHist];
+          updated[existingIdx] = {
+            ...updated[existingIdx],
+            vocabStudyCount: (updated[existingIdx].vocabStudyCount || 0) + 1,
+          };
+          return updated;
+        } else {
+          return [
+            ...prevHist,
+            {
+              date: todayStr,
+              completedGoalsCount: 0,
+              totalGoalsCount: 4,
+              vocabStudyCount: 1,
+            },
+          ];
+        }
+      });
+
       // Auto increment linked English goals
       setGoals((prevGoals) =>
         prevGoals.map((g) => {
@@ -506,18 +584,20 @@ export default function App() {
     URL.revokeObjectURL(url);
   }, [userProfile, vocabList, sentenceList, goals, history, totalRepeatsCount]);
 
-  // Import Entire 1-User Learning Data (JSON) with size limit & Prototype Pollution protection
+  // Import Entire 1-User Learning Data (JSON) with size limit, deep sanitization & Prototype Pollution protection
   const handleImportAllData = useCallback(async (file: File) => {
     try {
       if (file.size > 5 * 1024 * 1024) {
-        alert('백업 파일 복원 실패: 파일 크기가 허용 한도(5MB)를 초과했습니다.');
+        setRecoveryToast('백업 파일 복원 실패: 파일 크기가 허용 한도(5MB)를 초과했습니다.');
         return;
       }
       const text = await file.text();
-      const parsed = safeJsonParse<any>(text);
-      if (!parsed || typeof parsed !== 'object') {
+      const rawParsed = safeJsonParse<any>(text);
+      if (!rawParsed || typeof rawParsed !== 'object') {
         throw new Error('유효하지 않은 백업 데이터 형식입니다.');
       }
+      const parsed = sanitizeDeepObject(rawParsed);
+
       if (parsed.userProfile && typeof parsed.userProfile === 'object' && typeof parsed.userProfile.name === 'string') {
         setUserProfile(parsed.userProfile);
       }
@@ -536,9 +616,9 @@ export default function App() {
       if (typeof parsed.totalRepeatsCount === 'number' && Number.isFinite(parsed.totalRepeatsCount) && parsed.totalRepeatsCount >= 0) {
         setTotalRepeatsCount(Math.floor(parsed.totalRepeatsCount));
       }
-      alert('1인 전용 데이터 전체 복원이 성공적으로 완료되었습니다!');
+      setRecoveryToast('✅ 1인 전용 데이터 전체 복원이 안전하게 완료되었습니다!');
     } catch (e: any) {
-      alert('백업 파일 복원 실패: ' + (e?.message || '올바른 JSON 파일인지 확인해주세요.'));
+      setRecoveryToast('백업 파일 복원 실패: ' + (e?.message || '올바른 JSON 파일인지 확인해주세요.'));
     }
   }, []);
 
@@ -699,8 +779,8 @@ export default function App() {
 
   // Goal Handlers
   const handleToggleGoalComplete = (id: string) => {
-    setGoals((prev) =>
-      prev.map((g) => {
+    setGoals((prev) => {
+      const updated = prev.map((g) => {
         if (g.id === id) {
           const nextCompleted = !g.isCompleted;
           return {
@@ -711,13 +791,21 @@ export default function App() {
           };
         }
         return g;
-      })
-    );
+      });
+      const allDone = updated.length > 0 && updated.every((g) => g.isCompleted);
+      const wasAllDone = prev.length > 0 && prev.every((g) => g.isCompleted);
+      if (allDone && !wasAllDone) {
+        setTimeout(() => {
+          setSurpriseNagState({ isOpen: true, type: 'high_achievement' });
+        }, 300);
+      }
+      return updated;
+    });
   };
 
   const handleIncrementGoal = (id: string, amount: number = 1) => {
-    setGoals((prev) =>
-      prev.map((g) => {
+    setGoals((prev) => {
+      const updated = prev.map((g) => {
         if (g.id === id) {
           const nextCount = g.currentCount + amount;
           const isCompleted = nextCount >= g.targetCount;
@@ -729,8 +817,16 @@ export default function App() {
           };
         }
         return g;
-      })
-    );
+      });
+      const allDone = updated.length > 0 && updated.every((g) => g.isCompleted);
+      const wasAllDone = prev.length > 0 && prev.every((g) => g.isCompleted);
+      if (allDone && !wasAllDone) {
+        setTimeout(() => {
+          setSurpriseNagState({ isOpen: true, type: 'high_achievement' });
+        }, 300);
+      }
+      return updated;
+    });
   };
 
   const handleAddGoal = (goalData: Omit<Goal, 'id' | 'currentCount' | 'isCompleted' | 'streak'>) => {
@@ -919,6 +1015,7 @@ export default function App() {
             vocabList={vocabList}
             sentenceList={sentenceList}
             goals={goals}
+            history={history}
             totalRepeatsCount={totalRepeatsCount}
             onNavigateTab={(tab) => {
               if (tab === 'sentences') {
@@ -1017,6 +1114,12 @@ export default function App() {
             onChangeMastery={handleUpdateVocabMastery}
             onSelectGame={handleSubSelection}
             initialGame={initialGame}
+            userProfile={userProfile}
+            onOpenProfileModal={() => setShowProfileModal(true)}
+            onSaveProfile={(updatedProfile) => {
+              setUserProfile(updatedProfile);
+              saveUserProfileToDevice(updatedProfile);
+            }}
           />
         )}
 
@@ -1026,7 +1129,13 @@ export default function App() {
             history={history}
             totalRepeatsCount={totalRepeatsCount}
             vocabCount={vocabList.length}
+            vocabList={vocabList}
             userProfile={userProfile}
+            onStartReviewQuiz={() => {
+              speechService.stop();
+              setInitialQuizMode('review_quiz');
+              setActiveTab('quiz');
+            }}
           />
         )}
 
@@ -1205,6 +1314,74 @@ export default function App() {
           onAddVocabItems={handleAddAIItems}
           existingVocabList={vocabList}
           showEduTag={true}
+        />
+      )}
+
+      {/* Active 5-Minute Healing Rest Floating Banner */}
+      {breakCountdownSeconds !== null && (
+        <aside
+          role="status"
+          className="fixed bottom-20 md:bottom-6 left-1/2 -translate-x-1/2 z-40 w-[92%] max-w-lg animate-in fade-in slide-in-from-bottom-4 duration-300 pointer-events-auto select-none"
+        >
+          <div className="p-3.5 rounded-2xl bg-gradient-to-r from-emerald-950/95 via-teal-950/95 to-slate-900/95 text-white border border-emerald-400/50 shadow-2xl backdrop-blur-md flex items-center justify-between gap-3">
+            <div className="flex items-center gap-2.5 overflow-hidden">
+              <div className="w-9 h-9 rounded-xl bg-emerald-500 text-slate-950 flex items-center justify-center font-black shrink-0 shadow-md animate-pulse">
+                ☕
+              </div>
+              <div className="truncate">
+                <div className="flex items-center gap-1.5">
+                  <span className="text-[10px] font-black uppercase px-1.5 py-0.5 rounded bg-emerald-500/30 text-emerald-300 border border-emerald-400/40">
+                    5분 힐링 휴식 중
+                  </span>
+                  <span className="text-xs font-mono font-black text-amber-300">
+                    {Math.floor(breakCountdownSeconds / 60)}분 {String(breakCountdownSeconds % 60).padStart(2, '0')}초 남음
+                  </span>
+                </div>
+                <p className="text-[11px] font-bold text-emerald-100 truncate mt-0.5">
+                  먼 산이나 창밖을 보며 눈을 쉬어주세요 (장기 기억 정착 Up)
+                </p>
+              </div>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => {
+                setBreakCountdownSeconds(null);
+                setRecoveryToast('휴식을 마치고 다시 활기차게 학습을 재개합니다!');
+              }}
+              className="px-2.5 py-1.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-[11px] shrink-0 transition-transform active:scale-95 cursor-pointer shadow-md"
+            >
+              학습 재개
+            </button>
+          </div>
+        </aside>
+      )}
+
+      {/* Global Screen-Center Surprise Pop-out Nag Modal (Low vs High Achievement vs 30-Min Continuous Study Break) */}
+      {surpriseNagState.isOpen && (
+        <SurpriseParentNagPopup
+          isOpen={surpriseNagState.isOpen}
+          type={surpriseNagState.type}
+          onClose={() => setSurpriseNagState((prev) => ({ ...prev, isOpen: false }))}
+          onStartBreak={() => {
+            setSurpriseNagState((prev) => ({ ...prev, isOpen: false }));
+            setBreakCountdownSeconds(300);
+            setContinuousStudySeconds(0);
+          }}
+          onOpenPhotoSettings={() => setShowProfileModal(true)}
+          onStartStudy={() => {
+            setSurpriseNagState((prev) => ({ ...prev, isOpen: false }));
+            setInitialVocabSubTab('words');
+            setActiveTab('vocab');
+            setHomeViewMode('list');
+          }}
+          userProfile={userProfile}
+          completedGoalsCount={goals.filter((g) => g.isCompleted).length}
+          totalGoalsCount={goals.length}
+          weakCount={vocabList.filter((v) => (v.masteryLevel ?? (v.isLearned ? 2 : 0)) < 2).length}
+          masteredCount={vocabList.filter((v) => (v.masteryLevel || 0) >= 2).length}
+          todayStudiedCount={vocabList.filter((v) => v.isLearned || (v.masteryLevel || 0) > 0).length}
+          streak={userProfile?.streakDays || 1}
         />
       )}
 

@@ -76,6 +76,21 @@ export function saveUserProfileToDevice(profile: UserProfile): { success: boolea
 const MAX_IMPORT_FILE_BYTES = 5 * 1024 * 1024; // 5MB max JSON import size
 
 /**
+ * Sanitize plain string input: strip nulls, scripts, and unsafe tags
+ */
+export function sanitizeSafeText(val: unknown, maxLength: number = 500): string {
+  if (typeof val !== 'string') return '';
+  return val
+    .replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g, '')
+    .replace(/<\s*script[^>]*>[\s\S]*?<\s*\/\s*script\s*>/gi, '')
+    .replace(/<\s*iframe[^>]*>[\s\S]*?<\s*\/\s*iframe\s*>/gi, '')
+    .replace(/javascript\s*:/gi, '')
+    .replace(/on\w+\s*=/gi, '')
+    .trim()
+    .slice(0, maxLength);
+}
+
+/**
  * Safely parse JSON while stripping __proto__, constructor, and prototype keys to prevent Prototype Pollution
  */
 export function safeJsonParse<T = any>(raw: string): T {
@@ -85,6 +100,28 @@ export function safeJsonParse<T = any>(raw: string): T {
     }
     return value;
   });
+}
+
+/**
+ * Deeply sanitize an arbitrary object to prevent Prototype Pollution and XSS payloads
+ */
+export function sanitizeDeepObject<T = any>(obj: T, depth = 5): T {
+  if (depth <= 0 || !obj || typeof obj !== 'object') return obj;
+  if (Array.isArray(obj)) {
+    return obj.slice(0, 5000).map((item) => sanitizeDeepObject(item, depth - 1)) as unknown as T;
+  }
+  const clean: Record<string, any> = {};
+  for (const [key, value] of Object.entries(obj)) {
+    if (key === '__proto__' || key === 'constructor' || key === 'prototype') continue;
+    if (typeof value === 'string') {
+      clean[key] = sanitizeSafeText(value, 3000);
+    } else if (typeof value === 'object' && value !== null) {
+      clean[key] = sanitizeDeepObject(value, depth - 1);
+    } else {
+      clean[key] = value;
+    }
+  }
+  return clean as T;
 }
 
 /**
@@ -105,7 +142,7 @@ export function loadUserProfileFromDevice(): UserProfile | null {
     if (!raw) return null;
     const parsed = safeJsonParse<any>(raw);
     if (parsed && typeof parsed === 'object' && typeof parsed.name === 'string' && parsed.name.trim()) {
-      return parsed as UserProfile;
+      return sanitizeDeepObject(parsed) as UserProfile;
     }
     return null;
   } catch (e) {

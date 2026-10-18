@@ -21,9 +21,10 @@ namespace {
     // Current retrievability calculation R(t, S)
     inline float CalculateRetrievability(float elapsedDays, float stability) {
         if (stability <= 0.05f) return 0.1f;
-        if (elapsedDays <= 0.0f) return 1.0f;
-        float base = 1.0f + FACTOR * (elapsedDays / stability);
-        return std::pow(base, g_decayFactor);
+        float safeElapsed = std::max(0.0f, elapsedDays);
+        float base = 1.0f + FACTOR * (safeElapsed / stability);
+        float r = std::pow(base, g_decayFactor);
+        return std::max(0.01f, std::min(1.0f, r));
     }
 
     // Levenshtein distance using 2-row rolling buffer
@@ -171,12 +172,15 @@ WORDLOOP_SRS_API int32_t WordLoopSRS_RankVulnerableWords(
         }
     }
 
-    // Sort by lowest retrievability first, then highest lapses
+    // Sort strictly by lowest retrievability first, then highest lapses (ensuring Strict Weak Ordering)
     std::sort(candidates.begin(), candidates.end(), [](const WordUrgency& a, const WordUrgency& b) {
-        if (std::abs(a.retrievability - b.retrievability) > 0.05f) {
+        if (a.retrievability != b.retrievability) {
             return a.retrievability < b.retrievability;
         }
-        return a.lapses > b.lapses;
+        if (a.lapses != b.lapses) {
+            return a.lapses > b.lapses;
+        }
+        return a.id < b.id; // Deterministic tie-breaker
     });
 
     int32_t returnCount = std::min((int32_t)candidates.size(), max_results);

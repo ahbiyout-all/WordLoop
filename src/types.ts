@@ -121,6 +121,10 @@ export type QAMode = 'ko_to_en' | 'en_def_to_en' | 'en_to_ko';
 
 export type StudyGradeLevel = 'elementary' | 'middle' | 'high' | 'toeic' | 'general';
 
+export type NagCharacterSetting = 'mom' | 'dad' | 'both';
+
+export type NagTonePreset = 'tsundere' | 'strict' | 'affectionate';
+
 export interface UserProfile {
   id: string;
   name: string;
@@ -131,6 +135,10 @@ export interface UserProfile {
   motto: string;
   createdAt: string;
   isLocked: boolean; // 1인 전용 단일 사용자 잠금 플래그
+  nagCharacter?: NagCharacterSetting; // 전담 잔소리 코치 캐릭터 설정 ('mom' | 'dad' | 'both')
+  nagTone?: NagTonePreset; // 잔소리 톤앤매너 프리셋 ('tsundere' | 'strict' | 'affectionate')
+  momPhotoUrl?: string; // 등록된 엄마 사진 (전면 가득 잔소리용 Data URL)
+  dadPhotoUrl?: string; // 등록된 아빠 사진 (전면 가득 잔소리용 Data URL)
   streakDays?: number; // 학습 연속 일수
   lastSavedToDeviceAt?: string; // 마지막 장치 저장 일시
   savedToDeviceCount?: number; // 장치 저장 횟수

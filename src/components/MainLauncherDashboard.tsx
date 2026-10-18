@@ -22,7 +22,7 @@ import {
   Compass,
   ChevronRight,
 } from 'lucide-react';
-import { ActiveTab, UserProfile, VocabItem, SentenceItem, Goal } from '../types';
+import { ActiveTab, UserProfile, VocabItem, SentenceItem, Goal, DailyGoalHistory } from '../types';
 import { speechService } from '../services/speechService';
 import { getUserGeminiKey } from '../services/apiClient';
 
@@ -31,6 +31,7 @@ interface MainLauncherDashboardProps {
   vocabList: VocabItem[];
   sentenceList: SentenceItem[];
   goals: Goal[];
+  history?: DailyGoalHistory[];
   totalRepeatsCount: number;
   onNavigateTab: (tab: ActiveTab) => void;
   onOpenPronunciationModal: (text: string) => void;
@@ -46,6 +47,7 @@ export const MainLauncherDashboard: React.FC<MainLauncherDashboardProps> = ({
   vocabList,
   sentenceList,
   goals,
+  history = [],
   totalRepeatsCount,
   onNavigateTab,
   onOpenPronunciationModal,
@@ -59,6 +61,7 @@ export const MainLauncherDashboard: React.FC<MainLauncherDashboardProps> = ({
   const masteredWords = vocabList.filter((v) => (v.masteryLevel || 0) >= 3).length;
   const bookmarkedWords = vocabList.filter((v) => v.isBookmarked).length;
   const completedGoals = goals.filter((g) => g.isCompleted).length;
+  const weakWordsCount = vocabList.filter((v) => (v.masteryLevel ?? (v.isLearned ? 2 : 0)) < 2).length;
 
   // Streak & Greeting
   const streak = userProfile?.streakDays || 1;

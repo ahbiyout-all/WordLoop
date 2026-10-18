@@ -1,7 +1,7 @@
 # WordLoop 보안 점검 및 보안 강화 보고서 (Security Report)
 
-**문서 버전:** v3.11.0  
-**최종 점검일:** 2026-10-03  
+**문서 버전:** v3.43.0  
+**최종 점검일:** 2026-10-17  
 **대상 시스템:** WordLoop AI 웹, PC 데스크톱(Electron), 모바일(Android/iOS) 및 GitHub 자동 배포 파이프라인
 
 ---
@@ -9,42 +9,56 @@
 ## 1. 🛡️ 보안 설계 개요
 
 WordLoop는 사용자의 개인정보와 발음 녹음 데이터, API 자격 증명을 보호하기 위해 **Zero-Trust On-Device First** 원칙을 따릅니다. 
-모든 핵심 학습 데이터(어휘 데이터베이스, 오디오 녹음본, 학습 진도율, 사용자 프로필)는 외부 서버로 전송되지 않고 기기 로컬(IndexedDB 및 LocalStorage)에 격리 보관됩니다.
+모든 핵심 학습 데이터(어휘 데이터베이스, 오디오 녹음본, 학습 진도율, 사용자 프로필, 부모님 사진)는 외부 서버로 전송되지 않고 기기 로컬(IndexedDB 및 LocalStorage)에 격리 보관됩니다.
 
 ---
 
-## 2. 🔍 주요 영역별 보안 점검 및 조치 내역
+## 2. 🔍 주요 영역별 보안 점검 및 조치 내역 (v3.43.0 강화 내역)
 
-### 2.1 API 보안 및 자격 증명 (BYOK & Proxy)
-- **클라이언트 API 키 유출 방지:**
-  - 사용자 맞춤 Gemini API Key(BYOK)는 로컬 스토리지에만 저장되며, URL 쿼리 파라미터나 GET 요청에 노출되지 않고 HTTP Request Header(`x-gemini-api-key`)를 통해서만 서버 프록시로 전달됩니다.
-  - 소스 코드 및 Git 커밋 히스토리에 어떠한 하드코딩된 Secret Key나 Private Token도 포함되지 않도록 `.env*` 및 `.gitignore`를 통해 원천 차단했습니다.
-- **API Rate Limiting (DDoS 및 무차별 요청 방어):**
-  - 서버사이드 프록시(`server.ts`)에 IP 및 세션 기반 요청 제한 메커니즘을 적용하여 비정상적인 반복 호출을 방지합니다.
+### 2.1 백엔드 API & CSRF/오리진 검증 및 프록시 보안 (`server.ts`)
+- **🌐 Cross-Origin / CSRF 공격 원천 방어:**
+  - `/api/*` 경로의 모든 데이터 변경 요청에 대해 `Origin` 및 `Referer` 헤더 검증 미들웨어를 도입했습니다.
+  - 허용된 출처(localhost, 127.0.0.1, Google Cloud Run `*.run.app`, Google Workspace `*.google.com`, 네이티브 모바일/Electron `capacitor://`, `app://`, `file://`)를 제외한 외부 악성 사이트의 비인가 교차 출처 호출을 HTTP 403 Forbidden으로 즉시 차단합니다.
+- **⏱️ 이중 티어(Dual-Tier) Rate Limiting & DoS 방어:**
+  - 일반 API(`/api/*`): IP당 분당 최대 60회 제한
+  - 고비용 AI 생성 엔드포인트(`/api/ai/*`): IP당 분당 최대 20회 정밀 제한 및 `Retry-After: 60` 헤더 반환으로 Gemini API 쿼터 고갈 및 서비스 거부 공격을 완벽히 차단합니다.
+  - 만료된 Rate Limit 메모리 버킷을 자동 정리(Periodic Pruning)하여 메모리 누수를 방지합니다.
+- **🛡️ 보안 응답 헤더(HTTP Security Headers) 방어선 강화:**
+  - `X-Content-Type-Options: nosniff` (MIME 타입 스니핑 방지)
+  - `Referrer-Policy: strict-origin-when-cross-origin` (리퍼러 누출 방지)
+  - `X-Download-Options: noopen` (악성 파일 강제 실행 방지)
+  - `X-Permitted-Cross-Domain-Policies: none` (플래시/PDF 크로스 도메인 차단)
+  - `X-DNS-Prefetch-Control: off` (DNS 프리페치 정보 누출 방지)
+  - `Cross-Origin-Opener-Policy: same-origin-allow-popups` (윈도우 격리)
+  - `Permissions-Policy: camera=(), microphone=(self), geolocation=(), payment=(), usb=()` (불필요한 디바이스 하드웨어 권한 원천 비활성화, 음성 녹음만 인가)
+  - `Content-Security-Policy: frame-ancestors 'self' https://*.google.com https://*.run.app https://*.aistudio.google.com;` (클릭재킹 공격 차단 및 안전한 미리보기 지원)
 
-### 2.2 클라이언트 사이드 데이터 보안
-- **프로토타입 오염(Prototype Pollution) 방어:**
-  - JSON 백업 파일 가져오기 시 `__proto__`, `constructor`, `prototype` 키를 사전 검증 및 필터링하여 악의적인 객체 오염 공격을 방지합니다.
-- **CSV Formula Injection (수식 삽입 공격) 방어:**
-  - 단어장 내보내기/가져오기 시 `=`, `+`, `-`, `@`, `\t`, `\r`로 시작하는 셀 텍스트를 이스케이프 처리하여 엑셀/스프레드시트 실행 시 악성 매크로 실행을 방지합니다.
-- **오디오 녹음 데이터 격리:**
-  - 마이크를 통해 녹음된 사용자의 음성 데이터는 브라우저 `IndexedDB`의 `wordloop_voice_recordings` 객체 저장소에만 암호화/격리 저장되며 외부 서버로 무단 유출되지 않습니다.
+### 2.2 프롬프트 인젝션 & XSS 살균 정화 필터링
+- **입력 텍스트 살균 정화 (`sanitizeInputText`):**
+  - Null Byte(`\0`) 및 시스템 제어 문자 제거
+  - 악성 `<script>`, `<iframe>`, `<object>`, `javascript:`, 인라인 이벤트 핸들러(`onerror=`, `onload=`) 자동 필터링
+  - 시스템 프롬프트 탈취를 노리는 탈옥 키워드(`ignore previous instructions`, `system instruction override`) 무력화
+- **심층 객체 정화 (`sanitizeDeepObject`):**
+  - 중첩 깊이(Max Depth) 제한 및 `__proto__`, `constructor`, `prototype` 키 차단으로 Prototype Pollution 공격 방어
 
-### 2.3 GitHub Actions & CI/CD 빌드 보안
-- **GitHub Secrets 기반 토큰 관리:**
-  - GitHub Actions 워크플로(`.github/workflows/release.yml`)는 일회용 자동 발급 `GITHUB_TOKEN` 권한(`contents: write`)만을 사용하여 릴리스를 생성하며, 영구적인 퍼스널 액세스 토큰(PAT)을 리포지토리에 노출하지 않습니다.
-- **안전한 의존성 관리:**
-  - 빌드 시 `npm ci`를 사용하여 `package.json`에 명시된 버전과 무결성을 엄격하게 준수합니다.
+### 2.3 클라이언트 사이드 데이터 스토리지 및 파일 보안
+- **이미지 업로드 안전성 (`parentPhotoUtils.ts`):**
+  - 부모님 잔소리 사진 등록 시 10MB 크기 제한을 적용하여 이미지 폭탄(Image Bomb / Decompression Bomb) 공격 방지
+  - SVG 파일 업로드 시 스크립트 태그 및 이벤트 속성 자동 살균
+  - 업로드된 이미지를 캔버스(Canvas)에서 JPEG 레스터 포맷으로 안전하게 정규화 변환하여 스테가노그래피 또는 실행 코드 제거
+- **온디바이스 백업/복원 보안 (`deviceStorageService.ts`, `App.tsx`):**
+  - 1인 전용 전체 백업 파일 불러오기 시 `sanitizeDeepObject`를 거쳐 모든 어휘, 문장, 목표 항목의 스크립트 벡터 정화
+  - 브라우저 블로킹 `alert()` 호출을 제거하고 비차단 온스크린 토스트 알림(`setRecoveryToast`)으로 표준화
 
-### 2.4 파일 무결성 및 불필요 파일 점검 (.gitignore)
-- Git 리포지토리에 다음과 같은 민감 정보 및 불필요한 파일이 업로드되지 않도록 `.gitignore`를 전면 재구성했습니다:
-  - 임시/락 파일: `bun.lock`, `bun.lockb`, `*.tmp`, `*.bak`
-  - 환경변수: `.env`, `.env.local`
-  - 빌드 산출물: `dist/`, `build/`, `dist_electron/`, `*.exe`, `*.apk`, `*.ipa`
-  - OS 가비지 파일: `.DS_Store`, `Thumbs.db`, `desktop.ini`
+### 2.4 데스크톱(Electron) 샌드박스 & 네비게이션 제어 (`electron/main.cjs`)
+- **창 탐색(Navigation) 잠금:**
+  - 비인가 외부 URL로의 창 이동을 차단하고 `setWindowOpenHandler`로 팝업 창 생성을 원천 거부(Deny)
+  - 내부 로컬 `file://` 및 `http://localhost:3000` 환경만 실행 허용
+- **컨텍스트 격리(Context Isolation):**
+  - 렌더러 프로세스와 메인 프로세스 간 통신을 `preload.cjs`의 화이트리스트 IPC 채널(`contextBridge`)로만 제한
 
 ---
 
 ## 3. 🎯 점검 결론
 
-현재 코드베이스는 OWASP Top 10 및 클라이언트-서버 보안 가이드라인을 100% 충족하며, GitHub에 안심하고 코드를 푸시 및 배포할 수 있는 상태로 검증되었습니다.
+WordLoop v3.43.0은 OWASP Top 10(인젝션, 취약한 인증, 민감 데이터 노출, 보안 구성 오류, XSS, CSRF, 비인가 출처 접근)을 철저히 차단하는 다층 방어 체계(Defense-in-Depth)를 완성하였습니다. 기기 로컬 중심의 제로 트러스트 데이터 저장과 백엔드 프록시의 엄격한 유효성 검증을 통해 온/오프라인 모든 환경에서 안전하게 작동합니다.
