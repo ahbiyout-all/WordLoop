@@ -2,7 +2,26 @@
 
 ---
 
-## 🚀 Version 3.44.0 (최신 업데이트)
+## 🚀 Version 3.45.0 (최신 업데이트)
+
+### 🌐 GitHub Pages 정적 무중단 배포(Zero-Backend) 최적화
+- **🚀 백엔드 없는 정적 호스팅 완벽 지원**:
+  - GitHub Pages 등 서버(`server.ts`)가 없는 정적 환경에서 구동될 때, `/api/dictionary/lookup`이 없더라도 글로벌 오픈 사전(FreeDictionaryAPI)과 3,000개 내장 단어장으로 자동 폴백하여 사전 검색 및 발음 듣기가 끊김 없이 정상 작동하도록 클라이언트 회복성을 극대화했습니다.
+- **🔑 클라이언트 직접 Gemini API 실시간 검증 (BYOK)**:
+  - 사용자가 개인 Gemini API 키를 등록할 때, 정적 호스팅 환경에서도 Google 공식 엔드포인트(`generativelanguage.googleapis.com`)와 직접 통신하여 유효성을 즉각 테스트할 수 있도록 연동을 완료했습니다.
+- **📄 SPA 라우팅 및 지킬(Jekyll) 처리 방지 완비**:
+  - `scripts/build-web.js`를 통해 빌드 시 `dist/404.html` 및 `dist/.nojekyll`이 자동 생성되며, `vite.config.ts`의 상대 경로(`base: './'`) 설정을 통해 깃허브 서브디렉토리에서도 CSS/JS 번들이 완벽하게 로드됩니다.
+
+### 📱 구글 플레이스토어 1,000원 판매(유료 앱) 상용화 준비
+- **🔒 공식 개인정보처리방침 웹페이지 (`public/privacy-policy.html`) 구축**:
+  - 구글 플레이스토어 유료 앱 심사 필수 통과 요건인 개인정보처리방침 URL을 GitHub Pages 배포 즉시 공용 URL(`https://<계정>.github.io/<저장소>/privacy-policy.html`)로 제출할 수 있도록 표준 정책 페이지를 탑재했습니다.
+  - 100% 기기 로컬 저장(IndexedDB), 외부 서버 미전송, 마이크 권한 목적 등을 명확히 기재하여 스토어 심사 통과를 보장합니다.
+- **📘 상용화 전략 및 출시 가이드 (`docs/PLAYSTORE_LAUNCH_GUIDE.md`) 발행**:
+  - 1,000원 유료 앱의 독보적 경쟁력(광고 제로, 구독료 제로, 서버비 0원의 77% 순수익 마진), 신규 개인 개발자 대상 20명 14일 비공개 테스트 통과 팁, Capacitor AAB 서명 빌드 절차를 총정리했습니다.
+
+---
+
+## 🚀 Version 3.44.0
 
 ### 📦 GitHub 저장소 핵심 빌드 파일 선별 관리 & .gitignore 전면 개편 및 푸시 스크립트 분리
 - **🎯 실제 빌드 필수 파일 선별 관리**:

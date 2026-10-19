@@ -41,19 +41,55 @@ export const ApiKeyModal: React.FC<ApiKeyModalProps> = ({ isOpen, onClose }) => 
     setTestMessage('Gemini API 키 연결을 검증하는 중입니다...');
 
     try {
-      const res = await fetch('/api/dictionary/lookup?word=hello', {
-        headers: {
-          'x-gemini-api-key': apiKey.trim(),
-        },
-      });
-      const data = await res.json();
+      let isSuccess = false;
+      let errMsg = '';
 
-      if (res.ok && data.success) {
+      try {
+        const res = await fetch('/api/dictionary/lookup?word=hello', {
+          headers: {
+            'x-gemini-api-key': apiKey.trim(),
+          },
+        });
+        if (res.ok) {
+          const data = await res.json();
+          if (data.success) {
+            isSuccess = true;
+          } else {
+            errMsg = data.error;
+          }
+        }
+      } catch {
+        // Server API not present (e.g. GitHub Pages) - proceed to direct test
+      }
+
+      // If server API wasn't available or returned 404 (GitHub Pages mode), test directly against Google's endpoint
+      if (!isSuccess && !errMsg) {
+        try {
+          const directRes = await fetch(
+            `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${encodeURIComponent(apiKey.trim())}`,
+            {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ contents: [{ parts: [{ text: 'Hello' }] }] }),
+            }
+          );
+          if (directRes.ok) {
+            isSuccess = true;
+          } else {
+            const errData = await directRes.json().catch(() => ({}));
+            errMsg = errData?.error?.message || `Google API 오류 (${directRes.status})`;
+          }
+        } catch (directErr: any) {
+          errMsg = directErr?.message || '네트워크 연결 오류';
+        }
+      }
+
+      if (isSuccess) {
         setTestStatus('success');
         setTestMessage('연결 성공! 유효한 Gemini API 키입니다.');
       } else {
         setTestStatus('error');
-        setTestMessage(data.error || 'API 키 검증에 실패했습니다. 키를 확인해주세요.');
+        setTestMessage(errMsg || 'API 키 검증에 실패했습니다. 키를 확인해주세요.');
       }
     } catch (e: any) {
       setTestStatus('error');

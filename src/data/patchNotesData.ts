@@ -9,13 +9,36 @@ export interface PatchNoteVersion {
   }[];
 }
 
-export const APP_VERSION = '3.44.0';
+export const APP_VERSION = '3.45.0';
 
 export const PATCH_NOTES_DATA: PatchNoteVersion[] = [
   {
-    version: '3.44.0',
+    version: '3.45.0',
     date: '2026-10',
     isLatest: true,
+    tagline: 'GitHub Pages 정적 호스팅 완벽 연동 & 구글 플레이스토어 1,000원 상용화 아키텍처 구축',
+    highlights: [
+      {
+        category: '🌐 GitHub Pages 정적 무중단 배포(Zero-Backend) 최적화',
+        items: [
+          '🚀 [백엔드 없는 정적 호스팅 완벽 지원]: GitHub Pages에서 실행될 때 서버(/api) 부재 시에도 오픈사전(FreeDictionaryAPI)과 내장 단어장으로 자동 폴백하여 끊김 없는 단어 검색 지원.',
+          '🔑 [클라이언트 직접 Gemini API 검증]: 정적 웹앱 환경에서도 사용자의 개인 Gemini API 키(BYOK)를 구글 공식 엔드포인트와 직접 통신하여 실시간 검증.',
+          '📄 [SPA 라우팅 및 지킬 방지 자동화]: build-web.js를 통해 404.html 및 .nojekyll 자동 생성 및 vite.config.ts base 상대경로(./) 완전 호환.',
+        ],
+      },
+      {
+        category: '📱 구글 플레이스토어 1,000원 판매(유료 앱) 상용화 준비',
+        items: [
+          '🔒 [공식 개인정보처리방침 웹페이지(privacy-policy.html) 배포]: 구글 플레이스토어 심사 필수 요건인 개인정보처리방침 URL을 GitHub Pages 정적 주소로 즉시 제출 가능하도록 구현.',
+          '📘 [플레이스토어 출시 및 비즈니스 전략 가이드(PLAYSTORE_LAUNCH_GUIDE.md) 구축]: 15% 구글 수수료 정산 분석, 20명 14일 비공개 테스트 통과 팁, AAB 서명 빌드 절차 가이드라인 수립.',
+        ],
+      },
+    ],
+  },
+  {
+    version: '3.44.0',
+    date: '2026-10',
+    isLatest: false,
     tagline: 'GitHub 저장소 핵심 파일 선별 관리 & .gitignore 전면 개편 및 푸시 스크립트 분리',
     highlights: [
       {
