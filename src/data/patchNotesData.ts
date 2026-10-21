@@ -9,13 +9,35 @@ export interface PatchNoteVersion {
   }[];
 }
 
-export const APP_VERSION = '3.45.0';
+export const APP_VERSION = '3.46.0';
 
 export const PATCH_NOTES_DATA: PatchNoteVersion[] = [
   {
-    version: '3.45.0',
+    version: '3.46.0',
     date: '2026-10',
     isLatest: true,
+    tagline: 'CI/CD 릴리스 자동화 파이프라인 안정화 & Electron 및 Android SDK 빌드 오류 완벽 수정',
+    highlights: [
+      {
+        category: '💻 Electron 데스크톱 앱 CI 빌드 오류 해결 (GH_TOKEN & Implicit Publish)',
+        items: [
+          '🛑 [암시적 발행 방지 및 publish=never 기본값 설정]: GitHub Actions CI 환경 감지 시 electron-builder가 GH_TOKEN 없이 임의로 깃허브 발행을 시도하던 오류를 scripts/build-electron.js의 --publish=never 및 package.json의 publish: null 지정으로 완벽 차단.',
+          '🔑 [GH_TOKEN 환경 변수 주입]: release.yml의 build-windows 작업에 GITHUB_TOKEN을 주입하여 권한 불일치 에러 원천 해결.',
+          '📝 [패키지 메타데이터 보강]: package.json에 누락되어 있던 description 및 author 필드를 추가하여 빌드 경고 제거.',
+        ],
+      },
+      {
+        category: '📱 Android SDK cmdline-tools 패키지 오류 해결 (tools 패키지 폐기 대응)',
+        items: [
+          '🛠️ [deprecated tools 패키지 요청 제거]: setup-android@v3 액션이 구글 최신 Android SDK에서 삭제된 tools 패키지를 요청하여 sdkmanager가 exit code 1로 중단되던 현상을 packages: platform-tools 명시적 지정을 통해 완벽 해결.',
+        ],
+      },
+    ],
+  },
+  {
+    version: '3.45.0',
+    date: '2026-10',
+    isLatest: false,
     tagline: 'GitHub Pages 정적 호스팅 완벽 연동 & 구글 플레이스토어 1,000원 상용화 아키텍처 구축',
     highlights: [
       {

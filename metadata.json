@@ -1,6 +1,6 @@
 {
   "name": "Self-Improvement & English Vocab",
-  "description": "WordLoop (v3.45.0): Comprehensive English vocabulary & sentence learning app featuring GitHub Pages Zero-Backend Static Deployment, Google Play Store 1,000 KRW Paid Commercial Launch Architecture (Capacitor Android, Privacy Policy URL, Direct FreeDictionary Fallback, Client-side BYOK Validation), Essential-Only Git Repository Management (.gitignore Overhaul, Script Exclusion), and Full-Stack Security Hardening.",
+  "description": "WordLoop (v3.46.0): Comprehensive English vocabulary & sentence learning app featuring CI/CD Release Pipeline Stabilization (Fixed Electron Builder GitHub Token & Implicit Publish Error, Resolved Android SDK tools Package Deprecation), GitHub Pages Zero-Backend Static Deployment, and Google Play Store 1,000 KRW Launch Readiness.",
   "requestFramePermissions": [
     "microphone"
   ],

@@ -53,6 +53,9 @@ if (!fs.existsSync(distIndex)) {
   }
 }
 
+const userArgs = process.argv.slice(2);
+const hasPublishArg = userArgs.some((arg) => arg.startsWith('--publish') || arg === '-p');
+
 const args = [
   cliPath,
   '--config.files=dist/**/*',
@@ -61,7 +64,8 @@ const args = [
   '--config.extraMetadata.main=electron/main.cjs',
   '--win',
   '--x64',
-  ...process.argv.slice(2),
+  ...(hasPublishArg ? [] : ['--publish=never']),
+  ...userArgs,
 ];
 
 console.log(`🚀 [실행] Node.js 직결 CLI: ${cliPath}`);

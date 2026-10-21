@@ -73,7 +73,8 @@ jobs:
       - name: Package Windows Executable
         env:
           ELECTRON_BUILDER_ALLOW_UNRESOLVED_DEPENDENCIES: 'true'
-        run: node scripts/build-electron.js
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: node scripts/build-electron.js --publish never
 
       - name: Collect Windows Executables
         shell: bash
@@ -112,6 +113,8 @@ jobs:
 
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
+        with:
+          packages: 'platform-tools'
 
       - name: Install Dependencies
         run: npm install

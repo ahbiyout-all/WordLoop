@@ -1,7 +1,9 @@
 {
   "name": "react-example",
   "private": true,
-  "version": "3.45.0",
+  "version": "3.46.0",
+  "description": "WordLoop English Vocabulary & Sentence Learning App with Offline Audio Loop and Gamification",
+  "author": "WordLoop Team",
   "type": "module",
   "main": "electron/main.cjs",
   "scripts": {
@@ -46,6 +48,7 @@
   "build": {
     "appId": "com.wordloop.app",
     "productName": "WordLoop",
+    "publish": null,
     "directories": {
       "output": "dist_electron"
     },

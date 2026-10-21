@@ -2,7 +2,24 @@
 
 ---
 
-## 🚀 Version 3.45.0 (최신 업데이트)
+## 🚀 Version 3.46.0 (최신 업데이트)
+
+### 💻 Electron 데스크톱 앱 CI 빌드 오류 해결 (GH_TOKEN & Implicit Publish)
+- **🛑 암시적 발행 방지 및 `--publish=never` 기본값 설정**:
+  - GitHub Actions 등 CI 환경 감지 시 `electron-builder`가 `GH_TOKEN` 없이 자동으로 원격 GitHub 릴리스 발행을 시도하다 발생하던 `GitHub Personal Access Token is not set` 오류를 해결했습니다.
+  - `scripts/build-electron.js` 실행 시 별도의 `--publish` 옵션이 없으면 자동으로 `--publish=never`를 주입하고, `package.json`의 `"build"` 설정에 `"publish": null`을 명시하여 로컬 및 CI 환경에서 순수 설치 파일(`WordLoop-Setup-*.exe`)만 안정적으로 패키징하도록 수정했습니다.
+  - 워크플로우(`release.yml`)의 `build-windows` 단계에도 `GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}`과 `--publish never` 플래그를 이중 방어로 적용했습니다.
+- **📝 패키지 메타데이터 보강**:
+  - `package.json`에 `description` 및 `author` 필드를 보강하여 빌드 도중 발생하던 메타데이터 누락 경고를 제거했습니다.
+
+### 📱 Android SDK cmdline-tools 패키지 오류 해결 (tools 패키지 폐기 대응)
+- **🛠️ 구글 최신 Android SDK `tools` 패키지 삭제 이슈 해결**:
+  - `android-actions/setup-android@v3` 액션이 구글 최신 Android SDK에서 완전히 폐기 및 삭제된 레거시 `tools` 패키지를 기본값으로 설치하려다 `Failed to find package 'tools'` (Exit code 1) 에러가 발생하던 문제를 해결했습니다.
+  - `release.yml`의 `Setup Android SDK` 단계에 `packages: 'platform-tools'`를 명시하여 불필요한 레거시 패키지 요청을 차단하고 최신 Android 빌드 환경에서 정상적으로 APK가 빌드되도록 안정화했습니다.
+
+---
+
+## 🚀 Version 3.45.0
 
 ### 🌐 GitHub Pages 정적 무중단 배포(Zero-Backend) 최적화
 - **🚀 백엔드 없는 정적 호스팅 완벽 지원**:
