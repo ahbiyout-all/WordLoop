@@ -48,6 +48,7 @@ import {
   RandomScope,
 } from './services/randomLaunchService';
 import { Sparkles, X, Maximize2, Minimize2, Smartphone, Shuffle, ArrowRight, Check, ShieldCheck } from 'lucide-react';
+import { InAppBrowserBanner } from './components/InAppBrowserBanner';
 
 export default function App() {
   // Navigation State
@@ -875,7 +876,9 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 font-sans transition-colors pb-28">
-      
+      {/* In-App Browser (KakaoTalk/WebView) Guidance Banner */}
+      <InAppBrowserBanner />
+
       {/* Header Navigation */}
       <Navbar
         activeTab={activeTab}

@@ -129,6 +129,8 @@ class SpeechService {
     this.notify();
   }
 
+  private fallbackAudio: HTMLAudioElement | null = null;
+
   public setSpeed(speed: number) {
     const clampedSpeed = Math.max(0.4, Math.min(2.0, Math.round(speed * 100) / 100));
     this.updateSettings({ speed: clampedSpeed });
@@ -144,17 +146,61 @@ class SpeechService {
   }
 
   /**
+   * HTML5 Audio fallback for in-app browsers (KakaoTalk, Line, WebViews) that lack window.speechSynthesis
+   */
+  public playFallbackAudio(text: string, lang: 'en' | 'ko' = 'en', onComplete?: () => void) {
+    try {
+      if (this.fallbackAudio) {
+        this.fallbackAudio.pause();
+        this.fallbackAudio = null;
+      }
+
+      const cleanText = text.slice(0, 200).replace(/["'\r\n]/g, ' ').trim();
+      if (!cleanText) {
+        onComplete?.();
+        return;
+      }
+
+      const encoded = encodeURIComponent(cleanText);
+      const url = `https://translate.google.com/translate_tts?ie=UTF-8&tl=${lang}&client=tw-ob&q=${encoded}`;
+      const audio = new Audio(url);
+      audio.playbackRate = Math.min(1.5, Math.max(0.7, this.settings.speed || 1.0));
+      this.fallbackAudio = audio;
+
+      let finished = false;
+      const done = () => {
+        if (finished) return;
+        finished = true;
+        this.fallbackAudio = null;
+        onComplete?.();
+      };
+
+      audio.onended = done;
+      audio.onerror = () => {
+        console.warn('Fallback audio playback error');
+        done();
+      };
+
+      const playPromise = audio.play();
+      if (playPromise !== undefined) {
+        playPromise.catch((err) => {
+          console.warn('Fallback audio play catch:', err);
+          done();
+        });
+      }
+    } catch (e) {
+      console.warn('Fallback audio exception:', e);
+      onComplete?.();
+    }
+  }
+
+  /**
    * Primary action when user taps a word or sentence card.
    * If another item was playing, it immediately stops and begins looping this new item.
    * If the SAME item is tapped, it toggles pause/play.
    * Option to pass koreanText (e.g., word meaning or sentence Korean translation)
    */
   public playItem(itemId: string, text: string, koreanText?: string, maxRepeatCount?: number) {
-    if (typeof window === 'undefined' || !('speechSynthesis' in window)) {
-      alert('이 브라우저는 음성 합성(Speech Synthesis)을 지원하지 않습니다.');
-      return;
-    }
-
     // If same item tapped
     if (this.activeItemId === itemId) {
       if (this.isPlaying) {
@@ -183,7 +229,30 @@ class SpeechService {
   private speakCurrent() {
     if (!this.activeText || !this.activeItemId || !this.isPlaying) return;
 
-    window.speechSynthesis.cancel(); // Stop any pending speech
+    // Check if SpeechSynthesis is supported by current browser/webview
+    const hasSpeechSynthesis = typeof window !== 'undefined' && 'speechSynthesis' in window && window.speechSynthesis;
+
+    if (!hasSpeechSynthesis) {
+      // Graceful fallback to HTML5 Audio TTS (Works in KakaoTalk & In-App WebViews!)
+      this.playFallbackAudio(this.activeText, 'en', () => {
+        if (!this.isPlaying) return;
+
+        if (this.settings.readKorean && this.activeKoreanText && this.activeKoreanText.trim().length > 0) {
+          setTimeout(() => {
+            if (this.isPlaying) {
+              this.speakKorean(() => this.finishRepetitionCycle());
+            }
+          }, 200);
+        } else {
+          this.finishRepetitionCycle();
+        }
+      });
+      return;
+    }
+
+    try {
+      window.speechSynthesis.cancel(); // Stop any pending speech
+    } catch {}
 
     const utterance = new SpeechSynthesisUtterance(this.activeText);
     utterance.rate = this.settings.speed;
@@ -215,14 +284,31 @@ class SpeechService {
     };
 
     utterance.onerror = (e) => {
-      console.warn('SpeechSynthesis error:', e);
+      console.warn('SpeechSynthesis error, attempting audio fallback:', e);
       if (e.error !== 'interrupted' && e.error !== 'canceled') {
-        this.isPlaying = false;
-        this.notify();
+        // Fallback to HTML5 audio if speech synthesis fails at runtime in this webview
+        this.playFallbackAudio(this.activeText!, 'en', () => {
+          if (!this.isPlaying) return;
+          if (this.settings.readKorean && this.activeKoreanText && this.activeKoreanText.trim().length > 0) {
+            setTimeout(() => {
+              if (this.isPlaying) {
+                this.speakKorean(() => this.finishRepetitionCycle());
+              }
+            }, 200);
+          } else {
+            this.finishRepetitionCycle();
+          }
+        });
       }
     };
 
-    window.speechSynthesis.speak(utterance);
+    try {
+      window.speechSynthesis.speak(utterance);
+    } catch {
+      this.playFallbackAudio(this.activeText, 'en', () => {
+        this.finishRepetitionCycle();
+      });
+    }
   }
 
   private speakKorean(onComplete: () => void) {
@@ -231,17 +317,22 @@ class SpeechService {
       return;
     }
 
+    const hasSpeechSynthesis = typeof window !== 'undefined' && 'speechSynthesis' in window && window.speechSynthesis;
+
+    if (!hasSpeechSynthesis) {
+      this.playFallbackAudio(this.activeKoreanText, 'ko', onComplete);
+      return;
+    }
+
     const korUtterance = new SpeechSynthesisUtterance(this.activeKoreanText);
     korUtterance.rate = this.settings.speed;
     korUtterance.pitch = this.settings.pitch;
     korUtterance.lang = 'ko-KR';
 
-    if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
-      const allVoices = window.speechSynthesis.getVoices();
-      const korVoice = allVoices.find(v => v.lang.startsWith('ko'));
-      if (korVoice) {
-        korUtterance.voice = korVoice;
-      }
+    const allVoices = window.speechSynthesis.getVoices();
+    const korVoice = allVoices.find(v => v.lang.startsWith('ko'));
+    if (korVoice) {
+      korUtterance.voice = korVoice;
     }
 
     korUtterance.onend = () => {
@@ -249,11 +340,15 @@ class SpeechService {
     };
 
     korUtterance.onerror = (e) => {
-      console.warn('Korean SpeechSynthesis error:', e);
-      onComplete();
+      console.warn('Korean SpeechSynthesis error, falling back to audio:', e);
+      this.playFallbackAudio(this.activeKoreanText!, 'ko', onComplete);
     };
 
-    window.speechSynthesis.speak(korUtterance);
+    try {
+      window.speechSynthesis.speak(korUtterance);
+    } catch {
+      this.playFallbackAudio(this.activeKoreanText, 'ko', onComplete);
+    }
   }
 
   private finishRepetitionCycle() {
@@ -287,8 +382,15 @@ class SpeechService {
   public pause() {
     this.isPlaying = false;
     this.clearLoopTimer();
-    if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
-      window.speechSynthesis.cancel();
+    if (this.fallbackAudio) {
+      try {
+        this.fallbackAudio.pause();
+      } catch {}
+    }
+    if (typeof window !== 'undefined' && 'speechSynthesis' in window && window.speechSynthesis) {
+      try {
+        window.speechSynthesis.cancel();
+      } catch {}
     }
     this.notify();
   }
@@ -313,8 +415,17 @@ class SpeechService {
     this.isPlaying = false;
     this.activeCustomMaxRepeat = null;
     this.clearLoopTimer();
-    if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
-      window.speechSynthesis.cancel();
+    if (this.fallbackAudio) {
+      try {
+        this.fallbackAudio.pause();
+        this.fallbackAudio.currentTime = 0;
+      } catch {}
+      this.fallbackAudio = null;
+    }
+    if (typeof window !== 'undefined' && 'speechSynthesis' in window && window.speechSynthesis) {
+      try {
+        window.speechSynthesis.cancel();
+      } catch {}
     }
   }
 
@@ -346,7 +457,13 @@ class SpeechService {
    * Uses asynchronous dispatch to prevent rapid cancellation locks in Chromium/WebKit engines.
    */
   public speakOnce(text: string, lang: string = 'en-US') {
-    if (typeof window === 'undefined' || !('speechSynthesis' in window) || !text) return;
+    if (typeof window === 'undefined' || !text) return;
+
+    const hasSpeechSynthesis = 'speechSynthesis' in window && window.speechSynthesis;
+    if (!hasSpeechSynthesis) {
+      this.playFallbackAudio(text, lang.startsWith('ko') ? 'ko' : 'en');
+      return;
+    }
     try {
       window.speechSynthesis.cancel();
     } catch {
@@ -399,8 +516,17 @@ class SpeechService {
       onError?: () => void;
     }
   ) {
-    if (typeof window === 'undefined' || !('speechSynthesis' in window) || !text) {
+    if (typeof window === 'undefined' || !text) {
       options?.onEnd?.();
+      return;
+    }
+
+    const hasSpeechSynthesis = 'speechSynthesis' in window && window.speechSynthesis;
+    if (!hasSpeechSynthesis) {
+      options?.onStart?.();
+      this.playFallbackAudio(text, options?.lang?.startsWith('ko') ? 'ko' : 'en', () => {
+        options?.onEnd?.();
+      });
       return;
     }
 

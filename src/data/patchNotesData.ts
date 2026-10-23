@@ -9,13 +9,29 @@ export interface PatchNoteVersion {
   }[];
 }
 
-export const APP_VERSION = '3.46.0';
+export const APP_VERSION = '3.47.0';
 
 export const PATCH_NOTES_DATA: PatchNoteVersion[] = [
   {
-    version: '3.46.0',
+    version: '3.47.0',
     date: '2026-10',
     isLatest: true,
+    tagline: '카카오톡 인앱 브라우저 음성 합성 오류 완벽 해결 & HTML5 Audio 자동 폴백 시스템 구축',
+    highlights: [
+      {
+        category: '🔊 카카오톡 및 모바일 인앱 브라우저 음성 재생(TTS) 무중단 지원',
+        items: [
+          '🛑 [블로킹 alert 팝업 완전 제거]: 카카오톡 인앱 웹뷰 등 SpeechSynthesis API가 제한된 환경에서 단어 카드를 터치할 때 뜨던 "이 브라우저는 음성 합성을 지원하지 않습니다" 경고창을 완전히 제거.',
+          '🎵 [HTML5 Audio 음성 엔진 자동 폴백]: SpeechSynthesis가 지원되지 않거나 런타임 오류가 발생하는 환경에서도 구글 오픈 TTS 스트림을 통해 영어 단어와 한국어 뜻 음성이 끊김 없이 재생되도록 백업 오디오 파이프라인 탑재.',
+          '💬 [카카오톡 인앱 브라우저 감지 & 1초 만에 Chrome/기본 브라우저 열기 안내]: 카카오톡 채팅창에서 링크를 열었을 때 마이크 발음 평가 및 원활한 학습을 위해 상단에 Chrome 또는 기본 브라우저로 전환할 수 있는 원터치 바로가기 배너 제공.',
+        ],
+      },
+    ],
+  },
+  {
+    version: '3.46.0',
+    date: '2026-10',
+    isLatest: false,
     tagline: 'CI/CD 릴리스 자동화 파이프라인 안정화 & Electron 및 Android SDK 빌드 오류 완벽 수정',
     highlights: [
       {
