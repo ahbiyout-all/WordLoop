@@ -144,9 +144,23 @@ export const SentenceCard: React.FC<SentenceCardProps> = React.memo(({
 
       {/* Main Sentence Display */}
       <div className="mb-3">
-        <h3 className="text-lg font-bold leading-relaxed group-hover:text-emerald-500 dark:group-hover:text-emerald-400 transition-colors">
-          "{item.text}"
-        </h3>
+        <div className="flex items-center justify-between gap-3">
+          <h3 className="text-lg font-bold leading-relaxed group-hover:text-emerald-500 dark:group-hover:text-emerald-400 transition-colors">
+            "{item.text}"
+          </h3>
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              speechService.speakOnce(item.text, 'en-US');
+            }}
+            className="p-2 rounded-xl bg-emerald-500/10 hover:bg-emerald-500 text-emerald-600 dark:text-emerald-400 hover:text-slate-950 transition-all shadow-xs flex items-center gap-1.5 active:scale-95 cursor-pointer shrink-0"
+            title="원어민 발음 듣기"
+          >
+            <Volume2 className="w-4 h-4" />
+            <span className="text-xs font-bold hidden sm:inline">발음듣기</span>
+          </button>
+        </div>
 
         <div
           className="mt-2"

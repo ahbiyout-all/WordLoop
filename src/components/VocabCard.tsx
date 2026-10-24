@@ -156,15 +156,29 @@ export const VocabCard: React.FC<VocabCardProps> = React.memo(({
 
       {/* Main Word Display & Audio Trigger */}
       <div className="mb-3">
-        <div className="flex items-baseline gap-3">
-          <h3 className="text-2xl font-extrabold tracking-tight group-hover:text-emerald-500 dark:group-hover:text-emerald-400 transition-colors">
-            {item.word}
-          </h3>
-          {item.ipa && (
-            <span className="text-sm font-mono text-slate-400 dark:text-slate-500">
-              {item.ipa}
-            </span>
-          )}
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex items-baseline gap-3">
+            <h3 className="text-2xl font-extrabold tracking-tight group-hover:text-emerald-500 dark:group-hover:text-emerald-400 transition-colors">
+              {item.word}
+            </h3>
+            {item.ipa && (
+              <span className="text-sm font-mono text-slate-400 dark:text-slate-500">
+                {item.ipa}
+              </span>
+            )}
+          </div>
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              speechService.speakOnce(item.word, 'en-US');
+            }}
+            className="p-2 rounded-xl bg-emerald-500/10 hover:bg-emerald-500 text-emerald-600 dark:text-emerald-400 hover:text-slate-950 transition-all shadow-xs flex items-center gap-1.5 active:scale-95 cursor-pointer shrink-0"
+            title="원어민 발음 듣기"
+          >
+            <Volume2 className="w-4 h-4" />
+            <span className="text-xs font-bold hidden sm:inline">발음듣기</span>
+          </button>
         </div>
 
         {/* Meaning Display */}
@@ -203,7 +217,17 @@ export const VocabCard: React.FC<VocabCardProps> = React.memo(({
           <p className="text-sm font-medium text-slate-700 dark:text-slate-300 leading-snug group-hover/sent:text-emerald-600 dark:group-hover/sent:text-emerald-400 transition-colors">
             "{item.sentence}"
           </p>
-          <Volume2 className="w-4 h-4 text-slate-400 group-hover/sent:text-emerald-500 shrink-0 mt-0.5" />
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              speechService.speakOnce(item.sentence, 'en-US');
+            }}
+            className="p-1.5 rounded-lg bg-emerald-500/20 hover:bg-emerald-500 text-emerald-600 dark:text-emerald-400 hover:text-slate-950 transition-all shrink-0 cursor-pointer"
+            title="문장 발음 듣기"
+          >
+            <Volume2 className="w-4 h-4" />
+          </button>
         </div>
         {showMeaningState && (
           <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">

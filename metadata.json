@@ -1,6 +1,6 @@
 {
   "name": "Self-Improvement & English Vocab",
-  "description": "WordLoop (v3.49.0): Comprehensive English vocabulary & sentence learning app featuring Samsung Galaxy & Mobile Audio Playback Resilience (Web Audio singleton, Touch Auto-Unlock, Watchdog timeout recovery, Samsung Voice Resolution, and Referrer-Free Audio Fallback), Rhythm Note Baseline Word Speaking & Voice Hit Recognition, In-App Browser Fallback, and Google Play Store Launch Readiness.",
+  "description": "WordLoop (v3.50.0): Comprehensive English vocabulary & sentence learning app featuring Dedicated One-Touch Speaker Pronunciation Buttons (발음듣기) on all Word and Sentence Cards, Samsung Galaxy Audio Resilience, Web Audio Singleton, Touch Auto-Unlock, and Google Play Store Launch Readiness.",
   "requestFramePermissions": [
     "microphone"
   ],

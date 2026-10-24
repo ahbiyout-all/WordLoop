@@ -9,13 +9,28 @@ export interface PatchNoteVersion {
   }[];
 }
 
-export const APP_VERSION = '3.49.0';
+export const APP_VERSION = '3.50.0';
 
 export const PATCH_NOTES_DATA: PatchNoteVersion[] = [
   {
-    version: '3.49.0',
+    version: '3.50.0',
     date: '2026-10',
     isLatest: true,
+    tagline: '단어장 및 문장 카드 전용 [🔊 발음듣기] 스피커 버튼 추가 & 즉시 재생 보강',
+    highlights: [
+      {
+        category: '🔊 단어 및 문장 카드 전용 [🔊 발음듣기] 스피커 버튼 전면 배치',
+        items: [
+          '🎯 [원터치 발음 듣기 버튼]: 모든 단어장(VocabCard) 단어 타이틀 옆과 문장 카드(SentenceCard) 문장 타이틀 옆에 직관적인 [🔊 발음듣기] 버튼을 새롭게 추가하여, 카드를 누를 필요 없이 스피커 아이콘 터치 한 번으로 원어민 발음을 언제든 즉시 청취 가능.',
+          '⚡ [즉시 발화 보장]: 스피커 버튼 클릭 시 기존 반복 루프 토글과 분리되어 `speechService.speakOnce()`를 통해 지연이나 멈춤 없이 곧바로 정확한 발음 재생.',
+        ],
+      },
+    ],
+  },
+  {
+    version: '3.49.0',
+    date: '2026-10',
+    isLatest: false,
     tagline: '삼성 갤럭시 스마트폰 소리 재생 불가 현상 완벽 해결 & 모바일 오디오 무중단 파이프라인 구축',
     highlights: [
       {

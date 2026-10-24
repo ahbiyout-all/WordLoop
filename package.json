@@ -1,7 +1,7 @@
 {
   "name": "react-example",
   "private": true,
-  "version": "3.49.0",
+  "version": "3.50.0",
   "description": "WordLoop English Vocabulary & Sentence Learning App with Offline Audio Loop and Gamification",
   "author": "WordLoop Team",
   "type": "module",
