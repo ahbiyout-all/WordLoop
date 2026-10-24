@@ -11,10 +11,12 @@ import {
   Pause,
   LogOut,
   VolumeX,
-  Radio
+  Radio,
+  Mic,
+  MicOff,
 } from 'lucide-react';
 import { VocabItem, QAMode } from '../types';
-import { speechService } from '../services/speechService';
+import { speechService, getSharedAudioContext } from '../services/speechService';
 import { getCleanKoreanMeaning, getEnglishDefinition, QA_MODES_CONFIG } from '../utils/meaningUtils';
 import { QAModeSelector } from './QAModeSelector';
 
@@ -36,6 +38,7 @@ interface Note {
   displayText: string; // word or meaning
   isCorrectOption: boolean; // if this note matches current target
   hitState?: 'PERFECT' | 'GREAT' | 'GOOD' | 'MISS' | null;
+  hasSpokenAtBaseline?: boolean; // Track if word was spoken when crossing baseline
 }
 
 const LANES = [
@@ -79,17 +82,28 @@ export const RhythmWordGame: React.FC<RhythmWordGameProps> = ({
   const [lastJudgment, setLastJudgment] = useState<{ text: string; color: string; id: number } | null>(null);
   const [activeLanePress, setActiveLanePress] = useState<boolean[]>([false, false, false, false]);
 
+  // Baseline auto-speech & voice recognition hit states
+  const [autoSpeakBaseline, setAutoSpeakBaseline] = useState<boolean>(true);
+  const [voiceInputEnabled, setVoiceInputEnabled] = useState<boolean>(false);
+  const [isListening, setIsListening] = useState<boolean>(false);
+  const [activeBaselineWord, setActiveBaselineWord] = useState<string | null>(null);
+
   const animRef = useRef<number | null>(null);
   const lastSpawnTime = useRef<number>(0);
+  const lastSpokenTime = useRef<number>(0);
+  const notesRef = useRef<Note[]>([]);
+  const recognitionRef = useRef<any>(null);
 
   const currentTarget = wordList[targetIndex];
 
-  // Synthesize rhythmic Web Audio synth beat clicks
+  // Synthesize rhythmic Web Audio synth beat clicks using shared AudioContext singleton
   const playBeatClick = useCallback((freq = 440, type: OscillatorType = 'sine', duration = 0.08) => {
     try {
-      const AudioCtx = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
-      if (!AudioCtx) return;
-      const ctx = new AudioCtx();
+      const ctx = getSharedAudioContext();
+      if (!ctx) return;
+      if (ctx.state === 'suspended') {
+        ctx.resume().catch(() => {});
+      }
       const osc = ctx.createOscillator();
       const gain = ctx.createGain();
 
@@ -138,11 +152,13 @@ export const RhythmWordGame: React.FC<RhythmWordGameProps> = ({
     const isCorrectOption = Math.random() < 0.45; // 45% chance correct note
 
     let displayText = '';
+    let noteVocab = currentTarget;
 
     if (activeQAMode === 'ko_to_en' || activeQAMode === 'en_def_to_en') {
       // Notes should contain English words
       if (isCorrectOption) {
         displayText = currentTarget.word;
+        noteVocab = currentTarget;
       } else {
         const wrongCandidates = words.filter(
           (w) => w.word.toLowerCase() !== currentTarget.word.toLowerCase()
@@ -150,14 +166,17 @@ export const RhythmWordGame: React.FC<RhythmWordGameProps> = ({
         if (wrongCandidates.length > 0) {
           const randomWrong = wrongCandidates[Math.floor(Math.random() * wrongCandidates.length)];
           displayText = randomWrong.word;
+          noteVocab = randomWrong;
         } else {
           displayText = currentTarget.word;
+          noteVocab = currentTarget;
         }
       }
     } else {
       // en_to_ko: Notes should contain Korean meanings
       if (isCorrectOption) {
         displayText = getCleanKoreanMeaning(currentTarget);
+        noteVocab = currentTarget;
       } else {
         const wrongCandidates = words.filter(
           (w) => getCleanKoreanMeaning(w) !== getCleanKoreanMeaning(currentTarget)
@@ -165,8 +184,10 @@ export const RhythmWordGame: React.FC<RhythmWordGameProps> = ({
         if (wrongCandidates.length > 0) {
           const randomWrong = wrongCandidates[Math.floor(Math.random() * wrongCandidates.length)];
           displayText = getCleanKoreanMeaning(randomWrong);
+          noteVocab = randomWrong;
         } else {
           displayText = getCleanKoreanMeaning(currentTarget);
+          noteVocab = currentTarget;
         }
       }
     }
@@ -175,15 +196,20 @@ export const RhythmWordGame: React.FC<RhythmWordGameProps> = ({
       id: `note-${Date.now()}-${Math.random()}`,
       lane,
       y: -10, // Start above top
-      vocab: currentTarget,
+      vocab: noteVocab,
       displayText,
       isCorrectOption,
+      hasSpokenAtBaseline: false,
     };
 
-    setNotes((prev) => [...prev, newNote]);
+    setNotes((prev) => {
+      const updated = [...prev, newNote];
+      notesRef.current = updated;
+      return updated;
+    });
   }, [currentTarget, words, activeQAMode]);
 
-  // Rhythm Game Main Animation Loop
+  // Rhythm Game Main Animation Loop with Baseline Speech
   useEffect(() => {
     if (!isGameStarted || isGameOver || isPaused) return;
 
@@ -197,6 +223,9 @@ export const RhythmWordGame: React.FC<RhythmWordGameProps> = ({
       }
 
       let hasMissed = false;
+      let passingWordThisFrame: string | null = null;
+      const now = Date.now();
+
       setNotes((prevNotes) => {
         let missedCount = 0;
         const nextNotes: Note[] = [];
@@ -212,15 +241,37 @@ export const RhythmWordGame: React.FC<RhythmWordGameProps> = ({
             continue; // Remove note
           }
 
-          nextNotes.push({ ...note, y: nextY });
+          // Check if reaching or crossing baseline (TARGET_HIT_Y = 82)
+          let hasSpoken = note.hasSpokenAtBaseline;
+          const distToBaseline = Math.abs(nextY - TARGET_HIT_Y);
+
+          if (distToBaseline <= 4.5) {
+            passingWordThisFrame = note.vocab.word;
+
+            if (!hasSpoken && autoSpeakBaseline) {
+              hasSpoken = true;
+              // Speak with priority to correct target, throttled to prevent overlapping
+              if (note.isCorrectOption || now - lastSpokenTime.current > 700) {
+                lastSpokenTime.current = now;
+                speechService.speakOnce(note.vocab.word, 'en-US');
+              }
+            }
+          }
+
+          nextNotes.push({ ...note, y: nextY, hasSpokenAtBaseline: hasSpoken });
         }
 
         if (missedCount > 0) {
           hasMissed = true;
         }
 
+        notesRef.current = nextNotes;
         return nextNotes;
       });
+
+      if (passingWordThisFrame) {
+        setActiveBaselineWord(passingWordThisFrame);
+      }
 
       if (hasMissed) {
         setCombo(0);
@@ -235,7 +286,7 @@ export const RhythmWordGame: React.FC<RhythmWordGameProps> = ({
     return () => {
       if (animRef.current) cancelAnimationFrame(animRef.current);
     };
-  }, [isGameOver, isGameStarted, isPaused, spawnNote]);
+  }, [isGameOver, isGameStarted, isPaused, spawnNote, autoSpeakBaseline]);
 
   // Process Lane Hit Action (A, S, D, F or Touch)
   const handleLaneHit = useCallback(
@@ -273,9 +324,18 @@ export const RhythmWordGame: React.FC<RhythmWordGameProps> = ({
 
       if (dist <= HIT_TOLERANCE) {
         // Within hit range!
-        setNotes((prev) => prev.filter((n) => n.id !== targetNote.id));
+        setNotes((prev) => {
+          const updated = prev.filter((n) => n.id !== targetNote.id);
+          notesRef.current = updated;
+          return updated;
+        });
 
         if (targetNote.isCorrectOption) {
+          // Play pronunciation on hit if enabled
+          if (autoSpeakBaseline) {
+            speechService.speakOnce(targetNote.vocab.word, 'en-US');
+          }
+
           // Correct note hit!
           let points = 100;
           let judgmentText = 'GOOD!';
@@ -330,8 +390,114 @@ export const RhythmWordGame: React.FC<RhythmWordGameProps> = ({
         playBeatClick(200, 'triangle', 0.05);
       }
     },
-    [combo, currentTarget, isGameOver, isGameStarted, maxCombo, notes, onChangeMastery, onUpdateHighScore, playBeatClick, score, targetIndex, wordList.length]
+    [
+      combo,
+      currentTarget,
+      isGameOver,
+      isGameStarted,
+      maxCombo,
+      notes,
+      onChangeMastery,
+      onUpdateHighScore,
+      playBeatClick,
+      score,
+      targetIndex,
+      wordList.length,
+      autoSpeakBaseline,
+    ]
   );
+
+  // Voice Hit Mode: continuous Web Speech API listening to match spoken words at baseline
+  useEffect(() => {
+    if (!voiceInputEnabled || isGameOver || isPaused || !isGameStarted) {
+      if (recognitionRef.current) {
+        try {
+          recognitionRef.current.abort();
+        } catch {}
+        recognitionRef.current = null;
+      }
+      setIsListening(false);
+      return;
+    }
+
+    const SpeechRecognition =
+      (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    if (!SpeechRecognition) {
+      console.warn('SpeechRecognition is not supported in this browser.');
+      return;
+    }
+
+    let isAborted = false;
+    const reco = new SpeechRecognition();
+    reco.continuous = true;
+    reco.interimResults = true;
+    reco.lang = 'en-US';
+    recognitionRef.current = reco;
+
+    reco.onresult = (event: any) => {
+      const results = event.results;
+      for (let i = event.resultIndex; i < results.length; i++) {
+        const transcript = results[i][0]?.transcript?.trim().toLowerCase();
+        if (!transcript) continue;
+
+        // Find notes near the hit baseline
+        const candidateNotes = notesRef.current.filter(
+          (n) => Math.abs(n.y - TARGET_HIT_Y) <= HIT_TOLERANCE + 8
+        );
+
+        const matched = candidateNotes.find((n) => {
+          const w = n.vocab.word.toLowerCase();
+          return (
+            transcript.includes(w) ||
+            w.includes(transcript) ||
+            transcript.split(/\s+/).some((token: string) => token.length >= 3 && w.includes(token))
+          );
+        });
+
+        if (matched) {
+          handleLaneHit(matched.lane);
+          setLastJudgment({
+            text: `🎙️ "${matched.vocab.word}" 말하기 HIT!!`,
+            color: 'text-emerald-400 font-black animate-pulse',
+            id: Date.now(),
+          });
+          break;
+        }
+      }
+    };
+
+    reco.onerror = (e: any) => {
+      if (e.error !== 'no-speech' && e.error !== 'aborted') {
+        console.warn('Rhythm recognition error:', e.error);
+      }
+    };
+
+    reco.onend = () => {
+      if (!isAborted && voiceInputEnabled && !isGameOver && !isPaused) {
+        try {
+          reco.start();
+        } catch {}
+      } else {
+        setIsListening(false);
+      }
+    };
+
+    try {
+      reco.start();
+      setIsListening(true);
+    } catch {
+      setIsListening(false);
+    }
+
+    return () => {
+      isAborted = true;
+      try {
+        reco.abort();
+      } catch {}
+      recognitionRef.current = null;
+      setIsListening(false);
+    };
+  }, [voiceInputEnabled, isGameOver, isPaused, isGameStarted, handleLaneHit]);
 
   // Keyboard controls listener (A, S, D, F)
   useEffect(() => {
@@ -394,6 +560,34 @@ export const RhythmWordGame: React.FC<RhythmWordGameProps> = ({
               <span>{combo} COMBO!</span>
             </div>
           )}
+
+          {/* Baseline Auto Speak (말하기) Toggle */}
+          <button
+            onClick={() => setAutoSpeakBaseline((prev) => !prev)}
+            className={`px-2 py-0.5 sm:px-2.5 sm:py-1.5 rounded-xl text-[10px] sm:text-xs font-bold transition-all flex items-center gap-1 border ${
+              autoSpeakBaseline
+                ? 'bg-purple-100 dark:bg-purple-950/80 text-purple-700 dark:text-purple-300 border-purple-300 dark:border-purple-800 shadow-sm'
+                : 'bg-slate-100 dark:bg-slate-800 text-slate-500 border-transparent hover:bg-slate-200'
+            }`}
+            title="기준점을 통과하는 단어를 원어민 발음으로 자동 말하기"
+          >
+            {autoSpeakBaseline ? <Volume2 className="w-3 h-3 text-purple-600 animate-pulse" /> : <VolumeX className="w-3 h-3" />}
+            <span>{autoSpeakBaseline ? '기준선 말하기 ON' : '기준선 말하기 OFF'}</span>
+          </button>
+
+          {/* Voice Hit Mode Toggle */}
+          <button
+            onClick={() => setVoiceInputEnabled((prev) => !prev)}
+            className={`px-2 py-0.5 sm:px-2.5 sm:py-1.5 rounded-xl text-[10px] sm:text-xs font-bold transition-all flex items-center gap-1 border ${
+              voiceInputEnabled
+                ? 'bg-emerald-500 text-white border-emerald-400 shadow-sm animate-pulse'
+                : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border-transparent hover:bg-slate-200'
+            }`}
+            title="마이크로 기준점 단어를 직접 외쳐서 판정(HIT)하기"
+          >
+            {voiceInputEnabled ? <Mic className="w-3 h-3" /> : <MicOff className="w-3 h-3" />}
+            <span>{voiceInputEnabled ? (isListening ? '말하기 판정 중...' : '마이크 ON') : '말하기 판정'}</span>
+          </button>
 
           <button
             onClick={() => setIsPaused(!isPaused)}
@@ -552,6 +746,34 @@ export const RhythmWordGame: React.FC<RhythmWordGameProps> = ({
                 </p>
               </>
             )}
+
+            {/* Live Baseline Passing Word Indicator */}
+            <div className="pt-1 flex items-center justify-center gap-1.5 flex-wrap">
+              <span
+                className={`px-2.5 py-0.5 rounded-full text-[9px] sm:text-[10px] font-bold flex items-center gap-1 transition-all border ${
+                  activeBaselineWord
+                    ? 'bg-amber-400 text-slate-950 border-amber-300 shadow-md font-black animate-pulse'
+                    : 'bg-slate-800/80 text-slate-400 border-slate-700'
+                }`}
+              >
+                <Volume2 className="w-3 h-3 text-current" />
+                <span>기준점 통과:</span>
+                <span className="font-extrabold tracking-wide">{activeBaselineWord ? `"${activeBaselineWord}"` : '대기 중...'}</span>
+              </span>
+
+              {voiceInputEnabled && (
+                <span
+                  className={`px-2 py-0.5 rounded-full text-[9px] sm:text-[10px] font-bold flex items-center gap-1 border ${
+                    isListening
+                      ? 'bg-emerald-500 text-white border-emerald-400 animate-pulse shadow-sm'
+                      : 'bg-slate-800 text-slate-400 border-slate-700'
+                  }`}
+                >
+                  <Mic className="w-3 h-3 text-current" />
+                  <span>{isListening ? '말하기 듣는 중' : '마이크 대기'}</span>
+                </span>
+              )}
+            </div>
           </div>
 
           {/* Rhythm Track Lane Highway Stage */}
@@ -606,13 +828,44 @@ export const RhythmWordGame: React.FC<RhythmWordGameProps> = ({
                 </div>
               ))}
 
-              {/* Hit Judgment Line (Horizontal Glow Bar) */}
+              {/* Hit Judgment Line (Horizontal Glow Bar with Word Speaking Display) */}
               <div
                 style={{ top: `${TARGET_HIT_Y}%` }}
-                className="absolute inset-x-0 h-2 sm:h-2.5 -translate-y-1/2 bg-gradient-to-r from-purple-500 via-yellow-400 to-pink-500 opacity-90 shadow-[0_0_15px_rgba(234,179,8,0.8)] pointer-events-none z-10 flex items-center justify-between px-2"
+                className={`absolute inset-x-0 h-3 sm:h-3.5 -translate-y-1/2 bg-gradient-to-r from-purple-500 via-yellow-400 to-pink-500 opacity-95 pointer-events-none z-10 flex items-center justify-between px-2 sm:px-3 border-y border-white/60 transition-all ${
+                  activeBaselineWord
+                    ? 'scale-y-110 shadow-[0_0_25px_rgba(250,204,21,1)]'
+                    : 'shadow-[0_0_15px_rgba(234,179,8,0.8)]'
+                }`}
               >
-                <span className="text-[7px] sm:text-[9px] font-mono text-slate-950 font-black">HIT</span>
-                <span className="text-[7px] sm:text-[9px] font-mono text-slate-950 font-black">HIT</span>
+                <div className="flex items-center gap-1">
+                  <span className="text-[7px] sm:text-[9px] font-mono text-slate-950 font-black bg-yellow-300 px-1 py-0.5 rounded shadow-sm">
+                    HIT LINE
+                  </span>
+                  {autoSpeakBaseline && (
+                    <span className="text-[7px] sm:text-[9px] font-bold text-slate-950 flex items-center gap-0.5 animate-pulse">
+                      <Volume2 className="w-2.5 h-2.5 sm:w-3 sm:h-3" />
+                      <span className="hidden xs:inline">기준선 발음</span>
+                    </span>
+                  )}
+                </div>
+
+                {activeBaselineWord && (
+                  <div className="text-[8px] sm:text-[11px] font-black text-slate-950 bg-white/95 px-2 py-0.5 rounded-full shadow-md animate-bounce truncate max-w-[140px] sm:max-w-[220px]">
+                    🔊 {activeBaselineWord}
+                  </div>
+                )}
+
+                <div className="flex items-center gap-1">
+                  {voiceInputEnabled && (
+                    <span className="text-[7px] sm:text-[9px] font-bold text-emerald-950 bg-emerald-300 px-1 py-0.5 rounded flex items-center gap-0.5 animate-pulse">
+                      <Mic className="w-2.5 h-2.5 sm:w-3 sm:h-3" />
+                      <span className="hidden xs:inline">음성 판정</span>
+                    </span>
+                  )}
+                  <span className="text-[7px] sm:text-[9px] font-mono text-slate-950 font-black bg-yellow-300 px-1 py-0.5 rounded shadow-sm">
+                    HIT LINE
+                  </span>
+                </div>
               </div>
             </div>
 

@@ -11,7 +11,9 @@ import {
   Gauge,
   Music,
   Clock,
-  Globe
+  Globe,
+  Smartphone,
+  AlertTriangle
 } from 'lucide-react';
 import { speechService } from '../services/speechService';
 import { AudioSettings } from '../types';
@@ -35,6 +37,16 @@ export const AudioSettingsModal: React.FC<AudioSettingsModalProps> = ({ isOpen, 
   const [settings, setSettings] = useState<AudioSettings>(speechService.getSettings());
   const [voices, setVoices] = useState<SpeechSynthesisVoice[]>([]);
   const [isTestingSpeech, setIsTestingSpeech] = useState<boolean>(false);
+  const [mobileTestStatus, setMobileTestStatus] = useState<string | null>(null);
+
+  const handleMobileAudioTest = async () => {
+    setIsTestingSpeech(true);
+    setMobileTestStatus('사운드 엔진 및 오디오 잠금 해제 중...');
+    const res = await speechService.testMobileAudio();
+    setIsTestingSpeech(false);
+    setMobileTestStatus(res.message);
+    setTimeout(() => setMobileTestStatus(null), 4500);
+  };
 
   useEffect(() => {
     const unsubscribe = speechService.subscribe((state) => {
@@ -366,6 +378,44 @@ export const AudioSettingsModal: React.FC<AudioSettingsModalProps> = ({ isOpen, 
               </select>
             </div>
           )}
+
+          {/* SECTION 5: Samsung Galaxy & Mobile Sound Diagnostic & Unlock */}
+          <div className="p-3.5 rounded-2xl bg-amber-500/10 border border-amber-500/30 space-y-2.5">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-black text-amber-900 dark:text-amber-200 flex items-center gap-1.5">
+                <Smartphone className="w-4 h-4 text-amber-600 dark:text-amber-400" />
+                <span>삼성 갤럭시 및 모바일 사운드 자가 진단</span>
+              </span>
+              <button
+                type="button"
+                onClick={handleMobileAudioTest}
+                disabled={isTestingSpeech}
+                className="px-2.5 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-400 disabled:opacity-50 text-slate-950 text-[11px] font-black shadow-xs transition-all flex items-center gap-1 active:scale-95 cursor-pointer"
+              >
+                <Volume2 className="w-3.5 h-3.5" />
+                <span>{isTestingSpeech ? '소리 확인 중...' : '🔊 모바일 소리 강제 테스트'}</span>
+              </button>
+            </div>
+
+            {mobileTestStatus && (
+              <div className="p-2 rounded-xl bg-amber-100 dark:bg-amber-950/60 border border-amber-300 dark:border-amber-800 text-[11px] font-bold text-amber-900 dark:text-amber-200 flex items-center gap-1.5 animate-in fade-in">
+                <Check className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
+                <span>{mobileTestStatus}</span>
+              </div>
+            )}
+
+            <div className="text-[10px] sm:text-[11px] text-amber-800 dark:text-amber-300 space-y-1 leading-relaxed">
+              <p className="font-semibold flex items-start gap-1">
+                <span>⚠️</span>
+                <span><strong>삼성 갤럭시 폰에서 소리가 안 들릴 때:</strong></span>
+              </p>
+              <ul className="list-disc list-inside space-y-0.5 text-slate-700 dark:text-slate-300 pl-1">
+                <li>스마트폰 측면 <strong>볼륨 버튼</strong>을 누른 후 상단 <strong>점 3개(···)</strong>를 눌러 <strong>'미디어 음량'</strong>이 0이 아닌지 꼭 확인해 주세요. (벨소리가 커도 미디어 볼륨이 꺼져 있으면 소리가 안 납니다)</li>
+                <li>삼성 인터넷 / Chrome 브라우저의 소리 차단 제한은 화면을 처음 터치할 때 자동으로 잠금 해제됩니다.</li>
+                <li>TTS 엔진이 멈춰있을 경우 백업 오디오 파이프라인(HTML5 스트림)이 0.8초 내 자동 대체 작동합니다.</li>
+              </ul>
+            </div>
+          </div>
 
           {/* Storage Auto-Sync Note */}
           <div className="p-2.5 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 flex items-start gap-2">

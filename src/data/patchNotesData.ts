@@ -9,13 +9,61 @@ export interface PatchNoteVersion {
   }[];
 }
 
-export const APP_VERSION = '3.47.0';
+export const APP_VERSION = '3.49.0';
 
 export const PATCH_NOTES_DATA: PatchNoteVersion[] = [
   {
-    version: '3.47.0',
+    version: '3.49.0',
     date: '2026-10',
     isLatest: true,
+    tagline: '삼성 갤럭시 스마트폰 소리 재생 불가 현상 완벽 해결 & 모바일 오디오 무중단 파이프라인 구축',
+    highlights: [
+      {
+        category: '📱 삼성 갤럭시 폰 오디오 재생 불가 및 TTS 멈춤 완벽 해결',
+        items: [
+          '🛑 [삼성 TTS 큐 멈춤 & 데드락 자동 해제]: 삼성 인터넷 및 Chrome Android에서 SpeechSynthesis가 일시정지(paused) 상태로 고착되거나 cancel() 호출 시 speak()가 누락되는 안드로이드 고유 버그를 실시간 unfreeze 로직으로 해결.',
+          '⏱️ [850ms 와치독 자동 회복 타이머]: 삼성 TTS 엔진이 음성 팩 누락 등으로 onstart/onend 이벤트 없이 무응답 정지(Silent Hang)할 경우, 850ms 내 감지하여 고음질 HTML5 오디오 스트림으로 자동 전환 재생.',
+          '🔄 [스마트 음성 엔진 동적 매핑 (Samsung Voice Resolution)]: 타 기기에서 설정된 voiceURI가 갤럭시 폰에 없더라도 엉뚱한 한국어 엔진으로 단어가 씹히지 않도록 기기 내 최적의 Samsung English/Google English 음성을 자동 탐색 매핑.',
+        ],
+      },
+      {
+        category: '🔊 Web Audio 싱글톤 & 첫 터치 자동 잠금 해제 (Touch Auto-Unlock)',
+        items: [
+          '⚡ [모바일 오디오 컨텍스트 고갈 방지]: 리듬 게임 등에서 매 타격 시 새 AudioContext를 생성하여 안드로이드 하드웨어 컨텍스트 한도(최대 6개)를 초과해 소리가 꺼지던 문제를 전역 공유 싱글톤(getSharedAudioContext)으로 완벽 개편.',
+          '🔓 [첫 화면 터치 시 백그라운드 오디오 잠금 해제]: 모바일 브라우저의 엄격한 Autoplay 오디오 제한 정책을 첫 사용자 터치 제스처 시 조용히 해제하여 연속 반복 듣기 및 게임 효과음 무제한 보장.',
+          '🌐 [모바일 통신사 403 차단 방지 (no-referrer)]: 폴백 오디오 호출 시 referrerPolicy를 제거하여 모바일 LTE/5G 네트워크에서도 외부 TTS 스트림이 차단 없이 즉각 재생되도록 보강.',
+          '🛠️ [사운드 설정 내 모바일 자가진단 & 원터치 강제 테스트]: 설정 모달에 갤럭시 볼륨 안내(미디어 볼륨 vs 벨소리) 및 1초 소리 테스트 버튼 탑재.',
+        ],
+      },
+    ],
+  },
+  {
+    version: '3.48.0',
+    date: '2026-10',
+    isLatest: false,
+    tagline: '리듬 노트 게임 기준점 통과 단어 실시간 말하기(TTS) & 마이크 음성 판정(Voice Hit) 모드 탑재',
+    highlights: [
+      {
+        category: '🎵 리듬 노트 기준점(HIT LINE) 단어 실시간 말하기(TTS)',
+        items: [
+          '🔊 [기준선 통과 실시간 원어민 발음]: 떨어지는 리듬 노트가 판정 기준선(HIT LINE 82%)에 도달하는 순간, 해당 단어의 원어민 발음을 비트에 맞춰 실시간으로 또렷하게 발화.',
+          '✨ [기준점 통과 단어 시각적 네온 HUD]: 기준점을 통과 중인 단어가 상단 프롬프트 바 및 판정선 중앙에 펄스 애니메이션 배지와 함께 실시간 표시되어 시각과 청각을 동시 자극.',
+          '🎛️ [기준선 발음 토글 스위치]: 헤더에 [기준선 말하기 ON/OFF] 버튼을 제공하여 음악/비트 모드와 어학 학습 모드를 취향에 따라 자유롭게 전환.',
+        ],
+      },
+      {
+        category: '🎙️ 마이크로 말해서 맞추는 음성 판정(Voice Hit) 모드',
+        items: [
+          '🗣️ [핸즈프리 스피킹 리듬 액션]: [말하기 판정] 모드를 켜면 Web Speech Recognition API가 활성화되어, 기준선에 도달하는 단어를 입으로 크게 외치기만 해도 건반 터치 없이 자동으로 PERFECT/GREAT 판정 처리.',
+          '🏆 [스피킹 쉐도잉 & 게임 결합]: 눈으로 보고, 귀로 듣고, 입으로 외쳐서 터뜨리는 3차원 다감각 리듬 학습 실현.',
+        ],
+      },
+    ],
+  },
+  {
+    version: '3.47.0',
+    date: '2026-10',
+    isLatest: false,
     tagline: '카카오톡 인앱 브라우저 음성 합성 오류 완벽 해결 & HTML5 Audio 자동 폴백 시스템 구축',
     highlights: [
       {

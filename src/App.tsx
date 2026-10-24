@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { ActiveTab, VocabItem, SentenceItem, Goal, DailyGoalHistory, UserProfile } from './types';
 import { DEFAULT_VOCAB, DEFAULT_SENTENCES } from './data/defaultVocab';
 import { DEFAULT_GOALS, generateSampleHistory } from './data/defaultGoals';
-import { speechService } from './services/speechService';
+import { speechService, initMobileAudioUnlock } from './services/speechService';
 import { Navbar } from './components/Navbar';
 import { VocabList } from './components/VocabList';
 import { GoalTracker } from './components/GoalTracker';
@@ -361,6 +361,9 @@ export default function App() {
 
   // Background GitHub Releases Auto-Update Check on App Startup
   useEffect(() => {
+    // Unlocks mobile & Samsung Galaxy audio engine upon user's first touch gesture
+    initMobileAudioUnlock();
+
     GitHubUpdateService.checkForUpdates().then((res) => {
       setUpdateData(res);
       // Automatically launch update notification popup modal when new version is detected

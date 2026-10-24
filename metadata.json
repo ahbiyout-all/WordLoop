@@ -1,6 +1,6 @@
 {
   "name": "Self-Improvement & English Vocab",
-  "description": "WordLoop (v3.47.0): Comprehensive English vocabulary & sentence learning app featuring In-App Browser Speech Synthesis Fallback (HTML5 Audio Fallback, Alert Removal, KakaoTalk/WebView 1-Click Chrome Launcher), CI/CD Release Pipeline Stabilization, GitHub Pages Zero-Backend Static Deployment, and Google Play Store 1,000 KRW Launch Readiness.",
+  "description": "WordLoop (v3.49.0): Comprehensive English vocabulary & sentence learning app featuring Samsung Galaxy & Mobile Audio Playback Resilience (Web Audio singleton, Touch Auto-Unlock, Watchdog timeout recovery, Samsung Voice Resolution, and Referrer-Free Audio Fallback), Rhythm Note Baseline Word Speaking & Voice Hit Recognition, In-App Browser Fallback, and Google Play Store Launch Readiness.",
   "requestFramePermissions": [
     "microphone"
   ],
