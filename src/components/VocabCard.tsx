@@ -169,6 +169,8 @@ export const VocabCard: React.FC<VocabCardProps> = React.memo(({
           </div>
           <button
             type="button"
+            onPointerEnter={() => window.dispatchEvent(new CustomEvent('audio-prepare'))}
+            onTouchStart={() => window.dispatchEvent(new CustomEvent('audio-prepare'))}
             onClick={(e) => {
               e.stopPropagation();
               speechService.speakOnce(item.word, 'en-US');
@@ -219,6 +221,8 @@ export const VocabCard: React.FC<VocabCardProps> = React.memo(({
           </p>
           <button
             type="button"
+            onPointerEnter={() => window.dispatchEvent(new CustomEvent('audio-prepare'))}
+            onTouchStart={() => window.dispatchEvent(new CustomEvent('audio-prepare'))}
             onClick={(e) => {
               e.stopPropagation();
               speechService.speakOnce(item.sentence, 'en-US');

@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { X, Mic, MicOff, Volume2, RotateCcw, CheckCircle2, AlertCircle, Award, History, Play, Pause, Trash2, Activity, Sparkles, Zap, BarChart3 } from 'lucide-react';
+import { X, Mic, MicOff, Volume2, RotateCcw, CheckCircle2, AlertCircle, Award, History, Play, Pause, Trash2, Activity, Sparkles, Zap, BarChart3, TrendingUp } from 'lucide-react';
+import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip, ReferenceLine } from 'recharts';
 import { speechService } from '../services/speechService';
-import { PronunciationResult } from '../types';
+import { PronunciationResult, VocabItem, SentenceItem } from '../types';
 import { AudioWaveform } from './AudioWaveform';
 import { recordPronunciationDone } from '../services/habitQuestService';
 import {
@@ -22,6 +23,78 @@ import {
   decodeAndExtractVoiceSegment,
 } from '../utils/audioWaveformUtils';
 
+export interface PronunciationHistoryItem {
+  id: string;
+  timestamp: string;
+  recordedAt?: number;
+  targetText: string;
+  transcript: string;
+  score: number;
+  feedback: string;
+}
+
+const PRONUNCIATION_HISTORY_STORAGE_KEY = 'wordloop_pronunciation_history';
+
+export function loadPronunciationHistory(): PronunciationHistoryItem[] {
+  if (typeof window === 'undefined') return [];
+  try {
+    const saved = localStorage.getItem(PRONUNCIATION_HISTORY_STORAGE_KEY);
+    return saved ? JSON.parse(saved) : [];
+  } catch {
+    return [];
+  }
+}
+
+export function getPronunciationGoalFromStorage(): { currentCount: number; targetCount: number } {
+  if (typeof window === 'undefined') return { currentCount: 0, targetCount: 3 };
+  try {
+    const saved = localStorage.getItem('wordloop_goals');
+    if (saved) {
+      const goals = JSON.parse(saved);
+      const pronGoal = goals.find(
+        (g: any) => g.isPronunciationGoal || g.iconName === 'Mic' || g.title?.includes('발음') || g.id === 'g-2'
+      );
+      if (pronGoal) {
+        return { currentCount: pronGoal.currentCount || 0, targetCount: pronGoal.targetCount || 3 };
+      }
+    }
+  } catch {}
+  return { currentCount: 0, targetCount: 3 };
+}
+
+export function savePronunciationHistoryItem(item: Omit<PronunciationHistoryItem, 'id' | 'timestamp'>): PronunciationHistoryItem[] {
+  if (typeof window === 'undefined') return [];
+  try {
+    const existing = loadPronunciationHistory();
+    const newItem: PronunciationHistoryItem = {
+      id: `pron-hist-${Date.now()}-${Math.random()}`,
+      timestamp: new Date().toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }),
+      recordedAt: Date.now(),
+      ...item,
+    };
+    const updated = [newItem, ...existing].slice(0, 50);
+    localStorage.setItem(PRONUNCIATION_HISTORY_STORAGE_KEY, JSON.stringify(updated));
+
+    // Dispatch custom event to auto-increment pronunciation goals in App.tsx
+    window.dispatchEvent(new CustomEvent('wordloop_pronunciation_completed', { detail: item }));
+
+    return updated;
+  } catch (e) {
+    console.warn('Failed to save pronunciation history:', e);
+    return [];
+  }
+}
+
+export function clearPronunciationHistory(): PronunciationHistoryItem[] {
+  if (typeof window === 'undefined') return [];
+  try {
+    localStorage.removeItem(PRONUNCIATION_HISTORY_STORAGE_KEY);
+    return [];
+  } catch {
+    return [];
+  }
+}
+
 export interface AudioSnippet {
   id: string;
   timestamp: string;
@@ -29,6 +102,342 @@ export interface AudioSnippet {
   transcript: string;
   score?: number;
   audioUrl: string;
+}
+
+export interface DailyTrendPoint {
+  dateKey: string;
+  fullDate: string;
+  dayName: string;
+  avgScore: number;
+  maxScore: number;
+  count: number;
+  hasData: boolean;
+}
+
+export function computeWeeklyPronunciationTrend(history: PronunciationHistoryItem[]): {
+  dailyData: DailyTrendPoint[];
+  weeklyAvg: number;
+  weeklyMax: number;
+  totalCount: number;
+  deltaText: string;
+  isPositiveDelta: boolean;
+} {
+  const dayNames = ['일', '월', '화', '수', '목', '금', '토'];
+  const dailyData: DailyTrendPoint[] = [];
+  const now = new Date();
+
+  for (let i = 6; i >= 0; i--) {
+    const d = new Date(now.getFullYear(), now.getMonth(), now.getDate() - i);
+    const year = d.getFullYear();
+    const month = d.getMonth();
+    const dateNum = d.getDate();
+    const dateKey = `${month + 1}/${dateNum}`;
+    const fullDate = `${year}-${String(month + 1).padStart(2, '0')}-${String(dateNum).padStart(2, '0')}`;
+    const dayName = dayNames[d.getDay()];
+
+    const itemsOnDay = history.filter((item) => {
+      let itemDate: Date;
+      if (item.recordedAt) {
+        itemDate = new Date(item.recordedAt);
+      } else if (item.id) {
+        // Try extracting timestamp from id if format pron-hist-TIMESTAMP-rand
+        const match = item.id.match(/pron-hist-(\d+)-/);
+        if (match && match[1]) {
+          itemDate = new Date(parseInt(match[1], 10));
+        } else {
+          itemDate = new Date();
+        }
+      } else {
+        itemDate = new Date();
+      }
+      return (
+        itemDate.getFullYear() === year &&
+        itemDate.getMonth() === month &&
+        itemDate.getDate() === dateNum
+      );
+    });
+
+    if (itemsOnDay.length > 0) {
+      const sum = itemsOnDay.reduce((acc, curr) => acc + curr.score, 0);
+      const avgScore = Math.round(sum / itemsOnDay.length);
+      const maxScore = Math.max(...itemsOnDay.map((item) => item.score));
+      dailyData.push({
+        dateKey,
+        fullDate,
+        dayName,
+        avgScore,
+        maxScore,
+        count: itemsOnDay.length,
+        hasData: true,
+      });
+    } else {
+      dailyData.push({
+        dateKey,
+        fullDate,
+        dayName,
+        avgScore: 0,
+        maxScore: 0,
+        count: 0,
+        hasData: false,
+      });
+    }
+  }
+
+  const daysWithData = dailyData.filter((d) => d.hasData);
+  const totalCount = history.length;
+  const weeklyAvg =
+    daysWithData.length > 0
+      ? Math.round(daysWithData.reduce((acc, d) => acc + d.avgScore, 0) / daysWithData.length)
+      : 0;
+  const weeklyMax = daysWithData.length > 0 ? Math.max(...daysWithData.map((d) => d.maxScore)) : 0;
+
+  const recentDays = dailyData.slice(4);
+  const earlierDays = dailyData.slice(1, 4);
+
+  const recentAvg =
+    recentDays.filter((d) => d.hasData).length > 0
+      ? recentDays.filter((d) => d.hasData).reduce((a, b) => a + b.avgScore, 0) /
+        recentDays.filter((d) => d.hasData).length
+      : 0;
+  const earlierAvg =
+    earlierDays.filter((d) => d.hasData).length > 0
+      ? earlierDays.filter((d) => d.hasData).reduce((a, b) => a + b.avgScore, 0) /
+        earlierDays.filter((d) => d.hasData).length
+      : 0;
+
+  let deltaText = '연습 데이터 수집 중';
+  let isPositiveDelta = true;
+
+  if (recentAvg > 0 && earlierAvg > 0) {
+    const diff = Math.round(recentAvg - earlierAvg);
+    if (diff > 0) {
+      deltaText = `+${diff}점 상승 🚀`;
+      isPositiveDelta = true;
+    } else if (diff < 0) {
+      deltaText = `${diff}점 보완 필요`;
+      isPositiveDelta = false;
+    } else {
+      deltaText = '점수 유지 중 🎯';
+      isPositiveDelta = true;
+    }
+  } else if (weeklyAvg >= 80) {
+    deltaText = '목표 달성 구간 🌟';
+    isPositiveDelta = true;
+  } else if (weeklyAvg > 0) {
+    deltaText = '꾸준한 연습 진행 중 💪';
+    isPositiveDelta = true;
+  }
+
+  return { dailyData, weeklyAvg, weeklyMax, totalCount, deltaText, isPositiveDelta };
+}
+
+const CustomTrendTooltip = ({ active, payload }: any) => {
+  if (active && payload && payload.length) {
+    const data: DailyTrendPoint = payload[0].payload;
+    if (!data) return null;
+
+    const getGradeInfo = (score: number, hasData: boolean) => {
+      if (!hasData) return { label: '기록 없음', color: 'text-slate-400' };
+      if (score >= 90) return { label: '🎯 탁월 (90점↑)', color: 'text-emerald-400 font-bold' };
+      if (score >= 80) return { label: '✨ 우수 (80점↑)', color: 'text-indigo-400 font-bold' };
+      if (score >= 60) return { label: '💡 양호 (60점↑)', color: 'text-amber-400 font-bold' };
+      return { label: '💪 연습 필요 (60점 미만)', color: 'text-rose-400 font-bold' };
+    };
+
+    const grade = getGradeInfo(data.avgScore, data.hasData);
+
+    return (
+      <div className="bg-slate-900/95 text-white p-3 rounded-xl shadow-xl border border-slate-700 text-xs space-y-1.5 backdrop-blur-md z-50">
+        <div className="flex items-center justify-between gap-3 pb-1 border-b border-slate-800">
+          <span className="font-extrabold text-slate-200">
+            {data.dateKey} ({data.dayName}요일)
+          </span>
+          <span className={grade.color}>{grade.label}</span>
+        </div>
+        {data.hasData ? (
+          <div className="space-y-1 pt-0.5">
+            <div className="flex items-center justify-between gap-4">
+              <span className="text-slate-400">일일 평균 점수:</span>
+              <span className="font-black text-indigo-400 text-sm">{data.avgScore}점</span>
+            </div>
+            <div className="flex items-center justify-between gap-4">
+              <span className="text-slate-400">일일 최고 점수:</span>
+              <span className="font-bold text-emerald-400">{data.maxScore}점</span>
+            </div>
+            <div className="flex items-center justify-between gap-4">
+              <span className="text-slate-400">연습 횟수:</span>
+              <span className="font-bold text-amber-300">{data.count}회</span>
+            </div>
+          </div>
+        ) : (
+          <p className="text-slate-400 text-[11px] pt-1">해당 일자에는 발음 연습 기록이 없습니다.</p>
+        )}
+      </div>
+    );
+  }
+  return null;
+};
+
+export const PronunciationWeeklyTrendChart: React.FC<{ history: PronunciationHistoryItem[] }> = ({ history }) => {
+  const trend = useMemo(() => computeWeeklyPronunciationTrend(history), [history]);
+
+  return (
+    <div className="p-3.5 sm:p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/90 border border-indigo-200/80 dark:border-indigo-900/60 space-y-3 shadow-xs">
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex items-center gap-2 min-w-0">
+          <span className="p-1.5 rounded-xl bg-indigo-600 text-white shadow-xs shrink-0">
+            <TrendingUp className="w-4 h-4" />
+          </span>
+          <div className="min-w-0">
+            <h4 className="text-xs sm:text-sm font-black text-slate-900 dark:text-white flex items-center gap-1.5 truncate">
+              <span>최근 7일 발음 점수 추이 차트</span>
+              <span className="text-[10px] font-bold px-1.5 py-0.2 rounded-full bg-indigo-100 dark:bg-indigo-900/60 text-indigo-700 dark:text-indigo-300">
+                Weekly Trend
+              </span>
+            </h4>
+            <p className="text-[10px] sm:text-[11px] text-slate-500 dark:text-slate-400 truncate">
+              최근 7일간의 발음 연습 성과와 평균 점수 변화를 시각화합니다.
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+        <div className="p-2 sm:p-2.5 rounded-xl bg-white dark:bg-slate-900/80 border border-slate-200/80 dark:border-slate-700/80 text-center">
+          <span className="text-[10px] text-slate-500 dark:text-slate-400 font-bold block">7일 평균 점수</span>
+          <span className={`text-base sm:text-lg font-black ${trend.weeklyAvg >= 80 ? 'text-indigo-600 dark:text-indigo-400' : trend.weeklyAvg >= 60 ? 'text-amber-600 dark:text-amber-400' : 'text-rose-600 dark:text-rose-400'}`}>
+            {trend.weeklyAvg > 0 ? `${trend.weeklyAvg}점` : '-'}
+          </span>
+        </div>
+
+        <div className="p-2 sm:p-2.5 rounded-xl bg-white dark:bg-slate-900/80 border border-slate-200/80 dark:border-slate-700/80 text-center">
+          <span className="text-[10px] text-slate-500 dark:text-slate-400 font-bold block">주간 최고 점수</span>
+          <span className="text-base sm:text-lg font-black text-emerald-600 dark:text-emerald-400">
+            {trend.weeklyMax > 0 ? `${trend.weeklyMax}점` : '-'}
+          </span>
+        </div>
+
+        <div className="p-2 sm:p-2.5 rounded-xl bg-white dark:bg-slate-900/80 border border-slate-200/80 dark:border-slate-700/80 text-center">
+          <span className="text-[10px] text-slate-500 dark:text-slate-400 font-bold block">총 연습 횟수</span>
+          <span className="text-base sm:text-lg font-black text-amber-600 dark:text-amber-400">
+            {trend.totalCount}회
+          </span>
+        </div>
+
+        <div className="p-2 sm:p-2.5 rounded-xl bg-white dark:bg-slate-900/80 border border-slate-200/80 dark:border-slate-700/80 text-center">
+          <span className="text-[10px] text-slate-500 dark:text-slate-400 font-bold block">점수 변화 추세</span>
+          <span className={`text-xs sm:text-sm font-extrabold block truncate mt-0.5 ${trend.isPositiveDelta ? 'text-indigo-600 dark:text-indigo-400' : 'text-amber-600 dark:text-amber-400'}`}>
+            {trend.deltaText}
+          </span>
+        </div>
+      </div>
+
+      <div className="w-full h-44 sm:h-48 pt-2">
+        <ResponsiveContainer width="100%" height="100%">
+          <AreaChart data={trend.dailyData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+            <defs>
+              <linearGradient id="pronunciationGradient" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="5%" stopColor="#6366f1" stopOpacity={0.4} />
+                <stop offset="95%" stopColor="#6366f1" stopOpacity={0.0} />
+              </linearGradient>
+            </defs>
+            <XAxis
+              dataKey="dateKey"
+              tickLine={false}
+              axisLine={false}
+              tick={{ fontSize: 10, fill: '#64748b', fontWeight: 600 }}
+              tickFormatter={(value, index) => `${value} (${trend.dailyData[index]?.dayName || ''})`}
+            />
+            <YAxis
+              domain={[0, 100]}
+              ticks={[0, 40, 60, 80, 100]}
+              tickLine={false}
+              axisLine={false}
+              tick={{ fontSize: 10, fill: '#64748b', fontWeight: 600 }}
+            />
+            <Tooltip content={<CustomTrendTooltip />} />
+            <ReferenceLine
+              y={80}
+              stroke="#10b981"
+              strokeDasharray="4 4"
+              label={{
+                value: '목표 80점',
+                position: 'insideTopRight',
+                fill: '#10b981',
+                fontSize: 10,
+                fontWeight: 700,
+              }}
+            />
+            <Area
+              type="monotone"
+              dataKey="avgScore"
+              stroke="#6366f1"
+              strokeWidth={3}
+              fillOpacity={1}
+              fill="url(#pronunciationGradient)"
+              activeDot={{ r: 6, fill: '#4f46e5', stroke: '#ffffff', strokeWidth: 2 }}
+            />
+          </AreaChart>
+        </ResponsiveContainer>
+      </div>
+    </div>
+  );
+};
+
+export function getFavoriteItemsList(): { text: string; source: 'bookmark' | 'fallback'; type: 'word' | 'sentence' }[] {
+  const list: { text: string; source: 'bookmark' | 'fallback'; type: 'word' | 'sentence' }[] = [];
+
+  try {
+    const rawVocab = localStorage.getItem('wordloop_vocab');
+    if (rawVocab) {
+      const vocabItems: VocabItem[] = JSON.parse(rawVocab);
+      vocabItems.forEach((v) => {
+        if (v.isBookmarked) {
+          if (v.word) list.push({ text: v.word, source: 'bookmark', type: 'word' });
+          if (v.sentence) list.push({ text: v.sentence, source: 'bookmark', type: 'sentence' });
+        }
+      });
+    }
+
+    const rawSentences = localStorage.getItem('wordloop_sentences');
+    if (rawSentences) {
+      const sentenceItems: SentenceItem[] = JSON.parse(rawSentences);
+      sentenceItems.forEach((s) => {
+        if (s.isBookmarked && s.text) {
+          list.push({ text: s.text, source: 'bookmark', type: 'sentence' });
+        }
+      });
+    }
+  } catch (e) {
+    console.warn('Failed to parse bookmarked items:', e);
+  }
+
+  if (list.length > 0) {
+    return list;
+  }
+
+  try {
+    const rawVocab = localStorage.getItem('wordloop_vocab');
+    if (rawVocab) {
+      const vocabItems: VocabItem[] = JSON.parse(rawVocab);
+      vocabItems.forEach((v) => {
+        if (v.word) list.push({ text: v.word, source: 'fallback', type: 'word' });
+      });
+    }
+  } catch (e) {}
+
+  if (list.length === 0) {
+    const fallbackSamples = [
+      'Opportunity favors the prepared mind.',
+      'Consistency is the key to mastering English.',
+      'Practice makes perfect.',
+      'Pronunciation improves with daily practice.',
+      'Believe in yourself and keep learning.',
+    ];
+    return fallbackSamples.map((text) => ({ text, source: 'fallback', type: 'sentence' }));
+  }
+
+  return list;
 }
 
 interface PronunciationModalProps {
@@ -44,7 +453,36 @@ export const PronunciationModal: React.FC<PronunciationModalProps> = ({
   onClose,
   onSuccessEvaluation,
 }) => {
-  const [activeTab, setActiveTab] = useState<'practice' | 'recordings'>('practice');
+  const [activeTab, setActiveTab] = useState<'practice' | 'recordings' | 'history'>('practice');
+  const [pronunciationHistory, setPronunciationHistory] = useState<PronunciationHistoryItem[]>(() => loadPronunciationHistory());
+  const [pronGoal, setPronGoal] = useState(() => getPronunciationGoalFromStorage());
+
+  useEffect(() => {
+    const syncGoal = () => setPronGoal(getPronunciationGoalFromStorage());
+    window.addEventListener('wordloop_pronunciation_completed', syncGoal);
+    window.addEventListener('wordloop_update_pronunciation_goal_target', syncGoal);
+    return () => {
+      window.removeEventListener('wordloop_pronunciation_completed', syncGoal);
+      window.removeEventListener('wordloop_update_pronunciation_goal_target', syncGoal);
+    };
+  }, []);
+
+  const handleSetGoalTarget = (count: number) => {
+    window.dispatchEvent(new CustomEvent('wordloop_update_pronunciation_goal_target', { detail: { targetCount: count } }));
+    setPronGoal((prev) => ({ ...prev, targetCount: count }));
+  };
+
+  const [currentTargetText, setCurrentTargetText] = useState(targetText);
+  const [randomQuizToast, setRandomQuizToast] = useState<{ text: string; isBookmark: boolean } | null>(null);
+  const [isFlipping, setIsFlipping] = useState(false);
+
+  useEffect(() => {
+    if (isOpen) {
+      setCurrentTargetText(targetText);
+      setRandomQuizToast(null);
+      setIsFlipping(false);
+    }
+  }, [isOpen, targetText]);
   const [isListening, setIsListening] = useState(false);
   const [transcript, setTranscript] = useState('');
   const [result, setResult] = useState<PronunciationResult | null>(null);
@@ -79,9 +517,161 @@ export const PronunciationModal: React.FC<PronunciationModalProps> = ({
   const latestAudioBlobRef = useRef<Blob | null>(null);
   const latestVoiceSegmentRef = useRef<VoiceSegmentResult | null>(null);
 
-  // Restore last recorded voice from IndexedDB whenever modal opens or targetText changes
+  // Repeat Practice Mode States & Sync Refs
+  const [isRepeatModeEnabled, setIsRepeatModeEnabled] = useState(false);
+  const [repeatTargetCount, setRepeatTargetCount] = useState<number>(3);
+  const [currentRepeatRound, setCurrentRepeatRound] = useState<number>(1);
+  const [isRepeatSessionActive, setIsRepeatSessionActive] = useState(false);
+  const [repeatScoresHistory, setRepeatScoresHistory] = useState<number[]>([]);
+  const [nextRoundCountdown, setNextRoundCountdown] = useState<number | null>(null);
+
+  const isRepeatModeEnabledRef = useRef(isRepeatModeEnabled);
+  const isRepeatSessionActiveRef = useRef(isRepeatSessionActive);
+  const currentRepeatRoundRef = useRef(currentRepeatRound);
+  const repeatTargetCountRef = useRef(repeatTargetCount);
+  const repeatTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const handleStartListeningRef = useRef<() => void>(() => {});
+
+  useEffect(() => { isRepeatModeEnabledRef.current = isRepeatModeEnabled; }, [isRepeatModeEnabled]);
+  useEffect(() => { isRepeatSessionActiveRef.current = isRepeatSessionActive; }, [isRepeatSessionActive]);
+  useEffect(() => { currentRepeatRoundRef.current = currentRepeatRound; }, [currentRepeatRound]);
+  useEffect(() => { repeatTargetCountRef.current = repeatTargetCount; }, [repeatTargetCount]);
+
+  const clearRepeatTimer = () => {
+    if (repeatTimerRef.current) {
+      clearInterval(repeatTimerRef.current);
+      repeatTimerRef.current = null;
+    }
+  };
+
+  const handleStopRepeatSession = () => {
+    clearRepeatTimer();
+    setIsRepeatSessionActive(false);
+    isRepeatSessionActiveRef.current = false;
+    setNextRoundCountdown(null);
+  };
+
+  const handleStartRepeatSession = () => {
+    clearRepeatTimer();
+    setIsRepeatModeEnabled(true);
+    isRepeatModeEnabledRef.current = true;
+    setIsRepeatSessionActive(true);
+    isRepeatSessionActiveRef.current = true;
+    setCurrentRepeatRound(1);
+    currentRepeatRoundRef.current = 1;
+    setRepeatScoresHistory([]);
+    setNextRoundCountdown(null);
+    handleStartListening();
+  };
+
+  const handleEvaluationCompleted = (finalTranscript: string) => {
+    if (!finalTranscript) return;
+    const evalResult = speechService.evaluatePronunciation(currentTargetText, finalTranscript);
+    setResult(evalResult);
+    latestScoreRef.current = evalResult.score;
+
+    const updatedHistory = savePronunciationHistoryItem({
+      targetText: currentTargetText,
+      transcript: finalTranscript,
+      score: evalResult.score,
+      feedback: evalResult.feedback,
+    });
+    setPronunciationHistory(updatedHistory);
+
+    saveVoiceRecordingForTarget({
+      targetText: currentTargetText,
+      audioBlob: latestAudioBlobRef.current,
+      voiceSegment: latestVoiceSegmentRef.current,
+      score: evalResult.score,
+      transcript: finalTranscript,
+    })
+      .then((saved) => {
+        if (saved?.previous) {
+          setPreviousVoiceSnapshot(saved.previous);
+        }
+      })
+      .catch(() => {});
+
+    recordPronunciationDone();
+
+    if (evalResult.score >= 80 && onSuccessEvaluation) {
+      onSuccessEvaluation();
+    }
+
+    setRepeatScoresHistory((prev) => [...prev, evalResult.score]);
+
+    // Check repeat practice continuation
+    if (isRepeatSessionActiveRef.current && isRepeatModeEnabledRef.current) {
+      if (currentRepeatRoundRef.current < repeatTargetCountRef.current) {
+        const nextRound = currentRepeatRoundRef.current + 1;
+        setCurrentRepeatRound(nextRound);
+        currentRepeatRoundRef.current = nextRound;
+
+        let secondsLeft = 2;
+        setNextRoundCountdown(secondsLeft);
+
+        clearRepeatTimer();
+        repeatTimerRef.current = setInterval(() => {
+          secondsLeft -= 1;
+          if (secondsLeft > 0) {
+            setNextRoundCountdown(secondsLeft);
+          } else {
+            clearRepeatTimer();
+            setNextRoundCountdown(null);
+            if (isRepeatSessionActiveRef.current && isRepeatModeEnabledRef.current) {
+              handleStartListeningRef.current();
+            }
+          }
+        }, 1000);
+      } else {
+        handleStopRepeatSession();
+      }
+    }
+  };
+
+  const handleStartRandomBookmarkQuiz = () => {
+    const items = getFavoriteItemsList();
+    if (items.length === 0) return;
+
+    let picked = items[Math.floor(Math.random() * items.length)];
+    if (items.length > 1 && picked.text === currentTargetText) {
+      const remaining = items.filter((i) => i.text !== currentTargetText);
+      picked = remaining[Math.floor(Math.random() * remaining.length)];
+    }
+
+    if (isListening) {
+      handleStopListening();
+    }
+    if (isRepeatSessionActive) {
+      handleStopRepeatSession();
+    }
+    speechService.stop();
+    if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+      window.speechSynthesis.cancel();
+    }
+
+    setActiveTab('practice');
+    setIsFlipping(true);
+
+    // Halfway through 3D flip (280ms): swap target text & update toast banner
+    setTimeout(() => {
+      setCurrentTargetText(picked.text);
+      setRandomQuizToast({
+        text: picked.text,
+        isBookmark: picked.source === 'bookmark',
+      });
+    }, 280);
+
+    // After full flip completes (580ms): end flip state and start listening
+    setTimeout(() => {
+      setIsFlipping(false);
+      handleStartListening();
+    }, 580);
+  };
+
+  // Restore last recorded voice from IndexedDB whenever modal opens or currentTargetText changes
   useEffect(() => {
-    if (!isOpen || !targetText) return;
+    if (!isOpen || !currentTargetText) return;
     let cancelled = false;
     setLatestRecordedAudioUrl(null);
     setTrimmedAudioUrl(null);
@@ -93,7 +683,7 @@ export const PronunciationModal: React.FC<PronunciationModalProps> = ({
     setRecentRecordings([]);
     setShowOnlyInaccurate(false);
 
-    getVoiceHistoryForTarget(targetText)
+    getVoiceHistoryForTarget(currentTargetText)
       .then((rec) => {
         if (cancelled || !rec || !rec.latest) return;
         if (rec.latest.audioUrl) {
@@ -114,7 +704,7 @@ export const PronunciationModal: React.FC<PronunciationModalProps> = ({
           list.push({
             id: `saved-latest-${rec.updatedAt}`,
             timestamp: formatVoiceRecordedTime(rec.latest.recordedAt),
-            targetText,
+            targetText: currentTargetText,
             transcript: rec.latest.transcript || '마지막 녹음 내 목소리',
             score: rec.latest.score,
             audioUrl: rec.latest.audioUrl,
@@ -124,7 +714,7 @@ export const PronunciationModal: React.FC<PronunciationModalProps> = ({
           list.push({
             id: `saved-prev-${rec.updatedAt}`,
             timestamp: formatVoiceRecordedTime(rec.previous.recordedAt),
-            targetText,
+            targetText: currentTargetText,
             transcript: rec.previous.transcript || '이전 녹음 내 목소리',
             score: rec.previous.score,
             audioUrl: rec.previous.audioUrl,
@@ -138,10 +728,10 @@ export const PronunciationModal: React.FC<PronunciationModalProps> = ({
     return () => {
       cancelled = true;
     };
-  }, [isOpen, targetText]);
+  }, [isOpen, currentTargetText]);
 
   // Compute reference waveform & syllable-level diagnostic report
-  const referenceProfile = useMemo(() => generateReferenceWaveform(targetText), [targetText]);
+  const referenceProfile = useMemo(() => generateReferenceWaveform(currentTargetText), [currentTargetText]);
 
   const alignedUserSamples = useMemo(() => {
     const sourceSamples =
@@ -156,12 +746,12 @@ export const PronunciationModal: React.FC<PronunciationModalProps> = ({
 
   const syllableDiagnostics = useMemo(() => {
     return analyzeSyllablesAndDiscrepancies(
-      targetText,
+      currentTargetText,
       referenceProfile.samples,
       alignedUserSamples,
       transcript
     );
-  }, [targetText, referenceProfile.samples, alignedUserSamples, transcript]);
+  }, [currentTargetText, referenceProfile.samples, alignedUserSamples, transcript]);
 
   const hasEvaluatedReport = Boolean(
     result || alignedUserSamples.length > 0 || (transcript && !isListening)
@@ -320,31 +910,8 @@ export const PronunciationModal: React.FC<PronunciationModalProps> = ({
 
           // Final result
           if (event.results[0].isFinal) {
-            const evalResult = speechService.evaluatePronunciation(targetText, currentTranscript);
-            setResult(evalResult);
-            latestScoreRef.current = evalResult.score;
+            handleEvaluationCompleted(currentTranscript);
             stopListeningInternal();
-
-            saveVoiceRecordingForTarget({
-              targetText,
-              audioBlob: latestAudioBlobRef.current,
-              voiceSegment: latestVoiceSegmentRef.current,
-              score: evalResult.score,
-              transcript: currentTranscript,
-            })
-              .then((saved) => {
-                if (saved?.previous) {
-                  setPreviousVoiceSnapshot(saved.previous);
-                }
-              })
-              .catch(() => {});
-
-            // Record Daily Quest habit completion
-            recordPronunciationDone();
-
-            if (evalResult.score >= 80 && onSuccessEvaluation) {
-              onSuccessEvaluation();
-            }
           }
         };
 
@@ -356,27 +923,7 @@ export const PronunciationModal: React.FC<PronunciationModalProps> = ({
         reco.onend = () => {
           // If recognition ended and interim transcript was captured but not yet scored
           if (latestTranscriptRef.current && !latestScoreRef.current) {
-            const evalResult = speechService.evaluatePronunciation(targetText, latestTranscriptRef.current);
-            setResult(evalResult);
-            latestScoreRef.current = evalResult.score;
-            saveVoiceRecordingForTarget({
-              targetText,
-              audioBlob: latestAudioBlobRef.current,
-              voiceSegment: latestVoiceSegmentRef.current,
-              score: evalResult.score,
-              transcript: latestTranscriptRef.current,
-            })
-              .then((saved) => {
-                if (saved?.previous) {
-                  setPreviousVoiceSnapshot(saved.previous);
-                }
-              })
-              .catch(() => {});
-            recordPronunciationDone();
-
-            if (evalResult.score >= 80 && onSuccessEvaluation) {
-              onSuccessEvaluation();
-            }
+            handleEvaluationCompleted(latestTranscriptRef.current);
           }
           stopListeningInternal();
         };
@@ -416,6 +963,8 @@ export const PronunciationModal: React.FC<PronunciationModalProps> = ({
    * User clicks microphone: IMMEDIATELY stop all AI speech & existing audio, then begin recording
    */
   const handleStartListening = async () => {
+    handleStartListeningRef.current = handleStartListening;
+
     // 1. Immediately cancel all AI synthesis, previous recording session & active audio playback
     speechService.stop();
     if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
@@ -465,7 +1014,7 @@ export const PronunciationModal: React.FC<PronunciationModalProps> = ({
     setIsListening(true);
 
     // Move existing latest recording in history to previousVoiceSnapshot so user can compare right away
-    getVoiceHistoryForTarget(targetText)
+    getVoiceHistoryForTarget(currentTargetText)
       .then((rec) => {
         if (rec?.latest) {
           setPreviousVoiceSnapshot(rec.latest);
@@ -485,7 +1034,7 @@ export const PronunciationModal: React.FC<PronunciationModalProps> = ({
         // Intelligently monitor audio stream for silence adapted to target length
         silenceDetectorRef.current = createLiveSilenceDetector({
           stream,
-          targetText,
+          targetText: currentTargetText,
           onVoiceSegmentReady: (segResult) => {
             if (segResult && segResult.detected && segResult.durationSec >= 0.2) {
               capturedValidTrimmedWav = true;
@@ -502,14 +1051,7 @@ export const PronunciationModal: React.FC<PronunciationModalProps> = ({
 
             // If user finished speaking and trailed off into silence, evaluate before stopping
             if (reason === 'trailing_silence' && latestTranscriptRef.current && !latestScoreRef.current) {
-              const evalResult = speechService.evaluatePronunciation(targetText, latestTranscriptRef.current);
-              setResult(evalResult);
-              latestScoreRef.current = evalResult.score;
-              recordPronunciationDone();
-
-              if (evalResult.score >= 80 && onSuccessEvaluation) {
-                onSuccessEvaluation();
-              }
+              handleEvaluationCompleted(latestTranscriptRef.current);
             }
 
             handleStopListening();
@@ -536,7 +1078,7 @@ export const PronunciationModal: React.FC<PronunciationModalProps> = ({
 
             if (capturedValidTrimmedWav) {
               saveVoiceRecordingForTarget({
-                targetText,
+                targetText: currentTargetText,
                 audioBlob,
                 voiceSegment: latestVoiceSegmentRef.current,
                 score: latestScoreRef.current,
@@ -561,7 +1103,7 @@ export const PronunciationModal: React.FC<PronunciationModalProps> = ({
                     }
                   }
                   saveVoiceRecordingForTarget({
-                    targetText,
+                    targetText: currentTargetText,
                     audioBlob,
                     voiceSegment: decodedSeg,
                     score: latestScoreRef.current,
@@ -580,7 +1122,7 @@ export const PronunciationModal: React.FC<PronunciationModalProps> = ({
             const newSnippet: AudioSnippet = {
               id: `rec-${Date.now()}`,
               timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
-              targetText,
+              targetText: currentTargetText,
               transcript: latestTranscriptRef.current || '인식된 음성',
               score: latestScoreRef.current,
               audioUrl,
@@ -646,7 +1188,7 @@ export const PronunciationModal: React.FC<PronunciationModalProps> = ({
       return;
     }
 
-    speechService.speakWithCallbacks(targetText, {
+    speechService.speakWithCallbacks(currentTargetText, {
       onStart: () => setIsPlayingTargetAudio(true),
       onEnd: () => setIsPlayingTargetAudio(false),
       onError: () => setIsPlayingTargetAudio(false),
@@ -889,6 +1431,17 @@ export const PronunciationModal: React.FC<PronunciationModalProps> = ({
               <History className="w-3.5 h-3.5" />
               <span>최근 녹음 ({recentRecordings.length}/3)</span>
             </button>
+            <button
+              onClick={() => setActiveTab('history')}
+              className={`flex-1 py-2 text-xs font-bold border-b-2 flex items-center justify-center gap-1.5 transition-all ${
+                activeTab === 'history'
+                  ? 'border-indigo-600 text-indigo-600 dark:border-indigo-400 dark:text-indigo-400'
+                  : 'border-transparent text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
+              }`}
+            >
+              <BarChart3 className="w-3.5 h-3.5" />
+              <span>연습 기록 ({pronunciationHistory.length})</span>
+            </button>
           </div>
         </div>
 
@@ -896,14 +1449,214 @@ export const PronunciationModal: React.FC<PronunciationModalProps> = ({
         <div className="flex-1 min-h-0 overflow-y-auto px-3.5 py-3 sm:px-6 sm:py-4 space-y-3">
           {activeTab === 'practice' ? (
             <>
-              {/* Target Text & Unified Primary Controls Card (Always at Top on Mobile) */}
-              <div className="p-3 sm:p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/80 border border-slate-200/70 dark:border-slate-700/70 text-center space-y-2.5">
-                <div className="space-y-1">
-                  <span className="text-[10px] sm:text-xs font-bold text-slate-400 block">
-                    연습 대상 표적 문장 / 단어
+              {/* Daily Pronunciation Goal Live Banner */}
+              <div className="p-3 rounded-2xl bg-slate-900 text-white border border-indigo-500/30 flex flex-wrap items-center justify-between gap-2 shadow-xs">
+                <div className="flex items-center gap-2 min-w-0">
+                  <span className="p-1.5 rounded-xl bg-indigo-500/20 text-indigo-300 shrink-0">
+                    <Mic className="w-4 h-4" />
                   </span>
-                  <p className="text-base sm:text-xl font-black text-slate-900 dark:text-white leading-snug break-words">
-                    "{targetText}"
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <span className="text-xs font-black">오늘의 발음 목표 달성률</span>
+                      <span className="text-[10px] font-mono font-bold px-1.5 py-0.2 rounded bg-indigo-500/30 text-indigo-200">
+                        {pronGoal.currentCount} / {pronGoal.targetCount}회 ({Math.min(100, Math.round((pronGoal.currentCount / pronGoal.targetCount) * 100))}%)
+                      </span>
+                    </div>
+                    <div className="w-32 sm:w-44 h-1.5 rounded-full bg-slate-800 overflow-hidden mt-1">
+                      <div
+                        className="h-full bg-gradient-to-r from-indigo-500 to-emerald-400 transition-all duration-300"
+                        style={{ width: `${Math.min(100, Math.round((pronGoal.currentCount / pronGoal.targetCount) * 100))}%` }}
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-1">
+                  <span className="text-[10px] text-indigo-300 font-bold mr-0.5">목표 설정:</span>
+                  {[1, 3, 5, 10, 15].map((cnt) => (
+                    <button
+                      key={cnt}
+                      type="button"
+                      onClick={() => handleSetGoalTarget(cnt)}
+                      className={`px-1.5 py-0.5 rounded-lg text-[10px] font-black transition-all border cursor-pointer active:scale-95 ${
+                        pronGoal.targetCount === cnt
+                          ? 'bg-indigo-500 text-slate-950 border-indigo-400 font-black shadow-2xs'
+                          : 'bg-slate-800/90 text-indigo-200 border-indigo-500/30 hover:bg-slate-700 hover:text-white'
+                      }`}
+                    >
+                      {cnt}회
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Repeat Practice Mode UI Card */}
+              <div className="p-3.5 sm:p-4 rounded-2xl bg-indigo-50/80 dark:bg-indigo-950/40 border border-indigo-200 dark:border-indigo-800/60 space-y-3">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div className="flex items-center gap-2">
+                    <span className="p-1.5 rounded-xl bg-indigo-600 text-white shrink-0 shadow-xs">
+                      <RotateCcw className="w-4 h-4" />
+                    </span>
+                    <div>
+                      <h4 className="text-xs sm:text-sm font-black text-slate-900 dark:text-white flex items-center gap-1.5">
+                        <span>연속 반복 연습 모드</span>
+                        <span className={`text-[10px] font-bold px-1.5 py-0.2 rounded-full ${isRepeatModeEnabled ? 'bg-indigo-600 text-white' : 'bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300'}`}>
+                          {isRepeatModeEnabled ? '활성화 ON' : '비활성화 OFF'}
+                        </span>
+                      </h4>
+                      <p className="text-[10px] sm:text-[11px] text-slate-500 dark:text-slate-400">
+                        마이크 버튼을 매번 누르지 않고 설정한 횟수만큼 동일한 문장을 연속으로 발음 연습합니다.
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Repeat Mode Toggle Switch */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (isRepeatSessionActive) {
+                        handleStopRepeatSession();
+                      }
+                      setIsRepeatModeEnabled((prev) => !prev);
+                    }}
+                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none ${
+                      isRepeatModeEnabled ? 'bg-indigo-600' : 'bg-slate-300 dark:bg-slate-700'
+                    }`}
+                  >
+                    <span
+                      className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                        isRepeatModeEnabled ? 'translate-x-6' : 'translate-x-1'
+                      }`}
+                    />
+                  </button>
+                </div>
+
+                {isRepeatModeEnabled && (
+                  <div className="space-y-2.5 pt-1 border-t border-indigo-100 dark:border-indigo-900/50">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <span className="text-[11px] font-extrabold text-slate-700 dark:text-slate-300">
+                        목표 반복 횟수 선택:
+                      </span>
+                      <div className="flex items-center gap-1">
+                        {[2, 3, 5, 10].map((count) => (
+                          <button
+                            key={`repeat-cnt-${count}`}
+                            type="button"
+                            disabled={isRepeatSessionActive}
+                            onClick={() => {
+                              setRepeatTargetCount(count);
+                              repeatTargetCountRef.current = count;
+                            }}
+                            className={`px-2.5 py-1 rounded-xl text-xs font-black transition-all border ${
+                              repeatTargetCount === count
+                                ? 'bg-indigo-600 text-white border-indigo-600 shadow-xs'
+                                : 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:bg-indigo-50'
+                            } ${isRepeatSessionActive ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer'}`}
+                          >
+                            {count}회
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Start / Stop Repeat Session Action Button */}
+                    <div className="flex items-center justify-between gap-2">
+                      {!isRepeatSessionActive ? (
+                        <button
+                          type="button"
+                          onClick={handleStartRepeatSession}
+                          className="w-full py-2 px-4 rounded-xl bg-gradient-to-r from-indigo-600 to-indigo-700 hover:from-indigo-500 hover:to-indigo-600 text-white text-xs font-black shadow-md transition-all active:scale-95 flex items-center justify-center gap-2"
+                        >
+                          <Play className="w-3.5 h-3.5 fill-current" />
+                          <span>{repeatTargetCount}회 연속 반복 연습 시작</span>
+                        </button>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={handleStopRepeatSession}
+                          className="w-full py-2 px-4 rounded-xl bg-rose-600 hover:bg-rose-500 text-white text-xs font-black shadow-md transition-all active:scale-95 flex items-center justify-center gap-2"
+                        >
+                          <X className="w-3.5 h-3.5" />
+                          <span>연속 반복 연습 중단</span>
+                        </button>
+                      )}
+                    </div>
+
+                    {/* Active Repeat Session Status & Countdown Banner */}
+                    {isRepeatSessionActive && (
+                      <div className="p-2.5 rounded-xl bg-slate-900 text-white text-xs space-y-1.5 shadow-inner">
+                        <div className="flex items-center justify-between">
+                          <span className="font-extrabold text-indigo-300 flex items-center gap-1.5">
+                            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
+                            연속 반복 연습 진행 중 ({currentRepeatRound} / {repeatTargetCount}회차)
+                          </span>
+                          {nextRoundCountdown !== null && (
+                            <span className="text-[11px] font-bold text-amber-300 animate-pulse">
+                              ⏳ 다음 {currentRepeatRound}회차 준비 중... {nextRoundCountdown}초
+                            </span>
+                          )}
+                        </div>
+
+                        {/* Scores History Badges for Current Session */}
+                        {repeatScoresHistory.length > 0 && (
+                          <div className="flex items-center gap-1.5 flex-wrap pt-1 border-t border-slate-800">
+                            <span className="text-[10px] text-slate-400 font-bold">회차별 점수:</span>
+                            {repeatScoresHistory.map((score, index) => (
+                              <span
+                                key={`repeat-score-${index}`}
+                                className={`text-[10px] font-mono font-black px-2 py-0.5 rounded-md ${
+                                  score >= 80
+                                    ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40'
+                                    : 'bg-amber-500/20 text-amber-300 border border-amber-500/40'
+                                }`}
+                              >
+                                {index + 1}회: {score}점
+                              </span>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              {/* Random Quiz Active Banner */}
+              {randomQuizToast && (
+                <div className="p-2.5 rounded-xl bg-amber-500/15 border border-amber-500/40 text-amber-800 dark:text-amber-200 text-xs font-bold flex items-center justify-between gap-2 animate-in fade-in duration-200 shadow-xs">
+                  <div className="flex items-center gap-1.5 min-w-0">
+                    <Sparkles className="w-4 h-4 text-amber-500 shrink-0" />
+                    <span className="truncate">
+                      {randomQuizToast.isBookmark
+                        ? `⭐ 즐겨찾기 무작위 퀴즈 출제`
+                        : `🎲 무작위 발음 퀴즈 (추천 어휘)`}
+                    </span>
+                  </div>
+                  <span className="text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-amber-500 text-slate-950 shrink-0">
+                    {randomQuizToast.isBookmark ? '즐겨찾기' : '추천 어휘'}
+                  </span>
+                </div>
+              )}
+
+              {/* Target Text & Unified Primary Controls Card (Always at Top on Mobile) */}
+              <div
+                className={`p-3 sm:p-4 rounded-2xl text-center space-y-2.5 transition-all ${
+                  isFlipping
+                    ? 'animate-card-flip border-2 border-amber-400 dark:border-amber-500 ring-4 ring-amber-400/30 shadow-2xl bg-gradient-to-br from-amber-100/90 via-amber-50 to-indigo-50 dark:from-slate-800 dark:via-indigo-950/80 dark:to-slate-900'
+                    : 'bg-slate-50 dark:bg-slate-800/80 border border-slate-200/70 dark:border-slate-700/70'
+                }`}
+              >
+                <div className="space-y-1">
+                  <div className="flex items-center justify-center gap-1.5 text-slate-400">
+                    <span className="text-[10px] sm:text-xs font-bold block">
+                      {isFlipping ? '🎲 무작위 퀴즈 카드 뒤집는 중...' : '연습 대상 표적 문장 / 단어'}
+                    </span>
+                    {isFlipping && <Sparkles className="w-3.5 h-3.5 text-amber-500 animate-spin" />}
+                  </div>
+                  <p className={`text-base sm:text-xl font-black transition-colors ${
+                    isFlipping ? 'text-amber-600 dark:text-amber-300' : 'text-slate-900 dark:text-white'
+                  } leading-snug break-words`}>
+                    "{currentTargetText}"
                   </p>
                 </div>
 
@@ -1609,7 +2362,7 @@ export const PronunciationModal: React.FC<PronunciationModalProps> = ({
                 </div>
               )}
             </>
-          ) : (
+          ) : activeTab === 'recordings' ? (
             /* Recent Recordings Tab View */
             <div className="space-y-3 min-h-[220px] flex flex-col justify-between">
               {recentRecordings.length === 0 ? (
@@ -1713,26 +2466,141 @@ export const PronunciationModal: React.FC<PronunciationModalProps> = ({
                 </div>
               )}
             </div>
+          ) : (
+            /* Pronunciation Practice History Tab View */
+            <div className="space-y-3.5 min-h-[220px]">
+              {/* 7-Day Pronunciation Score Weekly Trend Line Chart */}
+              <PronunciationWeeklyTrendChart history={pronunciationHistory} />
+
+              {pronunciationHistory.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-6 text-center">
+                  <p className="text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+                    아직 저장된 발음 연습 리스트가 없습니다
+                  </p>
+                  <p className="text-[11px] text-slate-500 dark:text-slate-400 mb-3 max-w-xs">
+                    '실시간 발음 측정'에서 마이크를 켜고 발음 연습을 진행해보세요.
+                  </p>
+                  <button
+                    onClick={() => setActiveTab('practice')}
+                    className="px-4 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs transition-all shadow-md"
+                  >
+                    지금 발음 측정 시작하기
+                  </button>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between pb-2 border-b border-slate-200 dark:border-slate-800">
+                    <div>
+                      <h4 className="text-xs font-black text-slate-900 dark:text-white flex items-center gap-1.5">
+                        <Award className="w-4 h-4 text-amber-500" />
+                        <span>최근 발음 연습 기록 리스트</span>
+                      </h4>
+                      <p className="text-[10px] text-slate-500 dark:text-slate-400">
+                        기기에 안전하게 자동 저장된 총 {pronunciationHistory.length}회의 발음 분석 결과입니다.
+                      </p>
+                    </div>
+                    <button
+                      onClick={() => {
+                        const cleared = clearPronunciationHistory();
+                        setPronunciationHistory(cleared);
+                      }}
+                      className="px-2.5 py-1 rounded-lg bg-rose-500/10 hover:bg-rose-500/20 text-rose-600 dark:text-rose-400 text-[11px] font-bold transition-all"
+                    >
+                      기록 전체 삭제
+                    </button>
+                  </div>
+
+                  <div className="space-y-2.5">
+                    {pronunciationHistory.map((item) => {
+                      const scoreColor =
+                        item.score >= 90
+                          ? 'bg-emerald-500 text-white'
+                          : item.score >= 70
+                          ? 'bg-sky-500 text-white'
+                          : item.score >= 50
+                          ? 'bg-amber-500 text-white'
+                          : 'bg-rose-500 text-white';
+
+                      return (
+                        <div
+                          key={item.id}
+                          className="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-800/70 border border-slate-200/80 dark:border-slate-700/80 space-y-2 transition-all hover:border-indigo-400"
+                        >
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="text-[10px] font-semibold text-slate-400">
+                              ⏰ {item.timestamp}
+                            </span>
+                            <span className={`px-2.5 py-0.5 rounded-full text-xs font-black ${scoreColor}`}>
+                              {item.score}점
+                            </span>
+                          </div>
+
+                          <div className="space-y-1">
+                            <div className="flex items-center gap-2">
+                              <span className="text-[10px] font-bold text-indigo-500 uppercase">표적:</span>
+                              <span className="text-xs font-extrabold text-slate-900 dark:text-white">
+                                "{item.targetText}"
+                              </span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <span className="text-[10px] font-bold text-slate-400 uppercase">인식:</span>
+                              <span className="text-xs font-medium text-slate-700 dark:text-slate-300">
+                                "{item.transcript}"
+                              </span>
+                            </div>
+                          </div>
+
+                          <div className="pt-2 border-t border-slate-200/60 dark:border-slate-700/60 text-[11px] text-slate-600 dark:text-slate-300 flex items-center justify-between">
+                            <span>{item.feedback}</span>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                speechService.speakOnce(item.targetText);
+                              }}
+                              className="p-1 rounded-lg bg-indigo-500/10 hover:bg-indigo-500 text-indigo-600 dark:text-indigo-400 hover:text-white transition-all shrink-0"
+                              title="원어민 발음 다시 듣기"
+                            >
+                              <Volume2 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+            </div>
           )}
         </div>
 
         {/* Sticky Bottom Footer */}
-        <div className="shrink-0 px-4 py-2.5 sm:px-6 sm:py-3 border-t border-slate-100 dark:border-slate-800 bg-slate-50/80 dark:bg-slate-900/90 flex items-center justify-between gap-2">
-          {activeTab === 'practice' && browserSupported ? (
+        <div className="shrink-0 px-4 py-2.5 sm:px-6 sm:py-3 border-t border-slate-100 dark:border-slate-800 bg-slate-50/80 dark:bg-slate-900/90 flex flex-wrap items-center justify-between gap-2">
+          <div className="flex items-center gap-1.5 flex-wrap">
+            {activeTab === 'practice' && browserSupported && (
+              <button
+                onClick={isListening ? handleStopListening : handleStartListening}
+                className={`px-3 py-2 rounded-xl font-bold text-xs flex items-center gap-1.5 transition-all ${
+                  isListening
+                    ? 'bg-rose-500 text-white animate-pulse'
+                    : 'bg-indigo-50 dark:bg-indigo-950/80 text-indigo-600 dark:text-indigo-300 hover:bg-indigo-100'
+                }`}
+              >
+                <RotateCcw className="w-3.5 h-3.5" />
+                <span>{isListening ? '녹음 중지' : '다시 녹음 측정'}</span>
+              </button>
+            )}
+
+            {/* Random Bookmark Quiz Button */}
             <button
-              onClick={isListening ? handleStopListening : handleStartListening}
-              className={`px-3.5 py-2 rounded-xl font-bold text-xs flex items-center gap-1.5 transition-all ${
-                isListening
-                  ? 'bg-rose-500 text-white animate-pulse'
-                  : 'bg-indigo-50 dark:bg-indigo-950/80 text-indigo-600 dark:text-indigo-300 hover:bg-indigo-100'
-              }`}
+              type="button"
+              onClick={handleStartRandomBookmarkQuiz}
+              className="px-3 py-2 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-black text-xs shadow-md transition-all active:scale-95 flex items-center gap-1.5 cursor-pointer"
+              title="즐겨찾기한 단어/문장 중 무작위로 하나를 선택하여 발음 연습을 바로 시작합니다"
             >
-              <RotateCcw className="w-3.5 h-3.5" />
-              <span>{isListening ? '녹음 중지' : '다시 녹음 측정'}</span>
+              <Sparkles className="w-3.5 h-3.5 fill-current shrink-0" />
+              <span>⭐ 무작위 발음 퀴즈</span>
             </button>
-          ) : (
-            <div />
-          )}
+          </div>
 
           <button
             onClick={onClose}

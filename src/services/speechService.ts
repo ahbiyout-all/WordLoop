@@ -117,6 +117,31 @@ export function initMobileAudioUnlock(): void {
   });
 }
 
+/**
+ * Triggers a silent audio context initialization and resumes speech synthesis
+ * as soon as the user hovers over or touches a Pronunciation button.
+ */
+export function prepareAudioContext(): void {
+  if (typeof window === 'undefined') return;
+  try {
+    const ctx = getSharedAudioContext();
+    if (ctx && ctx.state === 'suspended') {
+      ctx.resume().catch(() => {});
+    }
+    if ('speechSynthesis' in window && window.speechSynthesis) {
+      if (window.speechSynthesis.paused) {
+        window.speechSynthesis.resume();
+      }
+    }
+  } catch {}
+}
+
+if (typeof window !== 'undefined') {
+  window.addEventListener('audio-prepare', () => {
+    prepareAudioContext();
+  }, { capture: true, passive: true });
+}
+
 class SpeechService {
   private activeItemId: string | null = null;
   private activeText: string | null = null;

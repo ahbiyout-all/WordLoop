@@ -833,6 +833,92 @@ export default function App() {
     });
   };
 
+  const handleUpdateGoalTarget = useCallback((id: string, newTarget: number) => {
+    setGoals((prev) =>
+      prev.map((g) => {
+        if (g.id === id) {
+          const target = Math.max(1, newTarget);
+          const isCompleted = g.currentCount >= target;
+          return {
+            ...g,
+            targetCount: target,
+            isCompleted,
+            streak: isCompleted && !g.isCompleted ? g.streak + 1 : g.streak,
+          };
+        }
+        return g;
+      })
+    );
+  }, []);
+
+  // Listen to Pronunciation practice events to update daily goals in real time
+  useEffect(() => {
+    const handlePronunciationCompleted = () => {
+      setGoals((prev) => {
+        let foundPronGoal = false;
+        const updated = prev.map((g) => {
+          if (g.isPronunciationGoal || g.iconName === 'Mic' || g.title.includes('발음') || g.id === 'g-2') {
+            foundPronGoal = true;
+            const nextCount = g.currentCount + 1;
+            const isCompleted = nextCount >= g.targetCount;
+            return {
+              ...g,
+              currentCount: nextCount,
+              isCompleted: g.isCompleted || isCompleted,
+              streak: isCompleted && !g.isCompleted ? g.streak + 1 : g.streak,
+            };
+          }
+          return g;
+        });
+
+        if (!foundPronGoal) {
+          updated.push({
+            id: 'g-2',
+            title: '영문장 발음 쉐도잉 연습',
+            category: 'english',
+            targetCount: 3,
+            unit: '회',
+            currentCount: 1,
+            isCompleted: false,
+            streak: 1,
+            iconName: 'Mic',
+            description: '마이크 버튼을 눌러 정확도 80% 이상 발음 연습 달성하기',
+            isAutoLinkedToEnglish: true,
+            isPronunciationGoal: true,
+          });
+        }
+        return updated;
+      });
+    };
+
+    const handleUpdateTargetEvent = (e: any) => {
+      const targetCount = Number(e.detail?.targetCount);
+      if (!isNaN(targetCount) && targetCount > 0) {
+        setGoals((prev) =>
+          prev.map((g) => {
+            if (g.isPronunciationGoal || g.iconName === 'Mic' || g.title.includes('발음') || g.id === 'g-2') {
+              const isCompleted = g.currentCount >= targetCount;
+              return {
+                ...g,
+                targetCount,
+                isCompleted,
+                streak: isCompleted && !g.isCompleted ? g.streak + 1 : g.streak,
+              };
+            }
+            return g;
+          })
+        );
+      }
+    };
+
+    window.addEventListener('wordloop_pronunciation_completed', handlePronunciationCompleted);
+    window.addEventListener('wordloop_update_pronunciation_goal_target', handleUpdateTargetEvent);
+    return () => {
+      window.removeEventListener('wordloop_pronunciation_completed', handlePronunciationCompleted);
+      window.removeEventListener('wordloop_update_pronunciation_goal_target', handleUpdateTargetEvent);
+    };
+  }, []);
+
   const handleAddGoal = (goalData: Omit<Goal, 'id' | 'currentCount' | 'isCompleted' | 'streak'>) => {
     const newGoal: Goal = {
       ...goalData,
@@ -1074,9 +1160,11 @@ export default function App() {
             history={history}
             onToggleGoalComplete={handleToggleGoalComplete}
             onIncrementGoal={handleIncrementGoal}
+            onUpdateGoalTarget={handleUpdateGoalTarget}
             onAddGoal={handleAddGoal}
             onDeleteGoal={handleDeleteGoal}
             onOpenAIGoalRecommend={() => setActiveTab('ai-gen')}
+            onOpenPronunciationPractice={() => handleOpenPronunciationModal('Hello, nice to meet you!')}
           />
         )}
 

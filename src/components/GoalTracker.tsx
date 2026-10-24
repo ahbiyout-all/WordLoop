@@ -7,9 +7,11 @@ interface GoalTrackerProps {
   history: DailyGoalHistory[];
   onToggleGoalComplete: (id: string) => void;
   onIncrementGoal: (id: string, amount?: number) => void;
+  onUpdateGoalTarget?: (id: string, newTarget: number) => void;
   onAddGoal: (goal: Omit<Goal, 'id' | 'currentCount' | 'isCompleted' | 'streak'>) => void;
   onDeleteGoal: (id: string) => void;
   onOpenAIGoalRecommend?: () => void;
+  onOpenPronunciationPractice?: () => void;
 }
 
 export const GoalTracker: React.FC<GoalTrackerProps> = ({
@@ -17,9 +19,11 @@ export const GoalTracker: React.FC<GoalTrackerProps> = ({
   history,
   onToggleGoalComplete,
   onIncrementGoal,
+  onUpdateGoalTarget,
   onAddGoal,
   onDeleteGoal,
   onOpenAIGoalRecommend,
+  onOpenPronunciationPractice,
 }) => {
   const [showAddModal, setShowAddModal] = useState(false);
   const [newTitle, setNewTitle] = useState('');
@@ -35,7 +39,13 @@ export const GoalTracker: React.FC<GoalTrackerProps> = ({
   const overallPercentage = totalGoals > 0 ? Math.round((completedTodayCount / totalGoals) * 100) : 0;
   const maxStreak = goals.reduce((max, g) => Math.max(max, g.streak), 0);
 
+  // Pronunciation goal
+  const pronunciationGoal = goals.find(
+    (g) => g.isPronunciationGoal || g.iconName === 'Mic' || g.title.includes('발음') || g.id === 'g-2'
+  );
+
   const getGoalIcon = (iconName: string, category: GoalCategory) => {
+    if (iconName === 'Mic') return <Mic className="w-5 h-5 text-indigo-500" />;
     switch (category) {
       case 'english':
         return <Headphones className="w-5 h-5 text-emerald-500" />;
@@ -45,6 +55,24 @@ export const GoalTracker: React.FC<GoalTrackerProps> = ({
         return <BookOpen className="w-5 h-5 text-amber-500" />;
       default:
         return <Target className="w-5 h-5 text-purple-500" />;
+    }
+  };
+
+  const handleSetPronunciationTarget = (targetCount: number) => {
+    if (pronunciationGoal && onUpdateGoalTarget) {
+      onUpdateGoalTarget(pronunciationGoal.id, targetCount);
+    } else {
+      // Create if missing
+      onAddGoal({
+        title: '영문장 발음 쉐도잉 연습',
+        category: 'english',
+        targetCount: targetCount,
+        unit: '회',
+        iconName: 'Mic',
+        description: '마이크 버튼을 눌러 정확도 80% 이상 발음 연습 달성하기',
+        isAutoLinkedToEnglish: true,
+        isPronunciationGoal: true,
+      });
     }
   };
 
@@ -100,7 +128,7 @@ export const GoalTracker: React.FC<GoalTrackerProps> = ({
             {onOpenAIGoalRecommend && (
               <button
                 onClick={onOpenAIGoalRecommend}
-                className="px-4 py-3 rounded-2xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-bold text-xs flex items-center gap-2 shadow-lg transition-all active:scale-95"
+                className="px-4 py-3 rounded-2xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-bold text-xs flex items-center gap-2 shadow-lg transition-all active:scale-95 cursor-pointer"
               >
                 <Sparkles className="w-4 h-4" />
                 <span>AI 맞춤 목표 추천</span>
@@ -124,6 +152,103 @@ export const GoalTracker: React.FC<GoalTrackerProps> = ({
         </div>
       </div>
 
+      {/* DEDICATED DAILY PRONUNCIATION GOAL CONFIGURATOR WIDGET */}
+      <div className="p-5 rounded-3xl bg-gradient-to-br from-indigo-900/90 via-slate-900 to-indigo-950 text-white border border-indigo-500/40 shadow-xl relative overflow-hidden space-y-4">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex items-center gap-2.5">
+            <div className="w-10 h-10 rounded-2xl bg-indigo-500/20 text-indigo-400 border border-indigo-500/40 flex items-center justify-center shrink-0">
+              <Mic className="w-5 h-5 text-indigo-300 animate-pulse" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2 flex-wrap">
+                <h3 className="font-extrabold text-base text-white">
+                  🎙️ 일일 발음 연습 횟수 목표 직접 설정
+                </h3>
+                <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-indigo-500/30 text-indigo-300 border border-indigo-400/40">
+                  실시간 음성 측정이 자동 연동됨
+                </span>
+              </div>
+              <p className="text-xs text-indigo-200/80 mt-0.5">
+                마이크로 영어 발음을 연습할 때마다 달성 횟수가 자동으로 카운트됩니다.
+              </p>
+            </div>
+          </div>
+
+          {onOpenPronunciationPractice && (
+            <button
+              onClick={onOpenPronunciationPractice}
+              className="px-4 py-2 rounded-xl bg-indigo-500 hover:bg-indigo-400 text-slate-950 font-black text-xs flex items-center gap-1.5 shadow-md transition-all active:scale-95 cursor-pointer"
+            >
+              <Mic className="w-4 h-4" />
+              <span>지금 발음 연습하기</span>
+            </button>
+          )}
+        </div>
+
+        {/* Current Progress Display & Quick Target Preset Buttons */}
+        <div className="p-4 rounded-2xl bg-slate-950/60 border border-indigo-500/20 space-y-3">
+          <div className="flex items-center justify-between text-xs">
+            <span className="text-indigo-200 font-bold">
+              오늘의 발음 연습 진행 상태:
+              <strong className="text-white ml-1.5 text-sm font-black">
+                {pronunciationGoal ? pronunciationGoal.currentCount : 0} / {pronunciationGoal ? pronunciationGoal.targetCount : 3}회
+              </strong>
+            </span>
+            <span className="text-indigo-400 font-black">
+              {pronunciationGoal
+                ? `${Math.min(100, Math.round((pronunciationGoal.currentCount / pronunciationGoal.targetCount) * 100))}%`
+                : '0%'}
+            </span>
+          </div>
+
+          {/* Progress Bar */}
+          <div className="w-full h-2 rounded-full bg-slate-800 overflow-hidden">
+            <div
+              className="h-full bg-gradient-to-r from-indigo-500 to-emerald-400 transition-all duration-500"
+              style={{
+                width: `${
+                  pronunciationGoal
+                    ? Math.min(100, Math.round((pronunciationGoal.currentCount / pronunciationGoal.targetCount) * 100))
+                    : 0
+                }%`,
+              }}
+            />
+          </div>
+
+          {/* Preset Target Selection Pills */}
+          <div className="pt-1">
+            <span className="text-[11px] font-extrabold text-indigo-300 block mb-2">
+              🎯 일일 목표 횟수 선택 (원하는 수치 버튼 클릭):
+            </span>
+            <div className="grid grid-cols-5 gap-2">
+              {[
+                { count: 1, label: '1회 (입문)' },
+                { count: 3, label: '3회 (기본)' },
+                { count: 5, label: '5회 (추천)' },
+                { count: 10, label: '10회 (열정)' },
+                { count: 15, label: '15회 (마스터)' },
+              ].map((preset) => {
+                const isSelected = pronunciationGoal?.targetCount === preset.count;
+                return (
+                  <button
+                    key={preset.count}
+                    type="button"
+                    onClick={() => handleSetPronunciationTarget(preset.count)}
+                    className={`py-2 px-1 rounded-xl text-xs font-black transition-all border cursor-pointer active:scale-95 ${
+                      isSelected
+                        ? 'bg-indigo-500 text-slate-950 border-indigo-400 font-black shadow-md ring-2 ring-indigo-400/50'
+                        : 'bg-slate-900/90 text-indigo-200 border-indigo-500/30 hover:bg-slate-800 hover:text-white'
+                    }`}
+                  >
+                    {preset.label}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      </div>
+
       {/* Action Bar */}
       <div className="flex items-center justify-between">
         <h3 className="text-lg font-bold text-slate-900 dark:text-white flex items-center gap-2">
@@ -135,7 +260,7 @@ export const GoalTracker: React.FC<GoalTrackerProps> = ({
 
         <button
           onClick={() => setShowAddModal(true)}
-          className="px-4 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold text-xs flex items-center gap-1.5 shadow-md transition-all active:scale-95"
+          className="px-4 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold text-xs flex items-center gap-1.5 shadow-md transition-all active:scale-95 cursor-pointer"
         >
           <Plus className="w-4 h-4" />
           <span>새 목표 추가</span>
@@ -145,6 +270,7 @@ export const GoalTracker: React.FC<GoalTrackerProps> = ({
       {/* Goal Cards Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {goals.map((goal) => {
+          const isPron = goal.isPronunciationGoal || goal.iconName === 'Mic' || goal.title.includes('발음') || goal.id === 'g-2';
           const progressPercent = Math.min(100, Math.round((goal.currentCount / goal.targetCount) * 100));
 
           return (
@@ -153,25 +279,31 @@ export const GoalTracker: React.FC<GoalTrackerProps> = ({
               className={`rounded-2xl p-5 border transition-all ${
                 goal.isCompleted
                   ? 'bg-emerald-500/5 dark:bg-emerald-950/20 border-emerald-500/40 shadow-sm'
+                  : isPron
+                  ? 'bg-gradient-to-br from-indigo-50/50 to-slate-50 dark:from-indigo-950/30 dark:to-slate-900 border-indigo-300 dark:border-indigo-800'
                   : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700'
               }`}
             >
               {/* Header */}
               <div className="flex items-start justify-between gap-2 mb-3">
                 <div className="flex items-center gap-2.5">
-                  <div className="p-2.5 rounded-xl bg-slate-100 dark:bg-slate-800">
+                  <div className={`p-2.5 rounded-xl ${isPron ? 'bg-indigo-100 dark:bg-indigo-950 text-indigo-600 dark:text-indigo-400' : 'bg-slate-100 dark:bg-slate-800'}`}>
                     {getGoalIcon(goal.iconName, goal.category)}
                   </div>
                   <div>
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-1.5 flex-wrap">
                       <h4 className="font-bold text-base text-slate-900 dark:text-white">
                         {goal.title}
                       </h4>
-                      {goal.isAutoLinkedToEnglish && (
+                      {isPron ? (
+                        <span className="text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-indigo-500/20 text-indigo-600 dark:text-indigo-300 border border-indigo-500/30">
+                          🎙️ 발음 실시간 연동
+                        </span>
+                      ) : goal.isAutoLinkedToEnglish ? (
                         <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30">
                           ⚡ 영어 연동됨
                         </span>
-                      )}
+                      ) : null}
                     </div>
                     {goal.description && (
                       <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
@@ -183,7 +315,7 @@ export const GoalTracker: React.FC<GoalTrackerProps> = ({
 
                 <button
                   onClick={() => onDeleteGoal(goal.id)}
-                  className="p-1.5 rounded-lg text-slate-400 hover:text-rose-500 transition-colors"
+                  className="p-1.5 rounded-lg text-slate-400 hover:text-rose-500 transition-colors cursor-pointer"
                   title="목표 삭제"
                 >
                   <Trash2 className="w-4 h-4" />
@@ -203,12 +335,43 @@ export const GoalTracker: React.FC<GoalTrackerProps> = ({
                 <div className="w-full h-2 rounded-full bg-slate-100 dark:bg-slate-800 overflow-hidden">
                   <div
                     className={`h-full transition-all duration-300 ${
-                      goal.isCompleted ? 'bg-emerald-500' : 'bg-indigo-500'
+                      goal.isCompleted ? 'bg-emerald-500' : isPron ? 'bg-indigo-600' : 'bg-indigo-500'
                     }`}
                     style={{ width: `${progressPercent}%` }}
                   />
                 </div>
               </div>
+
+              {/* Direct Target Modifier Control for Pronunciation Goal */}
+              {isPron && onUpdateGoalTarget && (
+                <div className="p-2.5 rounded-xl bg-indigo-50/80 dark:bg-indigo-950/50 border border-indigo-200 dark:border-indigo-900/60 my-2 space-y-1.5">
+                  <div className="flex items-center justify-between text-[11px]">
+                    <span className="font-extrabold text-indigo-900 dark:text-indigo-200">
+                      🎯 일일 발음 목표 수치 설정:
+                    </span>
+                    <span className="font-black text-indigo-600 dark:text-indigo-400">
+                      현재: {goal.targetCount}회
+                    </span>
+                  </div>
+
+                  <div className="flex items-center gap-1">
+                    {[1, 3, 5, 10, 15].map((cnt) => (
+                      <button
+                        key={cnt}
+                        type="button"
+                        onClick={() => onUpdateGoalTarget(goal.id, cnt)}
+                        className={`flex-1 py-1 rounded-lg text-[11px] font-bold transition-all border cursor-pointer ${
+                          goal.targetCount === cnt
+                            ? 'bg-indigo-600 text-white border-indigo-600 shadow-xs'
+                            : 'bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:bg-indigo-50'
+                        }`}
+                      >
+                        {cnt}회
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
 
               {/* Action Footer: Quick Increment vs Complete */}
               <div className="mt-4 pt-3 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between">
@@ -220,14 +383,14 @@ export const GoalTracker: React.FC<GoalTrackerProps> = ({
                 <div className="flex items-center gap-2">
                   <button
                     onClick={() => onIncrementGoal(goal.id, 1)}
-                    className="px-3 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 text-xs font-bold transition-all active:scale-95"
+                    className="px-3 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 text-xs font-bold transition-all active:scale-95 cursor-pointer"
                   >
                     +1 {goal.unit} 기록
                   </button>
 
                   <button
                     onClick={() => onToggleGoalComplete(goal.id)}
-                    className={`px-3.5 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all active:scale-95 ${
+                    className={`px-3.5 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all active:scale-95 cursor-pointer ${
                       goal.isCompleted
                         ? 'bg-emerald-500 text-slate-950 shadow-md'
                         : 'bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-900'

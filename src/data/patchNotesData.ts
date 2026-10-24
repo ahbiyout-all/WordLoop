@@ -9,13 +9,125 @@ export interface PatchNoteVersion {
   }[];
 }
 
-export const APP_VERSION = '3.50.0';
+export const APP_VERSION = '3.57.0';
 
 export const PATCH_NOTES_DATA: PatchNoteVersion[] = [
   {
-    version: '3.50.0',
+    version: '3.57.0',
     date: '2026-10',
     isLatest: true,
+    tagline: 'PronunciationModal 무작위 발음 퀴즈 시작 시 3D 플립 카드(3D Flip Card) 트랜지션 애니메이션 탑재',
+    highlights: [
+      {
+        category: '🎴 무작위 발음 퀴즈 3D 플립 카드 트랜지션 애니메이션',
+        items: [
+          '🔄 [3D 플립 카드 트랜지션 모션]: `PronunciationModal`에서 [⭐ 무작위 발음 퀴즈]를 시작할 때 표적 카드가 180도 입체적으로 회전하며 신규 퀴즈 어휘로 부드럽게 전환되는 3D 플립 애니메이션(`animate-card-flip`)을 탑재하였습니다.',
+          '✨ [동적 골드 아우라 & 엠버 링 연출]: 카드 회전 순간 황금빛 엠버 네온 링과 스파클 모션이 활성화되어 직관적인 퀴즈 출제 몰입감을 제공합니다.',
+          '⏱️ [280ms/580ms 정밀 동기화 타임라인]: 카드가 90도 회전하는 280ms 시점에 표적 텍스트와 출제 출처 배너가 자연스럽게 교체되고, 580ms 시점에 카드가 평면에 안착하며 마이크 음성 인식이 즉시 자동 시작됩니다.',
+        ],
+      },
+    ],
+  },
+  {
+    version: '3.56.0',
+    date: '2026-10',
+    isLatest: false,
+    tagline: 'PronunciationModal 하단 즐겨찾기 기반 무작위 발음 퀴즈(Random Pronunciation Quiz) 버튼 추가',
+    highlights: [
+      {
+        category: '⭐ 무작위 발음 퀴즈 (Random Pronunciation Quiz)',
+        items: [
+          '🎲 [원터치 무작위 발음 퀴즈 버튼]: `PronunciationModal` 하단 피쳐 영역에 [⭐ 무작위 발음 퀴즈] 버튼을 추가하여, 사용자가 북마크(즐겨찾기)한 단어와 문장 중 하나를 무작위로 추첨하여 즉시 발음 연습에 돌입할 수 있습니다.',
+          '🔄 [즉시 발음 녹음 연동]: 퀴즈 버튼 클릭 시 선택된 표적 어휘로 전환됨과 동시에 마이크가 자동 활성화되어 원스톱으로 바로 발음 측정이 시작됩니다.',
+          '✨ [출제 출처 실시간 토스트 배지]: 무작위 퀴즈 출제 시 화면 상단에 "⭐ 즐겨찾기 무작위 퀴즈 출제" 배너가 표출되며, 즐겨찾기 어휘가 없을 경우 전체 어휘 중 추천 단어로 자동 폴백하여 끊김 없는 학습 경험을 보장합니다.',
+        ],
+      },
+    ],
+  },
+  {
+    version: '3.55.0',
+    date: '2026-10',
+    isLatest: false,
+    tagline: 'PronunciationModal 연속 반복 연습 모드(Repeat Practice Mode) 토글 및 목표 횟수 설정 기능 추가',
+    highlights: [
+      {
+        category: '🔄 PronunciationModal 연속 반복 연습 모드 (Repeat Practice Mode)',
+        items: [
+          '🔁 [연속 반복 연습 모드 ON/OFF 토글 스위치]: `PronunciationModal` 실시간 발음 측정 탭에 연속 반복 연습 스위치를 추가하여 사용자가 마이크 버튼을 매번 직접 누르는 번거로움 없이 설정한 횟수만큼 연속으로 발음 연습을 수행할 수 있습니다.',
+          '🎛️ [목표 반복 횟수 선택 프리셋 (2회, 3회, 5회, 10회)]: 원하는 연속 연습 라운드 수(2회, 3회, 5회, 10회)를 1터치로 지정할 수 있는 직관적인 피약성 셀렉터 알약을 배치하였습니다.',
+          '⏳ [라운드 간 2초 자동 카운트다운 타이머]: 발음 판정 완료 후 사용자가 다음 라운드를 준비할 수 있도록 "⏳ 다음 N회차 준비 중... 2초" 안내와 함께 2초 카운트다운 타이머 후 자동으로 마이크 녹음을 재개합니다.',
+          '📊 [회차별 점수 히스토리 배지]: 연속 세션 진행 중 각 회차별 발음 평가 점수(예: 1회: 85점 | 2회: 92점 | 3회: 88점)를 실시간 바텀 배지로 직관 시각화합니다.',
+        ],
+      },
+    ],
+  },
+  {
+    version: '3.54.0',
+    date: '2026-10',
+    isLatest: false,
+    tagline: '일일 발음 연습 횟수 목표 사용자 직접 설정 UI 및 Goals 컴포넌트 실시간 연동 강화',
+    highlights: [
+      {
+        category: '🎙️ 일일 발음 횟수 목표 직접 설정 & Goals 컴포넌트 실시간 연동',
+        items: [
+          '🎯 [일일 발음 목표 직접 설정 컨피규레이터]: `GoalTracker` 컴포넌트 상단에 [🎙️ 일일 발음 연습 횟수 목표 직접 설정] 위젯을 전면 배치하여 사용자가 원하는 목표 횟수(1회, 3회, 5회, 10회, 15회 등)를 1터치로 손쉽게 설정 및 수정할 수 있습니다.',
+          '⚡ [실시간 목표 카운트 연동]: `PronunciationModal` 또는 `InlinePronunciationWaveform`에서 마이크로 발음 연습을 진행할 때마다 목표 수치가 실시간 자동 카운트 업되며 완료 시 완료 체크 및 연속 스트릭이 누적됩니다.',
+          '⚙️ [다중 진입점 목표 설정 지원]: `GoalTracker` 카드 내부 직관적인 프리셋 버튼, `PronunciationModal` 상단 목표 배너, `UserProfileModal` 설정 등 다양한 위치에서 언제든 발음 목표 수치를 즉시 조정 가능합니다.',
+        ],
+      },
+    ],
+  },
+  {
+    version: '3.53.0',
+    date: '2026-10',
+    isLatest: false,
+    tagline: 'PronunciationModal 내 최근 연습 기록 기반 일주일 단위(7일) 발음 점수 추이 차트 컴포넌트 추가',
+    highlights: [
+      {
+        category: '📈 PronunciationModal 7일 발음 점수 추이 차트 & 학습 요약 KPI 탑재',
+        items: [
+          '📊 [7일 발음 점수 라인/영역 차트]: `PronunciationModal` 내부 [연습 기록] 탭 상단에 최근 7일간(오늘 기준 6일 전~오늘)의 일자별 발음 연습 평균 점수 변화를 시각화하는 Recharts 라인/영역 차트(`PronunciationWeeklyTrendChart`) 탑재.',
+          '🎯 [목표 점수 가이드라인 & 맞춤 툴팁]: 목표 80점 가이드 라인(`ReferenceLine y={80}`)과 함께, 일자별 평균/최고 점수, 연습 횟수, 성취도 등급("🎯 탁월", "✨ 우수", "💡 양호", "💪 연습 필요")을 직관적으로 보여주는 커스텀 툴팁 제공.',
+          '🏆 [핵심 요약 KPI 지표]: 7일 평균 점수, 주간 최고 점수, 총 연습 횟수, 점수 변화 추세(+상승/보완 필요) 4가지 주요 지표를 한눈에 파악할 수 있는 요약 카드 제공.',
+        ],
+      },
+    ],
+  },
+  {
+    version: '3.52.0',
+    date: '2026-10',
+    isLatest: false,
+    tagline: 'PronunciationModal 내 발음 평가 결과 로컬 스토리지 저장 및 최근 발음 연습 기록 리스트 컴포넌트 추가',
+    highlights: [
+      {
+        category: '📊 PronunciationModal 최근 발음 연습 기록 및 로컬 스토리지 영구 저장',
+        items: [
+          '💾 [로컬 스토리지 자동 저장]: 발음 평가(Pronunciation Evaluation)가 완료될 때마다 표적 문장/단어, 사용자 인식 텍스트, 점수, 피드백이 `wordloop_pronunciation_history` 키로 기기 로컬 스토리지에 자동 영구 저장.',
+          '📋 [최근 발음 연습 기록 탭 및 리스트 컴포넌트]: PronunciationModal 내부에 [연습 기록] 탭을 신설하여, 지금까지 연습한 모든 발음 평가 결과(점수별 컬러 배지, 인식된 문장, 피드백, ⏰ 측정 시간)를 한눈에 확인하고 원어민 발음으로 다시 들어볼 수 있는 리스트 제공.',
+          '🗑️ [기록 관리 기능]: 개별 저장 및 전체 연습 기록 삭제 기능 탑재.',
+        ],
+      },
+    ],
+  },
+  {
+    version: '3.51.0',
+    date: '2026-10',
+    isLatest: false,
+    tagline: 'audio-prepare 이벤트 리스너 탑재로 발음 버튼 호버/터치 시 오디오 사전 초기화 및 모바일 지연 시간(Latency) 최소화',
+    highlights: [
+      {
+        category: '⚡ audio-prepare 오디오 사전 프라임(Pre-prime) 이벤트 리스너 탑재',
+        items: [
+          '🎯 [호버 및 터치 시 사전 초기화]: 사용자가 발음(스피커) 버튼에 마우스를 올리거나(Hover) 터치(TouchStart)하는 순간 `audio-prepare` 이벤트가 트리거되어, `speechService` 내부에서 공유 AudioContext를 미리 깨우고(resume) SpeechSynthesis 대기열을 사전 프라임(prime).',
+          '🚀 [모바일 사운드 출력 지연 시간 제로화]: 재생 버튼을 실제로 누르기 전 미리 오디오 하드웨어를 활성화함으로써 모바일 기기(삼성 갤럭시, iOS Safari 등)에서 발생하던 오디오 초기 지연 시간을 완벽히 제거.',
+        ],
+      },
+    ],
+  },
+  {
+    version: '3.50.0',
+    date: '2026-10',
+    isLatest: false,
     tagline: '단어장 및 문장 카드 전용 [🔊 발음듣기] 스피커 버튼 추가 & 즉시 재생 보강',
     highlights: [
       {

@@ -26,6 +26,7 @@ export const DEFAULT_GOALS: Goal[] = [
     iconName: 'Mic',
     description: '마이크 버튼을 눌러 정확도 80% 이상 발음 연습 달성하기',
     isAutoLinkedToEnglish: true,
+    isPronunciationGoal: true,
   },
   {
     id: 'g-3',

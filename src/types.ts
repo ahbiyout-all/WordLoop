@@ -52,6 +52,7 @@ export interface Goal {
   iconName: string;
   description?: string;
   isAutoLinkedToEnglish?: boolean; // When true, practicing words/sentences in app auto increments this!
+  isPronunciationGoal?: boolean; // When true, specifically flags daily pronunciation practice goals!
 }
 
 export interface DailyGoalHistory {
@@ -132,6 +133,7 @@ export interface UserProfile {
   grade: StudyGradeLevel;
   gradeLabel?: string;
   dailyWordGoal: number;
+  dailyPronunciationGoal?: number; // Daily pronunciation practice target count (e.g., 3, 5, 10)
   motto: string;
   createdAt: string;
   isLocked: boolean; // 1인 전용 단일 사용자 잠금 플래그

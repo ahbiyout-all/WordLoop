@@ -150,6 +150,8 @@ export const SentenceCard: React.FC<SentenceCardProps> = React.memo(({
           </h3>
           <button
             type="button"
+            onPointerEnter={() => window.dispatchEvent(new CustomEvent('audio-prepare'))}
+            onTouchStart={() => window.dispatchEvent(new CustomEvent('audio-prepare'))}
             onClick={(e) => {
               e.stopPropagation();
               speechService.speakOnce(item.text, 'en-US');

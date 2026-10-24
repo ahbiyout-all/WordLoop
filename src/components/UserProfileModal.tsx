@@ -90,6 +90,7 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
   const [avatar, setAvatar] = useState('🎓');
   const [grade, setGrade] = useState<StudyGradeLevel>('high');
   const [dailyWordGoal, setDailyWordGoal] = useState<number>(20);
+  const [dailyPronunciationGoal, setDailyPronunciationGoal] = useState<number>(3);
   const [motto, setMotto] = useState('');
   const [nagCharacter, setNagCharacter] = useState<NagCharacterSetting>('mom');
   const [nagTone, setNagTone] = useState<NagTonePreset>('tsundere');
@@ -100,7 +101,7 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
   const [saveToast, setSaveToast] = useState<string | null>(null);
   const [storageStats, setStorageStats] = useState<DeviceStorageStats>(getDeviceStorageStats());
   const [previewNag, setPreviewNag] = useState<{ isOpen: boolean; speaker: 'mom' | 'dad'; type: SurpriseNagType } | null>(null);
-  
+
   // Custom Nag Scripts Customizable States (BYOK support)
   const [geminiApiKey, setGeminiApiKey] = useState(() => {
     try {
@@ -171,6 +172,7 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
       setAvatar(userProfile.avatar || '🎓');
       setGrade(userProfile.grade || 'high');
       setDailyWordGoal(userProfile.dailyWordGoal || 20);
+      setDailyPronunciationGoal(userProfile.dailyPronunciationGoal || 3);
       setMotto(userProfile.motto || '');
       setNagCharacter(userProfile.nagCharacter || 'mom');
       setNagTone(userProfile.nagTone || 'tsundere');
@@ -181,6 +183,7 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
       setAvatar('🎓');
       setGrade('high');
       setDailyWordGoal(20);
+      setDailyPronunciationGoal(3);
       setMotto(MOTTO_RECOMMENDATIONS[0]);
       setNagCharacter('mom');
       setNagTone('tsundere');
@@ -213,6 +216,7 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
       grade,
       gradeLabel: selectedGradeObj?.label || '고등/수능 (1,800단어)',
       dailyWordGoal,
+      dailyPronunciationGoal,
       motto: motto.trim() || MOTTO_RECOMMENDATIONS[0],
       nagCharacter,
       nagTone,
@@ -230,6 +234,7 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
       localStorage.setItem('wordloop_nag_tone_pref', nagTone);
       window.dispatchEvent(new CustomEvent('wordloop_nag_character_changed', { detail: nagCharacter }));
       window.dispatchEvent(new CustomEvent('wordloop_nag_tone_changed', { detail: nagTone }));
+      window.dispatchEvent(new CustomEvent('wordloop_update_pronunciation_goal_target', { detail: { targetCount: dailyPronunciationGoal } }));
     } catch {}
     setSaveToast('사용자 정보와 엄빠 잔소리 사진이 장치에 안전하게 저장되었습니다!');
     setTimeout(() => {
@@ -250,6 +255,7 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
       grade,
       gradeLabel: selectedGradeObj?.label || '고등/수능 (1,800단어)',
       dailyWordGoal,
+      dailyPronunciationGoal,
       motto: motto.trim() || userProfile?.motto || MOTTO_RECOMMENDATIONS[0],
       nagCharacter,
       nagTone,
@@ -641,6 +647,37 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
                       }`}
                     >
                       {count}개
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* 4.5. Daily Pronunciation Goal */}
+              <div className="space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-black text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
+                    <span>하루 목표 발음 연습 횟수</span>
+                    <span className="text-[10px] font-extrabold px-1.5 py-0.2 rounded bg-indigo-500/20 text-indigo-600 dark:text-indigo-300">
+                      🎙️ 실시간 연동
+                    </span>
+                  </label>
+                  <span className="text-xs font-black text-indigo-600 dark:text-indigo-400">
+                    {dailyPronunciationGoal}회 / 일
+                  </span>
+                </div>
+                <div className="flex items-center gap-2">
+                  {[1, 3, 5, 10, 15].map((count) => (
+                    <button
+                      key={count}
+                      type="button"
+                      onClick={() => setDailyPronunciationGoal(count)}
+                      className={`flex-1 py-2 rounded-xl text-xs font-black transition-all border cursor-pointer ${
+                        dailyPronunciationGoal === count
+                          ? 'bg-indigo-600 text-white border-indigo-600 shadow-sm'
+                          : 'bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-100'
+                      }`}
+                    >
+                      {count}회
                     </button>
                   ))}
                 </div>

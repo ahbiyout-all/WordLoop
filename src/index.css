@@ -204,3 +204,25 @@
   animation: praiseGoldPulse 1.5s ease-in-out infinite;
 }
 
+/* 3D Quiz Card Flip Animation */
+@keyframes quizCardFlip {
+  0% {
+    transform: perspective(1000px) rotateY(0deg) scale(1);
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+  }
+  50% {
+    transform: perspective(1000px) rotateY(90deg) scale(0.92);
+    box-shadow: 0 20px 25px -5px rgba(245, 158, 11, 0.4);
+  }
+  100% {
+    transform: perspective(1000px) rotateY(0deg) scale(1);
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+  }
+}
+
+.animate-card-flip {
+  animation: quizCardFlip 0.6s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+  transform-style: preserve-3d;
+  backface-visibility: hidden;
+}
+

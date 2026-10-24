@@ -52,4 +52,6 @@
 - `docs/SECURITY_REPORT.md` (보안 점검 보고서 신설)
 - `docs/DLL_SPECS.md` (모듈 및 시스템 DLL/패키지 명세서 신설)
 - `docs/LICENSE_KR.md` 및 `docs/LICENSE_EN.md` (다국어 라이선스 신설)
+- `docs/GOOGLE_BLOGGER_POST.md` (구글 블로거 SEO 최적화 홍보 및 사용 가이드 신설)
+- `docs/SELF_REFLECTION_AUDIT.md` (v3.57.0 자아성찰 및 심층 시스템 감사 보고서 신설)
 - `README.md` (설치, 빌드, GitHub 동기화, 업데이트 방법 전면 개정)
