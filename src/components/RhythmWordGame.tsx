@@ -93,6 +93,7 @@ export const RhythmWordGame: React.FC<RhythmWordGameProps> = ({
   const lastSpokenTime = useRef<number>(0);
   const notesRef = useRef<Note[]>([]);
   const recognitionRef = useRef<any>(null);
+  const handleLaneHitRef = useRef<(lane: number) => void>(() => {});
 
   const currentTarget = wordList[targetIndex];
 
@@ -406,6 +407,7 @@ export const RhythmWordGame: React.FC<RhythmWordGameProps> = ({
       autoSpeakBaseline,
     ]
   );
+  handleLaneHitRef.current = handleLaneHit;
 
   // Voice Hit Mode: continuous Web Speech API listening to match spoken words at baseline
   useEffect(() => {
@@ -455,7 +457,7 @@ export const RhythmWordGame: React.FC<RhythmWordGameProps> = ({
         });
 
         if (matched) {
-          handleLaneHit(matched.lane);
+          handleLaneHitRef.current(matched.lane);
           setLastJudgment({
             text: `🎙️ "${matched.vocab.word}" 말하기 HIT!!`,
             color: 'text-emerald-400 font-black animate-pulse',
@@ -497,7 +499,7 @@ export const RhythmWordGame: React.FC<RhythmWordGameProps> = ({
       recognitionRef.current = null;
       setIsListening(false);
     };
-  }, [voiceInputEnabled, isGameOver, isPaused, isGameStarted, handleLaneHit]);
+  }, [voiceInputEnabled, isGameOver, isPaused, isGameStarted]);
 
   // Keyboard controls listener (A, S, D, F)
   useEffect(() => {

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { UserProfile, StudyGradeLevel, NagCharacterSetting, NagTonePreset, VocabItem, SentenceItem, Goal, DailyGoalHistory } from '../types';
+import { UserProfile, StudyGradeLevel, NagCharacterSetting, NagTonePreset, NagLanguageMode, VocabItem, SentenceItem, Goal, DailyGoalHistory } from '../types';
 import { AVATAR_PRESETS, GRADE_LEVEL_OPTIONS, MOTTO_RECOMMENDATIONS, DEFAULT_USER_PROFILE } from '../data/defaultProfile';
 import {
   User,
@@ -94,6 +94,7 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
   const [motto, setMotto] = useState('');
   const [nagCharacter, setNagCharacter] = useState<NagCharacterSetting>('mom');
   const [nagTone, setNagTone] = useState<NagTonePreset>('tsundere');
+  const [nagLanguage, setNagLanguage] = useState<NagLanguageMode>('bilingual');
   const [momPhotoUrl, setMomPhotoUrl] = useState<string | undefined>(undefined);
   const [dadPhotoUrl, setDadPhotoUrl] = useState<string | undefined>(undefined);
   const [activeTab, setActiveTab] = useState<'profile' | 'custom_nags' | 'device_storage' | 'backup'>('profile');
@@ -176,6 +177,7 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
       setMotto(userProfile.motto || '');
       setNagCharacter(userProfile.nagCharacter || 'mom');
       setNagTone(userProfile.nagTone || 'tsundere');
+      setNagLanguage(userProfile.nagLanguage || (localStorage.getItem('wordloop_nag_lang_pref') as NagLanguageMode) || 'bilingual');
       setMomPhotoUrl(userProfile.momPhotoUrl);
       setDadPhotoUrl(userProfile.dadPhotoUrl);
     } else {
@@ -187,6 +189,7 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
       setMotto(MOTTO_RECOMMENDATIONS[0]);
       setNagCharacter('mom');
       setNagTone('tsundere');
+      setNagLanguage('bilingual');
       setMomPhotoUrl(undefined);
       setDadPhotoUrl(undefined);
     }
@@ -220,6 +223,7 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
       motto: motto.trim() || MOTTO_RECOMMENDATIONS[0],
       nagCharacter,
       nagTone,
+      nagLanguage,
       momPhotoUrl,
       dadPhotoUrl,
       createdAt: userProfile?.createdAt || new Date().toISOString(),
@@ -232,8 +236,10 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
     try {
       localStorage.setItem('wordloop_nag_character_pref', nagCharacter);
       localStorage.setItem('wordloop_nag_tone_pref', nagTone);
+      localStorage.setItem('wordloop_nag_lang_pref', nagLanguage);
       window.dispatchEvent(new CustomEvent('wordloop_nag_character_changed', { detail: nagCharacter }));
       window.dispatchEvent(new CustomEvent('wordloop_nag_tone_changed', { detail: nagTone }));
+      window.dispatchEvent(new CustomEvent('wordloop_nag_language_changed', { detail: nagLanguage }));
       window.dispatchEvent(new CustomEvent('wordloop_update_pronunciation_goal_target', { detail: { targetCount: dailyPronunciationGoal } }));
     } catch {}
     setSaveToast('사용자 정보와 엄빠 잔소리 사진이 장치에 안전하게 저장되었습니다!');
@@ -259,6 +265,7 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
       motto: motto.trim() || userProfile?.motto || MOTTO_RECOMMENDATIONS[0],
       nagCharacter,
       nagTone,
+      nagLanguage,
       momPhotoUrl: newMomUrl !== undefined ? newMomUrl : momPhotoUrl,
       dadPhotoUrl: newDadUrl !== undefined ? newDadUrl : dadPhotoUrl,
       createdAt: userProfile?.createdAt || new Date().toISOString(),
@@ -769,6 +776,70 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
                     </div>
                     <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5 leading-tight truncate">
                       따뜻한 힐링 응원
+                    </p>
+                  </button>
+                </div>
+              </div>
+
+              {/* 6-B. Nagging Language Mode (Korean / English / Bilingual) */}
+              <div className="space-y-2 pt-3 border-t border-slate-100 dark:border-slate-800">
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-black text-slate-900 dark:text-white flex items-center gap-1.5">
+                    <Headphones className="w-4 h-4 text-indigo-500" />
+                    <span>엄마·아빠 잔소리 언어 모드 설정</span>
+                  </label>
+                  <span className="text-[10px] text-slate-400 font-bold">음성 및 자막 언어</span>
+                </div>
+
+                <div className="grid grid-cols-3 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setNagLanguage('ko')}
+                    className={`p-2.5 rounded-2xl border text-left transition-all cursor-pointer ${
+                      nagLanguage === 'ko'
+                        ? 'bg-rose-500/10 border-rose-500 text-rose-900 dark:text-rose-200 ring-1 ring-rose-400 shadow-sm'
+                        : 'bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-100'
+                    }`}
+                  >
+                    <div className="font-black text-xs flex items-center gap-1">
+                      <span>🇰🇷 한국어</span>
+                    </div>
+                    <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5 leading-tight truncate">
+                      생생한 한국어 음성
+                    </p>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setNagLanguage('en')}
+                    className={`p-2.5 rounded-2xl border text-left transition-all cursor-pointer ${
+                      nagLanguage === 'en'
+                        ? 'bg-blue-500/10 border-blue-500 text-blue-900 dark:text-blue-200 ring-1 ring-blue-400 shadow-sm'
+                        : 'bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-100'
+                    }`}
+                  >
+                    <div className="font-black text-xs flex items-center gap-1">
+                      <span>🇺🇸 English</span>
+                    </div>
+                    <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5 leading-tight truncate">
+                      원어민 영어 음성
+                    </p>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setNagLanguage('bilingual')}
+                    className={`p-2.5 rounded-2xl border text-left transition-all cursor-pointer ${
+                      nagLanguage === 'bilingual'
+                        ? 'bg-indigo-500/10 border-indigo-500 text-indigo-900 dark:text-indigo-200 ring-1 ring-indigo-400 shadow-sm'
+                        : 'bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-100'
+                    }`}
+                  >
+                    <div className="font-black text-xs flex items-center gap-1">
+                      <span>🌐 한+영 듀얼</span>
+                    </div>
+                    <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5 leading-tight truncate">
+                      영어 후 한국어 재생
                     </p>
                   </button>
                 </div>

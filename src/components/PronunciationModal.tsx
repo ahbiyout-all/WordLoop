@@ -473,12 +473,16 @@ export const PronunciationModal: React.FC<PronunciationModalProps> = ({
   };
 
   const [currentTargetText, setCurrentTargetText] = useState(targetText);
+  const currentTargetTextRef = useRef(currentTargetText);
+  currentTargetTextRef.current = currentTargetText;
+  const handleEvaluationCompletedRef = useRef<(finalTranscript: string) => void>(() => {});
   const [randomQuizToast, setRandomQuizToast] = useState<{ text: string; isBookmark: boolean } | null>(null);
   const [isFlipping, setIsFlipping] = useState(false);
 
   useEffect(() => {
     if (isOpen) {
       setCurrentTargetText(targetText);
+      currentTargetTextRef.current = targetText;
       setRandomQuizToast(null);
       setIsFlipping(false);
     }
@@ -566,12 +570,13 @@ export const PronunciationModal: React.FC<PronunciationModalProps> = ({
 
   const handleEvaluationCompleted = (finalTranscript: string) => {
     if (!finalTranscript) return;
-    const evalResult = speechService.evaluatePronunciation(currentTargetText, finalTranscript);
+    const activeTarget = currentTargetTextRef.current;
+    const evalResult = speechService.evaluatePronunciation(activeTarget, finalTranscript);
     setResult(evalResult);
     latestScoreRef.current = evalResult.score;
 
     const updatedHistory = savePronunciationHistoryItem({
-      targetText: currentTargetText,
+      targetText: activeTarget,
       transcript: finalTranscript,
       score: evalResult.score,
       feedback: evalResult.feedback,
@@ -579,7 +584,7 @@ export const PronunciationModal: React.FC<PronunciationModalProps> = ({
     setPronunciationHistory(updatedHistory);
 
     saveVoiceRecordingForTarget({
-      targetText: currentTargetText,
+      targetText: activeTarget,
       audioBlob: latestAudioBlobRef.current,
       voiceSegment: latestVoiceSegmentRef.current,
       score: evalResult.score,
@@ -628,6 +633,7 @@ export const PronunciationModal: React.FC<PronunciationModalProps> = ({
       }
     }
   };
+  handleEvaluationCompletedRef.current = handleEvaluationCompleted;
 
   const handleStartRandomBookmarkQuiz = () => {
     const items = getFavoriteItemsList();
@@ -910,7 +916,7 @@ export const PronunciationModal: React.FC<PronunciationModalProps> = ({
 
           // Final result
           if (event.results[0].isFinal) {
-            handleEvaluationCompleted(currentTranscript);
+            handleEvaluationCompletedRef.current(currentTranscript);
             stopListeningInternal();
           }
         };
@@ -923,7 +929,7 @@ export const PronunciationModal: React.FC<PronunciationModalProps> = ({
         reco.onend = () => {
           // If recognition ended and interim transcript was captured but not yet scored
           if (latestTranscriptRef.current && !latestScoreRef.current) {
-            handleEvaluationCompleted(latestTranscriptRef.current);
+            handleEvaluationCompletedRef.current(latestTranscriptRef.current);
           }
           stopListeningInternal();
         };
@@ -1014,7 +1020,7 @@ export const PronunciationModal: React.FC<PronunciationModalProps> = ({
     setIsListening(true);
 
     // Move existing latest recording in history to previousVoiceSnapshot so user can compare right away
-    getVoiceHistoryForTarget(currentTargetText)
+    getVoiceHistoryForTarget(currentTargetTextRef.current)
       .then((rec) => {
         if (rec?.latest) {
           setPreviousVoiceSnapshot(rec.latest);
@@ -1034,7 +1040,7 @@ export const PronunciationModal: React.FC<PronunciationModalProps> = ({
         // Intelligently monitor audio stream for silence adapted to target length
         silenceDetectorRef.current = createLiveSilenceDetector({
           stream,
-          targetText: currentTargetText,
+          targetText: currentTargetTextRef.current,
           onVoiceSegmentReady: (segResult) => {
             if (segResult && segResult.detected && segResult.durationSec >= 0.2) {
               capturedValidTrimmedWav = true;
@@ -1122,7 +1128,7 @@ export const PronunciationModal: React.FC<PronunciationModalProps> = ({
             const newSnippet: AudioSnippet = {
               id: `rec-${Date.now()}`,
               timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
-              targetText: currentTargetText,
+              targetText: currentTargetTextRef.current,
               transcript: latestTranscriptRef.current || '인식된 음성',
               score: latestScoreRef.current,
               audioUrl,

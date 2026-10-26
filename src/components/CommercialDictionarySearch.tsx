@@ -122,11 +122,11 @@ export const CommercialDictionarySearch: React.FC<CommercialDictionarySearchProp
       const audio = new Audio(result.audioUrl);
       audio.play().catch(() => {
         if (result?.word) {
-          speechService.playItem(`dict-${result.word}`, result.word, result.koreanMeaning || result.meaning);
+          speechService.speakOnce(result.word, 'en-US');
         }
       });
     } else if (result?.word) {
-      speechService.playItem(`dict-${result.word}`, result.word, result.koreanMeaning || result.meaning);
+      speechService.speakOnce(result.word, 'en-US');
     }
   };
 

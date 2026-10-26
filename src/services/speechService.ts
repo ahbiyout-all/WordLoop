@@ -676,7 +676,7 @@ class SpeechService {
    * Speak a short snippet (e.g. single alphabet letter or word) once without continuous looping.
    * Features Android unfreeze, resilient voice fallback, and watchdog timeout recovery.
    */
-  public speakOnce(text: string, lang: string = 'en-US') {
+  public speakOnce(text: string, lang: string = 'en-US', customRate?: number) {
     if (typeof window === 'undefined' || !text) return;
 
     const hasSpeechSynthesis = 'speechSynthesis' in window && window.speechSynthesis;
@@ -701,7 +701,7 @@ class SpeechService {
         }
 
         const utterance = new SpeechSynthesisUtterance(text);
-        utterance.rate = this.settings.speed || 1.0;
+        utterance.rate = customRate ?? this.settings.speed ?? 1.0;
         utterance.pitch = this.settings.pitch || 1.0;
         utterance.lang = lang;
 

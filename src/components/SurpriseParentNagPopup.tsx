@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   Volume2,
   VolumeX,
@@ -8,12 +8,18 @@ import {
   Heart,
   Zap,
   Camera,
+  Languages,
+  Globe,
+  Play,
+  Pause,
+  RotateCcw,
+  Music,
+  Music2,
 } from 'lucide-react';
 import { speechService } from '../services/speechService';
-import { UserProfile, NagTonePreset } from '../types';
+import { UserProfile, NagTonePreset, NagLanguageMode } from '../types';
 import { DEFAULT_MOM_PHOTO, DEFAULT_DAD_PHOTO } from '../utils/parentPhotoUtils';
 import { toneBgmSynthEngine } from '../utils/toneBgmSynthEngine';
-import { Music, Music2 } from 'lucide-react';
 
 export type SurpriseNagType = 'low_achievement' | 'high_achievement' | 'study_start' | 'study_complete' | 'study_delay' | 'continuous_study_break';
 
@@ -63,9 +69,21 @@ export const SurpriseParentNagPopup: React.FC<SurpriseParentNagPopupProps> = ({
   const [currentTone, setCurrentTone] = useState<NagTonePreset>(
     type === 'continuous_study_break' ? 'affectionate' : (userProfile?.nagTone || 'tsundere')
   );
+
+  // Nagging Language Mode (Korean / English / Bilingual)
+  const [nagLang, setNagLang] = useState<NagLanguageMode>(() => {
+    const saved = localStorage.getItem('wordloop_nag_lang_pref') as NagLanguageMode | null;
+    if (saved && (saved === 'ko' || saved === 'en' || saved === 'bilingual')) {
+      return saved;
+    }
+    return userProfile?.nagLanguage || 'bilingual';
+  });
+  const [activeSpeakingLang, setActiveSpeakingLang] = useState<'en' | 'ko' | null>(null);
+  const dualSpeechTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const speechTimerRef = useRef<NodeJS.Timeout | null>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
 
-  // Sync with prop userProfile nagTone changes or continuous study break
+  // Sync with prop userProfile nagTone & nagLanguage changes or continuous study break
   useEffect(() => {
     if (type === 'continuous_study_break') {
       setCurrentTone('affectionate');
@@ -73,6 +91,22 @@ export const SurpriseParentNagPopup: React.FC<SurpriseParentNagPopupProps> = ({
       setCurrentTone(userProfile.nagTone);
     }
   }, [userProfile?.nagTone, type]);
+
+  useEffect(() => {
+    if (userProfile?.nagLanguage) {
+      setNagLang(userProfile.nagLanguage);
+    }
+  }, [userProfile?.nagLanguage]);
+
+  useEffect(() => {
+    const handleLangChanged = (e: any) => {
+      if (e.detail) {
+        setNagLang(e.detail);
+      }
+    };
+    window.addEventListener('wordloop_nag_language_changed', handleLangChanged);
+    return () => window.removeEventListener('wordloop_nag_language_changed', handleLangChanged);
+  }, []);
 
   // BGM Mute State & Meta
   const [isBgmMuted, setIsBgmMuted] = useState<boolean>(() => toneBgmSynthEngine.getIsMuted());
@@ -280,6 +314,90 @@ export const SurpriseParentNagPopup: React.FC<SurpriseParentNagPopupProps> = ({
     },
   };
 
+  // English counterparts for Nagging Tone Presets
+  const toneDataMapEn: Record<NagTonePreset, {
+    momLow: string[];
+    momHigh: string[];
+    dadLow: string[];
+    dadHigh: string[];
+  }> = {
+    tsundere: {
+      momLow: [
+        `Gosh, ${userName}! Your goal today was ${dailyGoal} words, but you've only memorized ${todayStudied}?! If you keep slacking off when I'm not looking, you'll regret it later! Open your wordbook and learn just 5 more words right now!`,
+        `${userName}! You only finished ${completedGoals} out of ${totalGoals} goals today, and you're already glued to your phone?! Since you've already done ${todayStudied} words, reaching 10 more is nothing! Go review before I give you a back smack!`,
+        `You still have ${weak} weak words piled up! Are you really going to act like you're done after studying just ${todayStudied} words? Sarah next door has already finished all her SAT vocab! Take the quiz right this second!`,
+        `${userName}! You've kept up an awesome ${streakDays}-day streak, and you're going to give up today?! Stop opening the fridge and go open your vocabulary list!`,
+        `Studying is done with grit and patience! Keep your seat glued until you finish your daily goal of ${dailyGoal} words. Just 3 minutes of focus!`,
+      ],
+      momHigh: [
+        `Good heavens, ${userName}! You've already mastered ${todayStudied} words today! What a pleasant surprise! ...Well, good job. I picked up your favorite snack on the way home, so grab it if you want!`,
+        `My precious ${userName}! All-clearing your ${dailyGoal}-word goal and conquering ${todayStudied} words today?! You're completely exempt from back smacks today! Just don't let it get to your head!`,
+        `Look at that, ${userName}! Studying on your own every single day for a ${streakDays}-day streak! Taking initiative without me nagging... you're actually pretty cool!`,
+        `Unbelievable! You've cleaned up all your weak words and already mastered ${mastered} words! Truly the best of the best!`,
+      ],
+      dadLow: [
+        `Hey buddy, ${userName}! When I was your age, I chewed up and swallowed ${dailyGoal} English words every single day! Are you really satisfied with just ${todayStudied} words?! Open that wordbook right now!`,
+        `Haha, ${userName}! Finishing only ${completedGoals} out of ${totalGoals} self-improvement goals? Great people are built on persistence! You've already conquered ${todayStudied} words today—push just a bit further!`,
+        `Never put off until tomorrow what you can do today! Reviewing ${weak} weak words won't even take 5 minutes. Stand up and practice that pronunciation!`,
+        `${userName}! Your ${streakDays}-day streak is on the verge of breaking! Dad knows you have what it takes to finish strong. Get moving!`,
+      ],
+      dadHigh: [
+        `Haha, ${userName}! Clearing your goal of ${dailyGoal} words and already conquering ${todayStudied} words! You definitely inherited my DNA! Chicken is on me this weekend!`,
+        `Bravo, ${userName}! 100% of your ${totalGoals} goals completed! Conquering ${todayStudied} words today proves that daily consistency is the secret to winning in life!`,
+        `Oho, ${userName}! An unbroken streak of ${streakDays} days! Dad is granting you a special bonus allowance—let's keep the fire alive tomorrow too!`,
+        `Incredible! Your mastered English words have already surpassed ${mastered}! You'll be speaking freely with native speakers anytime now!`,
+      ],
+    },
+    strict: {
+      momLow: [
+        `${userName}! Your daily goal is ${dailyGoal} words, so explain why you have only learned ${todayStudied}?! Pull yourself together, open your wordbook, and memorize at least 10 words right now!`,
+        `${userName}! Completing only ${completedGoals} of ${totalGoals} goals is deeply disappointing! No excuses about taking a break—review immediately!`,
+        `You have ${weak} weak words accumulated! Do not be satisfied with only ${todayStudied} words today; maintain absolute focus on quizzes until every word is mastered!`,
+        `Are you planning to end your ${streakDays}-day streak right here?! Discipline accepts no compromises. Begin immediately!`,
+      ],
+      momHigh: [
+        `${userName}! Exceeding your goal of ${dailyGoal} words to perfectly master ${todayStudied} words today is remarkable! But never become complacent!`,
+        `Commendations on clearing all ${totalGoals} goals and extending your ${streakDays}-day streak! Maintain this uncompromising standard tomorrow!`,
+        `${mastered} words mastered! This is the direct result of strict self-regulation. Continue reviewing without hesitation!`,
+      ],
+      dadLow: [
+        `Prove yourself through results, ${userName}! Barely ${todayStudied} words out of your ${dailyGoal}-word goal?! Laziness will never be accepted under my roof!`,
+        `Completing only ${completedGoals} out of ${totalGoals} goals is unacceptable! Without persistence and deep immersion, nothing is accomplished. Open your books now!`,
+        `Are you leaving those ${weak} weak words unattended?! Dedicate 5 solid minutes right now and memorize them flawlessly!`,
+        `Aren't you ashamed to abandon your ${streakDays}-day streak?! Dad expects relentless dedication from ${userName}. Take action this instant!`,
+      ],
+      dadHigh: [
+        `${userName}! Daily goal of ${dailyGoal} words met and ${todayStudied} words conquered today! Flawless execution! I am proud of you!`,
+        `All ${totalGoals} goals 100% completed! ${streakDays}-day record extended! That is the posture of a true professional. Keep pressing forward!`,
+        `Over ${mastered} words mastered! Your dedication to your objectives is exemplary. Look forward to your reward this weekend!`,
+      ],
+    },
+    affectionate: {
+      momLow: [
+        `My sweet ${userName}~ You must be tired today! It is completely fine. Memorizing ${todayStudied} words today is already so wonderful. Shall we gently look at 3 more together?`,
+        `My precious ${userName}! You've finished ${completedGoals} out of ${totalGoals} goals today! Take a deep breath, and Mom will bring you some sweet fruit so you can continue comfortably!`,
+        `Don't worry about those ${weak} weak words, sweetheart. If we learn a little each day together, you will master them all! Cheering for you always, ${userName}!`,
+        `Wow~ You have kept up an effort for ${streakDays} days without missing a beat! Even on restful days, Mom is always in your corner!`,
+      ],
+      momHigh: [
+        `Oh my lovely ${userName}! You've completely mastered all ${todayStudied} words today! I'm so proud and grateful! Mom loves you so much!`,
+        `My darling ${userName}! Clearing your ${dailyGoal}-word goal and reaching a ${streakDays}-day streak! My heart is so full of pride!`,
+        `Over ${mastered} words mastered! Truly wonderful, ${userName}! I'm preparing your favorite dinner tonight!`,
+      ],
+      dadLow: [
+        `${userName}, everyone has exhausting days! Thank you for working so hard on ${todayStudied} words today. Dad is always rooting for you, you know that right?`,
+        `My beloved ${userName}! Completing ${completedGoals} out of ${totalGoals} goals is a meaningful step forward. Let's take it one gentle step at a time!`,
+        `Those ${weak} weak words are nothing when Dad is with you! I believe in ${userName}'s potential 100%!`,
+        `A solid ${streakDays}-day streak built day by day! Small efforts today will bloom into great achievements tomorrow!`,
+      ],
+      dadHigh: [
+        `Wow, our ${userName} is truly incredible! Perfectly mastering ${todayStudied} words today! Dad is so deeply moved!`,
+        `100% of ${totalGoals} goals reached and a ${streakDays}-day streak! I'm the happiest dad in the world to have a child like you!`,
+        `${mastered} words mastered! Dad will always support and cheer for your shining journey!`,
+      ],
+    },
+  };
+
   // Load custom scripts from localStorage and replace tokens
   const getCustomNagText = (
     situation: 'study_start' | 'study_complete' | 'study_delay',
@@ -371,43 +489,133 @@ export const SurpriseParentNagPopup: React.FC<SurpriseParentNagPopupProps> = ({
     }
   };
 
+  // English fallback counterparts for situations
+  const fallbackSituationsMapEn = {
+    continuous_study_break: {
+      mom: [
+        `Our sweet ${userName}~ You've been studying without a break for over 30 minutes! I'm so proud, but your eyes must be tired. Take a sweet 5-minute break. How about a refreshing glass of water? Love you!`,
+        `30 minutes of deep immersion, ${userName}! Your brain organizes memories best when resting. Close your eyes for 5 minutes and stretch lightly~ Mom is always cheering you on!`,
+        `My goodness, ${userName}'s passion for learning is incredible! But after 30 minutes of non-stop studying, look at the distant mountains to protect your eyes and take a restful 5-minute break!`,
+        `Thank you for studying so hard, our precious ${userName}~ You've run for 30 minutes straight, so let's stretch and catch your breath for 5 minutes. Mom will slice some sweet fruit for you!`,
+      ],
+      dad: [
+        `Haha, ${userName}! 30 minutes of non-stop intense focus! A truly smart person knows when to rest wisely. Stretch your arms and take a quick 5-minute breather!`,
+        `30 minutes of continuous focus—Dad is deeply impressed by your persistence and concentration, ${userName}! But your eyes and brain need fresh oxygen. How about a short 5-minute walk and a sip of water?`,
+        `Proud of you, ${userName}! Pacing yourself is essential to finishing a long marathon. After 30 minutes of fierce effort, enjoy a sweet 5-minute rest and let's go again!`,
+        `You did an awesome job for 30 minutes, ${userName}! Want Dad to massage your shoulders? A 5-minute rest will make your mind twice as clear!`,
+      ],
+    },
+    study_start: {
+      mom: [
+        `Hmph, finally opening your books to study? Don't get distracted and focus on learning just 5 words right now!`,
+        `Son/Daughter, starting your study session today! So proud of you. Shall we begin step by step with a happy heart?`,
+        `Pull yourself together and begin vocabulary study immediately! Complete today's quota without leaving a single word behind!`,
+      ],
+      dad: [
+        `Aha, ready to study at last! Since you're starting, finish it properly. Want to bet a chicken dinner?`,
+        `Our awesome child, seeing you start energetically today is so reassuring! Dad is always watching over and supporting you.`,
+        `Once you make a plan, execute it faithfully and immediately. Don't waste time—focus and begin right now!`,
+      ],
+    },
+    study_complete: {
+      mom: [
+        `Oh goodness, did you really finish everything? What a pleasant surprise! Well done! I left a delicious snack over there!`,
+        `Oh my lovely child, finishing all your goals today makes me so proud and happy! Mom will give you a big hug!`,
+        `You have thoroughly concluded today's learning objectives. Excellent work. Maintain this rigorous diligence tomorrow as well.`,
+      ],
+      dad: [
+        `Haha, finished your daily quota already? Pretty impressive! Having my DNA, this kind of grit is second nature!`,
+        `Incredible! Dad always trusts and takes pride in your persistent effort. You worked so hard today!`,
+        `100% of goals accomplished! Faithful execution becomes your greatest asset. Never forget today's triumph and keep moving forward.`,
+      ],
+    },
+    study_delay: {
+      mom: [
+        `Sigh, are you going to stare at your phone all day?! If you don't want to study, just quit! At least open your vocabulary app and show some effort!`,
+        `Is studying feeling a bit tedious and tiring today? Mom understands completely. I'll peel some delicious fruit for you, so let's cheer up and try a little bit~`,
+        `Procrastination ruins one's future! Put down your smartphone right now and memorize vocabulary for at least 3 minutes!`,
+      ],
+      dad: [
+        `If you keep dragging your feet, the whole day will slip away! If you don't want to hear Dad nag, go learn 5 words right now.`,
+        `It's okay to pause and catch your breath when you're tired. But taking consistent steps without giving up is what matters. Shall we start again together?`,
+        `Idleness is a direct path to failure. Studying postponed today will only burden tomorrow. Start your vocabulary learning immediately!`,
+      ],
+    },
+  };
+
   // Pick character and nag line
   const effectiveCharacter: 'mom' | 'dad' | 'both' =
     forceCharacter || (type === 'low_achievement' ? 'mom' : type === 'continuous_study_break' ? 'mom' : 'dad');
 
   const activeToneData = toneDataMap[currentTone] || toneDataMap.tsundere;
+  const activeToneDataEn = toneDataMapEn[currentTone] || toneDataMapEn.tsundere;
 
-  const getNagText = (): { text: string; speaker: 'mom' | 'dad'; isCustom: boolean } => {
+  const getNagText = (): {
+    textKo: string;
+    textEn: string;
+    speaker: 'mom' | 'dad';
+    isCustom: boolean;
+  } => {
     const spk = effectiveCharacter === 'both'
       ? (activeSpeechIndex % 2 === 0 ? 'mom' : 'dad')
       : effectiveCharacter;
 
     if (type === 'continuous_study_break') {
-      const list = fallbackSituationsMap.continuous_study_break[spk];
-      return { text: list[activeSpeechIndex % list.length], speaker: spk, isCustom: false };
+      const listKo = fallbackSituationsMap.continuous_study_break[spk];
+      const listEn = fallbackSituationsMapEn.continuous_study_break[spk];
+      return {
+        textKo: listKo[activeSpeechIndex % listKo.length],
+        textEn: listEn[activeSpeechIndex % listEn.length],
+        speaker: spk,
+        isCustom: false,
+      };
     }
 
     const situation = situationMap[type] || 'study_delay';
     if (situation !== 'continuous_study_break') {
       const customText = getCustomNagText(situation, spk, currentTone);
       if (customText) {
-        return { text: customText, speaker: spk, isCustom: true };
+        const listEn = (fallbackSituationsMapEn as any)[situation]?.[spk] || fallbackSituationsMapEn.study_delay[spk];
+        return {
+          textKo: customText,
+          textEn: listEn[activeSpeechIndex % listEn.length],
+          speaker: spk,
+          isCustom: true,
+        };
       }
     }
 
     if (type === 'low_achievement') {
-      const list = spk === 'mom' ? activeToneData.momLow : activeToneData.dadLow;
-      return { text: list[activeSpeechIndex % list.length], speaker: spk, isCustom: false };
+      const listKo = spk === 'mom' ? activeToneData.momLow : activeToneData.dadLow;
+      const listEn = spk === 'mom' ? activeToneDataEn.momLow : activeToneDataEn.dadLow;
+      return {
+        textKo: listKo[activeSpeechIndex % listKo.length],
+        textEn: listEn[activeSpeechIndex % listEn.length],
+        speaker: spk,
+        isCustom: false,
+      };
     } else if (type === 'high_achievement') {
-      const list = spk === 'mom' ? activeToneData.momHigh : activeToneData.dadHigh;
-      return { text: list[activeSpeechIndex % list.length], speaker: spk, isCustom: false };
+      const listKo = spk === 'mom' ? activeToneData.momHigh : activeToneData.dadHigh;
+      const listEn = spk === 'mom' ? activeToneDataEn.momHigh : activeToneDataEn.dadHigh;
+      return {
+        textKo: listKo[activeSpeechIndex % listKo.length],
+        textEn: listEn[activeSpeechIndex % listEn.length],
+        speaker: spk,
+        isCustom: false,
+      };
     } else {
-      const list = (fallbackSituationsMap as any)[situation]?.[spk] || fallbackSituationsMap.study_delay[spk];
-      return { text: list[activeSpeechIndex % list.length], speaker: spk, isCustom: false };
+      const listKo = (fallbackSituationsMap as any)[situation]?.[spk] || fallbackSituationsMap.study_delay[spk];
+      const listEn = (fallbackSituationsMapEn as any)[situation]?.[spk] || fallbackSituationsMapEn.study_delay[spk];
+      return {
+        textKo: listKo[activeSpeechIndex % listKo.length],
+        textEn: listEn[activeSpeechIndex % listEn.length],
+        speaker: spk,
+        isCustom: false,
+      };
     }
   };
 
-  const { text: currentSpeechText, speaker, isCustom: isCurrentCustom } = getNagText();
+  const { textKo: currentSpeechTextKo, textEn: currentSpeechTextEn, speaker, isCustom: isCurrentCustom } = getNagText();
 
   // Pick appropriate registered photo or fallback preset
   const momPhoto = userProfile?.momPhotoUrl || DEFAULT_MOM_PHOTO;
@@ -415,43 +623,130 @@ export const SurpriseParentNagPopup: React.FC<SurpriseParentNagPopupProps> = ({
 
   const currentDisplayPhoto = speaker === 'mom' ? momPhoto : dadPhoto;
 
-  // Auto trigger popup entrance & realistic Korean voice
+  // Unified speech playback method supporting Korean, English, and Sequential Bilingual modes
+  const playSpeech = useCallback((targetLang?: NagLanguageMode) => {
+    speechService.stop();
+    if (dualSpeechTimeoutRef.current) {
+      clearTimeout(dualSpeechTimeoutRef.current);
+      dualSpeechTimeoutRef.current = null;
+    }
+    if (speechTimerRef.current) {
+      clearTimeout(speechTimerRef.current);
+      speechTimerRef.current = null;
+    }
+
+    const mode = targetLang || nagLang;
+    const voiceMomEn = { pitch: 1.18, rate: 1.0 };
+    const voiceDadEn = { pitch: 0.85, rate: 0.95 };
+    const voiceMomKo = { pitch: 1.22, rate: 1.05 };
+    const voiceDadKo = { pitch: 0.82, rate: 0.95 };
+
+    const currentVoiceEn = speaker === 'mom' ? voiceMomEn : voiceDadEn;
+    const currentVoiceKo = speaker === 'mom' ? voiceMomKo : voiceDadKo;
+
+    setIsSpeaking(true);
+
+    if (mode === 'ko') {
+      setActiveSpeakingLang('ko');
+      speechService.speakWithCallbacks(currentSpeechTextKo, {
+        lang: 'ko-KR',
+        pitch: currentVoiceKo.pitch,
+        rate: currentVoiceKo.rate,
+        onEnd: () => {
+          setIsSpeaking(false);
+          setActiveSpeakingLang(null);
+        },
+        onError: () => {
+          setIsSpeaking(false);
+          setActiveSpeakingLang(null);
+        },
+      });
+    } else if (mode === 'en') {
+      setActiveSpeakingLang('en');
+      speechService.speakWithCallbacks(currentSpeechTextEn, {
+        lang: 'en-US',
+        pitch: currentVoiceEn.pitch,
+        rate: currentVoiceEn.rate,
+        onEnd: () => {
+          setIsSpeaking(false);
+          setActiveSpeakingLang(null);
+        },
+        onError: () => {
+          setIsSpeaking(false);
+          setActiveSpeakingLang(null);
+        },
+      });
+    } else {
+      // Bilingual mode: English first, then Korean
+      setActiveSpeakingLang('en');
+      speechService.speakWithCallbacks(currentSpeechTextEn, {
+        lang: 'en-US',
+        pitch: currentVoiceEn.pitch,
+        rate: currentVoiceEn.rate,
+        onEnd: () => {
+          dualSpeechTimeoutRef.current = setTimeout(() => {
+            setActiveSpeakingLang('ko');
+            speechService.speakWithCallbacks(currentSpeechTextKo, {
+              lang: 'ko-KR',
+              pitch: currentVoiceKo.pitch,
+              rate: currentVoiceKo.rate,
+              onEnd: () => {
+                setIsSpeaking(false);
+                setActiveSpeakingLang(null);
+              },
+              onError: () => {
+                setIsSpeaking(false);
+                setActiveSpeakingLang(null);
+              },
+            });
+          }, 350);
+        },
+        onError: () => {
+          setActiveSpeakingLang('ko');
+          speechService.speakWithCallbacks(currentSpeechTextKo, {
+            lang: 'ko-KR',
+            pitch: currentVoiceKo.pitch,
+            rate: currentVoiceKo.rate,
+            onEnd: () => {
+              setIsSpeaking(false);
+              setActiveSpeakingLang(null);
+            },
+            onError: () => {
+              setIsSpeaking(false);
+              setActiveSpeakingLang(null);
+            },
+          });
+        },
+      });
+    }
+  }, [speaker, currentSpeechTextKo, currentSpeechTextEn, nagLang]);
+
+  // Auto trigger popup entrance & voice playback
   useEffect(() => {
     if (isOpen) {
       setCurrentSpeaker(speaker);
       playCartoonPopSound(type === 'high_achievement');
 
-      // Calibrate realistic Korean voice parameters
-      const voiceConfig = speaker === 'mom'
-        ? { pitch: 1.22, rate: 1.05 }
-        : { pitch: 0.82, rate: 0.95 };
-
-      const timer = setTimeout(() => {
-        setIsSpeaking(true);
-        speechService.speakWithCallbacks(currentSpeechText, {
-          lang: 'ko-KR',
-          pitch: voiceConfig.pitch,
-          rate: voiceConfig.rate,
-          onEnd: () => setIsSpeaking(false),
-          onError: () => setIsSpeaking(false),
-        });
+      speechTimerRef.current = setTimeout(() => {
+        playSpeech(nagLang);
       }, 350);
 
       return () => {
-        clearTimeout(timer);
+        if (speechTimerRef.current) clearTimeout(speechTimerRef.current);
+        if (dualSpeechTimeoutRef.current) clearTimeout(dualSpeechTimeoutRef.current);
         speechService.stop();
         setIsSpeaking(false);
+        setActiveSpeakingLang(null);
       };
     }
-  }, [isOpen, type, activeSpeechIndex, effectiveCharacter, currentTone]);
+  }, [isOpen, type, activeSpeechIndex, effectiveCharacter, currentTone, nagLang, playSpeech]);
 
   // Keyboard Escape to dismiss
   useEffect(() => {
     if (!isOpen) return;
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
-        speechService.stop();
-        onClose();
+        handleDismiss();
       }
     };
     window.addEventListener('keydown', handleKeyDown);
@@ -463,35 +758,49 @@ export const SurpriseParentNagPopup: React.FC<SurpriseParentNagPopupProps> = ({
   const handleNextVoice = (e: React.MouseEvent) => {
     e.stopPropagation();
     speechService.stop();
+    if (dualSpeechTimeoutRef.current) clearTimeout(dualSpeechTimeoutRef.current);
+    if (speechTimerRef.current) clearTimeout(speechTimerRef.current);
     setIsSpeaking(false);
+    setActiveSpeakingLang(null);
     setActiveSpeechIndex((prev) => prev + 1);
   };
 
   const handleToggleVoice = (e: React.MouseEvent) => {
     e.stopPropagation();
     if (isSpeaking) {
+      if (dualSpeechTimeoutRef.current) clearTimeout(dualSpeechTimeoutRef.current);
+      if (speechTimerRef.current) clearTimeout(speechTimerRef.current);
       speechService.stop();
       setIsSpeaking(false);
+      setActiveSpeakingLang(null);
     } else {
-      setIsSpeaking(true);
-      const voiceConfig = speaker === 'mom'
-        ? { pitch: 1.22, rate: 1.05 }
-        : { pitch: 0.82, rate: 0.95 };
-
-      speechService.speakWithCallbacks(currentSpeechText, {
-        lang: 'ko-KR',
-        pitch: voiceConfig.pitch,
-        rate: voiceConfig.rate,
-        onEnd: () => setIsSpeaking(false),
-        onError: () => setIsSpeaking(false),
-      });
+      playSpeech(nagLang);
     }
+  };
+
+  const handleChangeLang = (lang: NagLanguageMode, e: React.MouseEvent) => {
+    e.stopPropagation();
+    speechService.stop();
+    if (dualSpeechTimeoutRef.current) clearTimeout(dualSpeechTimeoutRef.current);
+    if (speechTimerRef.current) clearTimeout(speechTimerRef.current);
+    setIsSpeaking(false);
+    setActiveSpeakingLang(null);
+    setNagLang(lang);
+    try {
+      localStorage.setItem('wordloop_nag_lang_pref', lang);
+    } catch {}
+    setTimeout(() => {
+      playSpeech(lang);
+    }, 120);
   };
 
   const handleChangeTone = (tone: NagTonePreset, e: React.MouseEvent) => {
     e.stopPropagation();
     speechService.stop();
+    if (dualSpeechTimeoutRef.current) clearTimeout(dualSpeechTimeoutRef.current);
+    if (speechTimerRef.current) clearTimeout(speechTimerRef.current);
     setIsSpeaking(false);
+    setActiveSpeakingLang(null);
     setCurrentTone(tone);
     toneBgmSynthEngine.startToneBGM(tone);
     setBgmMeta(toneBgmSynthEngine.getMeta(tone));
@@ -507,8 +816,12 @@ export const SurpriseParentNagPopup: React.FC<SurpriseParentNagPopupProps> = ({
   };
 
   const handleDismiss = () => {
+    if (dualSpeechTimeoutRef.current) clearTimeout(dualSpeechTimeoutRef.current);
+    if (speechTimerRef.current) clearTimeout(speechTimerRef.current);
     speechService.stop();
     toneBgmSynthEngine.stopToneBGM();
+    setIsSpeaking(false);
+    setActiveSpeakingLang(null);
     onClose();
   };
 
@@ -619,146 +932,292 @@ export const SurpriseParentNagPopup: React.FC<SurpriseParentNagPopupProps> = ({
             <div className="absolute inset-0 ring-8 ring-amber-400/50 rounded-3xl animate-ping pointer-events-none" />
           )}
 
-          {/* CENTER SCREEN REAL-TIME AUDIO WAVEFORM SPECTRUM HUD OVERLAY */}
-          {isSpeaking && (
-            <div className="absolute bottom-6 sm:bottom-10 inset-x-3 sm:inset-x-8 z-20 flex flex-col items-center pointer-events-none animate-in fade-in zoom-in-95 duration-200">
-              
-              {/* Expanding Soundwave Ring Aura */}
-              <div className={`absolute inset-0 rounded-3xl blur-2xl opacity-60 animate-pulse pointer-events-none ${
-                type === 'continuous_study_break'
-                  ? 'bg-emerald-500/50'
-                  : type === 'low_achievement'
-                  ? 'bg-rose-600/50'
-                  : 'bg-amber-400/50'
-              }`} />
+          {/* CENTER SCREEN REAL-TIME AUDIO WAVEFORM & BILINGUAL SUBTITLES HUD OVERLAY */}
+          <div className="absolute bottom-4 sm:bottom-8 inset-x-2 sm:inset-x-6 z-20 flex flex-col items-center pointer-events-none animate-in fade-in zoom-in-95 duration-200">
+            
+            {/* Expanding Soundwave Ring Aura */}
+            <div className={`absolute inset-0 rounded-3xl blur-2xl opacity-60 animate-pulse pointer-events-none ${
+              type === 'continuous_study_break'
+                ? 'bg-emerald-500/50'
+                : type === 'low_achievement'
+                ? 'bg-rose-600/50'
+                : 'bg-amber-400/50'
+            }`} />
 
-              {/* Glassmorphic Real-Time Waveform Display Box */}
-              <div className={`relative px-4 py-3 sm:px-7 sm:py-4 rounded-3xl backdrop-blur-xl border flex flex-col items-center gap-2 sm:gap-2.5 shadow-2xl transition-all max-w-full ${
-                type === 'continuous_study_break'
-                  ? 'bg-slate-950/85 border-emerald-400/60 shadow-emerald-400/30'
-                  : type === 'low_achievement'
-                  ? 'bg-slate-950/85 border-rose-500/60 shadow-rose-500/30'
-                  : 'bg-slate-950/85 border-amber-400/60 shadow-amber-400/30'
-              }`}>
-                
-                {/* Live DSP Status Header & Tone Badge */}
-                <div className="flex items-center gap-2 text-xs font-black text-white tracking-wide flex-wrap justify-center">
-                  <span className="relative flex h-2.5 w-2.5">
-                    <span className={`animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 ${
-                      type === 'continuous_study_break' ? 'bg-emerald-400' : type === 'low_achievement' ? 'bg-rose-400' : 'bg-amber-400'
-                    }`} />
-                    <span className={`relative inline-flex rounded-full h-2.5 w-2.5 ${
-                      type === 'continuous_study_break' ? 'bg-emerald-400' : type === 'low_achievement' ? 'bg-rose-500' : 'bg-amber-400'
-                    }`} />
+            {/* Glassmorphic Real-Time Waveform & Bilingual Subtitles Display Box */}
+            <div className={`relative px-3.5 py-3 sm:px-6 sm:py-4 rounded-3xl backdrop-blur-xl border flex flex-col items-center gap-2 sm:gap-2.5 shadow-2xl transition-all w-full max-w-2xl ${
+              type === 'continuous_study_break'
+                ? 'bg-slate-950/90 border-emerald-400/60 shadow-emerald-400/30'
+                : type === 'low_achievement'
+                ? 'bg-slate-950/90 border-rose-500/60 shadow-rose-500/30'
+                : 'bg-slate-950/90 border-amber-400/60 shadow-amber-400/30'
+            }`}>
+              
+              {/* Live DSP Status Header, Speaker & Language Badge */}
+              <div className="flex items-center gap-1.5 sm:gap-2 text-xs font-black text-white tracking-wide flex-wrap justify-center pointer-events-auto">
+                <span className="relative flex h-2.5 w-2.5">
+                  <span className={`animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 ${
+                    isSpeaking ? (type === 'continuous_study_break' ? 'bg-emerald-400' : type === 'low_achievement' ? 'bg-rose-400' : 'bg-amber-400') : 'bg-slate-500'
+                  }`} />
+                  <span className={`relative inline-flex rounded-full h-2.5 w-2.5 ${
+                    isSpeaking ? (type === 'continuous_study_break' ? 'bg-emerald-400' : type === 'low_achievement' ? 'bg-rose-500' : 'bg-amber-400') : 'bg-slate-400'
+                  }`} />
+                </span>
+                <span className="text-[11px] sm:text-xs uppercase tracking-wider text-slate-100 font-extrabold">
+                  {speaker === 'mom' ? '👩 엄마 잔소리' : '👨 아빠 잔소리'}
+                </span>
+                {/* Active Speaking Language Badge */}
+                <span className={`text-[10px] font-black px-2 py-0.5 rounded-full border shadow-sm transition-all ${
+                  activeSpeakingLang === 'en'
+                    ? 'bg-amber-400 text-slate-950 border-amber-300 font-black animate-pulse'
+                    : activeSpeakingLang === 'ko'
+                    ? 'bg-rose-500 text-white border-rose-400 font-black animate-pulse'
+                    : 'bg-white/10 text-slate-300 border-white/20'
+                }`}>
+                  {nagLang === 'bilingual'
+                    ? (activeSpeakingLang === 'en' ? '🇺🇸 영어 음성 출력 중' : activeSpeakingLang === 'ko' ? '🇰🇷 한국어 음성 출력 중' : '🌐 한+영 듀얼 모드')
+                    : nagLang === 'en'
+                    ? (isSpeaking ? '🇺🇸 영어 음성 출력 중' : '🇺🇸 영어 모드')
+                    : (isSpeaking ? '🇰🇷 한국어 음성 출력 중' : '🇰🇷 한국어 모드')}
+                </span>
+                {isCurrentCustom && (
+                  <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-purple-500 text-white border border-purple-400 shadow-sm animate-pulse">
+                    ✨ AI 커스텀 대본
                   </span>
-                  <span className="text-[11px] sm:text-xs uppercase tracking-wider text-slate-100 font-extrabold">
-                    {speaker === 'mom' ? '👩 엄마 목소리 실시간 오디오 파형' : '👨 아빠 목소리 실시간 오디오 파형'}
+                )}
+                {type === 'continuous_study_break' ? (
+                  <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-emerald-500/25 text-emerald-300 border border-emerald-400/40 shadow-sm flex items-center gap-1">
+                    🌿 30분 연속 열공 • 5분 힐링
                   </span>
-                  {isCurrentCustom && (
-                    <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-purple-500 text-white border border-purple-400 shadow-sm animate-pulse">
-                      ✨ AI 커스텀 대본
-                    </span>
-                  )}
+                ) : (
+                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-400/20 text-amber-300 border border-amber-400/30">
+                    {currentTone === 'tsundere' ? '😏 츤데레' : currentTone === 'strict' ? '⚡ 엄격' : '❤️ 다정'}
+                  </span>
+                )}
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-indigo-500/30 text-indigo-200 border border-indigo-400/30 hidden xs:inline-flex items-center gap-1">
+                  <Music2 className="w-3 h-3 text-indigo-300" />
+                  <span>{bgmMeta.toneName}</span>
+                </span>
+              </div>
+
+              {/* BILINGUAL COMIC SPEECH BUBBLE & SUBTITLES */}
+              <div className="w-full rounded-2xl p-2.5 sm:p-3 bg-black/50 backdrop-blur-md border border-white/15 flex flex-col gap-2 max-h-[35dvh] overflow-y-auto">
+                {nagLang === 'bilingual' ? (
+                  <>
+                    {/* English Dialogue with Active Speaking Glow */}
+                    <div className={`p-2 sm:p-2.5 rounded-xl transition-all ${
+                      activeSpeakingLang === 'en'
+                        ? 'bg-amber-500/25 border border-amber-400/80 shadow-lg ring-2 ring-amber-400/50'
+                        : 'bg-white/5 border border-white/10'
+                    }`}>
+                      <div className="flex items-center justify-between text-[10px] font-black tracking-wide text-amber-300 mb-0.5">
+                        <span className="flex items-center gap-1.5">
+                          <span className="text-xs">🇺🇸</span>
+                          <span>ENGLISH VOICE</span>
+                          {activeSpeakingLang === 'en' && (
+                            <span className="animate-pulse px-1.5 py-0.2 rounded bg-amber-400 text-slate-950 font-black text-[9px]">
+                              PLAYING
+                            </span>
+                          )}
+                        </span>
+                        <span className="text-[9px] text-amber-200/70 font-mono">en-US Native</span>
+                      </div>
+                      <p className="text-xs sm:text-sm md:text-base font-black text-amber-100 leading-snug tracking-tight">
+                        "{currentSpeechTextEn}"
+                      </p>
+                    </div>
+
+                    {/* Korean Dialogue with Active Speaking Glow */}
+                    <div className={`p-2 sm:p-2.5 rounded-xl transition-all ${
+                      activeSpeakingLang === 'ko'
+                        ? 'bg-rose-500/25 border border-rose-400/80 shadow-lg ring-2 ring-rose-400/50'
+                        : 'bg-white/5 border border-white/10'
+                    }`}>
+                      <div className="flex items-center justify-between text-[10px] font-black tracking-wide text-rose-300 mb-0.5">
+                        <span className="flex items-center gap-1.5">
+                          <span className="text-xs">🇰🇷</span>
+                          <span>한국어 음성 & 번역</span>
+                          {activeSpeakingLang === 'ko' && (
+                            <span className="animate-pulse px-1.5 py-0.2 rounded bg-rose-400 text-slate-950 font-black text-[9px]">
+                              PLAYING
+                            </span>
+                          )}
+                        </span>
+                        <span className="text-[9px] text-rose-200/70 font-mono">ko-KR Native</span>
+                      </div>
+                      <p className="text-xs sm:text-sm font-bold text-slate-100 leading-relaxed">
+                        "{currentSpeechTextKo}"
+                      </p>
+                    </div>
+                  </>
+                ) : nagLang === 'en' ? (
+                  <>
+                    <div className="p-2 sm:p-2.5 rounded-xl bg-blue-500/20 border border-blue-400/50 shadow-md">
+                      <div className="flex items-center justify-between text-[10px] font-black text-blue-300 mb-0.5">
+                        <span className="flex items-center gap-1.5">
+                          <span className="text-xs">🇺🇸</span>
+                          <span>ENGLISH NATIVE SPEECH</span>
+                          {isSpeaking && (
+                            <span className="animate-pulse px-1.5 py-0.2 rounded bg-blue-400 text-slate-950 font-black text-[9px]">
+                              PLAYING
+                            </span>
+                          )}
+                        </span>
+                      </div>
+                      <p className="text-xs sm:text-sm md:text-base font-black text-amber-100 leading-snug">
+                        "{currentSpeechTextEn}"
+                      </p>
+                    </div>
+                    <div className="px-2 pt-0.5">
+                      <p className="text-[11px] sm:text-xs text-slate-300 italic leading-relaxed">
+                        <span className="font-bold text-amber-300/90 mr-1">[한글 번역]</span>
+                        {currentSpeechTextKo}
+                      </p>
+                    </div>
+                  </>
+                ) : (
+                  <div className="p-2 sm:p-2.5 rounded-xl bg-rose-500/20 border border-rose-400/50 shadow-md">
+                    <div className="flex items-center justify-between text-[10px] font-black text-rose-300 mb-0.5">
+                      <span className="flex items-center gap-1.5">
+                        <span className="text-xs">🇰🇷</span>
+                        <span>한국어 음성 잔소리</span>
+                        {isSpeaking && (
+                          <span className="animate-pulse px-1.5 py-0.2 rounded bg-rose-400 text-slate-950 font-black text-[9px]">
+                            PLAYING
+                          </span>
+                        )}
+                      </span>
+                    </div>
+                    <p className="text-xs sm:text-sm md:text-base font-bold text-white leading-relaxed">
+                      "{currentSpeechTextKo}"
+                    </p>
+                  </div>
+                )}
+              </div>
+
+              {/* 28-Bar Center Real-Time Dynamic Waveform Spectrum (60fps) */}
+              <div className="flex items-end justify-center gap-1 sm:gap-1.5 h-7 sm:h-9 w-full px-2 min-w-[200px] sm:min-w-[300px]">
+                {waveHeights.map((h, i) => (
+                  <span
+                    key={i}
+                    style={{
+                      height: `${isSpeaking ? h : 18}%`,
+                      transition: 'height 0.05s ease-out',
+                    }}
+                    className={`w-1 sm:w-1.5 rounded-full transform transition-transform ${
+                      type === 'continuous_study_break'
+                        ? 'bg-gradient-to-t from-emerald-600 via-teal-400 to-cyan-300 shadow-[0_0_8px_rgba(52,211,153,0.8)]'
+                        : type === 'low_achievement'
+                        ? 'bg-gradient-to-t from-red-600 via-rose-500 to-amber-400 shadow-[0_0_8px_rgba(244,63,94,0.8)]'
+                        : 'bg-gradient-to-t from-amber-500 via-yellow-400 to-emerald-300 shadow-[0_0_8px_rgba(251,191,36,0.8)]'
+                    } ${isSpeaking ? 'opacity-100' : 'opacity-35'}`}
+                  />
+                ))}
+              </div>
+
+              {/* Subtitle / Audio Wave Indicator & Live Progress Summary */}
+              <div className="flex flex-col items-center gap-1">
+                <div className="px-2.5 py-0.5 rounded-full bg-white/10 text-[10px] text-amber-300 font-extrabold backdrop-blur-sm border border-white/10">
                   {type === 'continuous_study_break' ? (
-                    <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-emerald-500/25 text-emerald-300 border border-emerald-400/40 shadow-sm flex items-center gap-1">
-                      🌿 30분 연속 열공 • 5분 힐링 휴식
+                    <span className="text-emerald-300">
+                      ☕ 연속 학습 30분 달성! • 5분간 눈을 감고 편안히 휴식하세요 (장기 기억 정착 효과 Up)
                     </span>
                   ) : (
-                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-400/20 text-amber-300 border border-amber-400/30">
-                      {currentTone === 'tsundere' ? '😏 츤데레 톤' : currentTone === 'strict' ? '⚡ 엄격 톤' : '❤️ 다정 톤'}
+                    <span>
+                      💡 오늘 {todayStudied}개 암기 • 목표 달성률 {Math.round((completedGoals / Math.max(1, totalGoals)) * 100)}% • {streakDays}일 연속
                     </span>
                   )}
-                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-indigo-500/30 text-indigo-200 border border-indigo-400/30 flex items-center gap-1">
-                    <Music2 className="w-3 h-3 text-indigo-300" />
-                    <span>{bgmMeta.toneName} ({bgmMeta.bpm} BPM)</span>
-                  </span>
-                  <span className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-white/10 text-amber-300 font-bold hidden xs:inline">
-                    44.1kHz Live DSP
-                  </span>
-                </div>
-
-                {/* 28-Bar Center Real-Time Dynamic Waveform Spectrum (60fps) */}
-                <div className="flex items-end justify-center gap-1 sm:gap-1.5 h-10 sm:h-14 w-full px-2 min-w-[220px] sm:min-w-[320px]">
-                  {waveHeights.map((h, i) => (
-                    <span
-                      key={i}
-                      style={{
-                        height: `${h}%`,
-                        transition: 'height 0.05s ease-out',
-                      }}
-                      className={`w-1.5 sm:w-2 rounded-full transform transition-transform ${
-                        type === 'continuous_study_break'
-                          ? 'bg-gradient-to-t from-emerald-600 via-teal-400 to-cyan-300 shadow-[0_0_8px_rgba(52,211,153,0.8)]'
-                          : type === 'low_achievement'
-                          ? 'bg-gradient-to-t from-red-600 via-rose-500 to-amber-400 shadow-[0_0_8px_rgba(244,63,94,0.8)]'
-                          : 'bg-gradient-to-t from-amber-500 via-yellow-400 to-emerald-300 shadow-[0_0_8px_rgba(251,191,36,0.8)]'
-                      }`}
-                    />
-                  ))}
-                </div>
-
-                {/* Subtitle / Audio Wave Indicator & Live Progress Summary */}
-                <div className="flex flex-col items-center gap-1">
-                  <div className="flex items-center gap-1.5 text-[10px] sm:text-[11px] text-slate-300 font-bold">
-                    <Volume2 className="w-3.5 h-3.5 text-amber-400 animate-bounce" />
-                    <span>실시간 오디오 파형 반응 중 (60fps)</span>
-                  </div>
-                  <div className="px-2.5 py-0.5 rounded-full bg-white/10 text-[10px] text-amber-300 font-extrabold backdrop-blur-sm border border-white/10">
-                    {type === 'continuous_study_break' ? (
-                      <span className="text-emerald-300">
-                        ☕ 연속 학습 30분 달성! • 5분간 눈을 감고 편안히 휴식하세요 (장기 기억 정착 효과 Up)
-                      </span>
-                    ) : (
-                      <span>
-                        💡 오늘 {todayStudied}개 암기 • 목표 달성률 {Math.round((completedGoals / Math.max(1, totalGoals)) * 100)}% • {streakDays}일 연속
-                      </span>
-                    )}
-                  </div>
                 </div>
               </div>
             </div>
-          )}
+          </div>
         </div>
       </div>
 
-      {/* 3. REAL-TIME VOICE WAVE EQUALIZER & AUDIO INDICATOR (NO TEXT SUBTITLES ON SCREEN) */}
-      <div className="absolute bottom-6 sm:bottom-8 left-1/2 -translate-x-1/2 flex flex-col items-center gap-2 pointer-events-auto z-10">
+      {/* 3. REAL-TIME CONTROLS: LANGUAGE SELECTOR & TONE PRESETS */}
+      <div className="absolute bottom-4 sm:bottom-6 left-1/2 -translate-x-1/2 flex flex-col items-center gap-2 pointer-events-auto z-20 w-[96%] max-w-lg">
         
-        {/* Tone Preset Selectors HUD */}
-        <div className="flex items-center gap-1.5 p-1 rounded-2xl bg-black/60 backdrop-blur-md border border-white/20 shadow-xl">
-          <button
-            type="button"
-            onClick={(e) => handleChangeTone('tsundere', e)}
-            className={`px-2.5 py-1 rounded-xl text-[10px] font-black transition-all cursor-pointer ${
-              currentTone === 'tsundere'
-                ? 'bg-rose-500 text-white shadow-md shadow-rose-500/30'
-                : 'text-slate-300 hover:text-white hover:bg-white/10'
-            }`}
-          >
-            😏 츤데레
-          </button>
-          <button
-            type="button"
-            onClick={(e) => handleChangeTone('strict', e)}
-            className={`px-2.5 py-1 rounded-xl text-[10px] font-black transition-all cursor-pointer ${
-              currentTone === 'strict'
-                ? 'bg-indigo-500 text-white shadow-md shadow-indigo-500/30'
-                : 'text-slate-300 hover:text-white hover:bg-white/10'
-            }`}
-          >
-            ⚡ 엄격
-          </button>
-          <button
-            type="button"
-            onClick={(e) => handleChangeTone('affectionate', e)}
-            className={`px-2.5 py-1 rounded-xl text-[10px] font-black transition-all cursor-pointer ${
-              currentTone === 'affectionate'
-                ? 'bg-emerald-500 text-white shadow-md shadow-emerald-500/30'
-                : 'text-slate-300 hover:text-white hover:bg-white/10'
-            }`}
-          >
-            ❤️ 다정
-          </button>
+        {/* Language & Tone HUD Row */}
+        <div className="flex items-center justify-center gap-2 flex-wrap">
+          
+          {/* Nagging Language Selector HUD */}
+          <div className="flex items-center gap-1 p-1 rounded-2xl bg-black/75 backdrop-blur-md border border-white/25 shadow-xl">
+            <button
+              type="button"
+              onClick={(e) => handleChangeLang('ko', e)}
+              className={`px-2.5 py-1 rounded-xl text-[10px] font-black transition-all cursor-pointer flex items-center gap-1 ${
+                nagLang === 'ko'
+                  ? 'bg-rose-500 text-white shadow-md shadow-rose-500/40 ring-1 ring-white/30'
+                  : 'text-slate-300 hover:text-white hover:bg-white/10'
+              }`}
+              title="한국어만 잔소리 듣기"
+            >
+              <span>🇰🇷 한글</span>
+            </button>
+            <button
+              type="button"
+              onClick={(e) => handleChangeLang('en', e)}
+              className={`px-2.5 py-1 rounded-xl text-[10px] font-black transition-all cursor-pointer flex items-center gap-1 ${
+                nagLang === 'en'
+                  ? 'bg-blue-500 text-white shadow-md shadow-blue-500/40 ring-1 ring-white/30'
+                  : 'text-slate-300 hover:text-white hover:bg-white/10'
+              }`}
+              title="영어로만 잔소리 듣기"
+            >
+              <span>🇺🇸 English</span>
+            </button>
+            <button
+              type="button"
+              onClick={(e) => handleChangeLang('bilingual', e)}
+              className={`px-2.5 py-1 rounded-xl text-[10px] font-black transition-all cursor-pointer flex items-center gap-1 ${
+                nagLang === 'bilingual'
+                  ? 'bg-gradient-to-r from-amber-500 to-indigo-500 text-white shadow-md shadow-amber-500/30 ring-1 ring-white/30'
+                  : 'text-slate-300 hover:text-white hover:bg-white/10'
+              }`}
+              title="영어 후 한국어 연속 잔소리 듣기"
+            >
+              <Globe className="w-3 h-3" />
+              <span>🌐 한+영 듀얼</span>
+            </button>
+          </div>
+
+          {/* Tone Preset Selectors HUD */}
+          <div className="flex items-center gap-1 p-1 rounded-2xl bg-black/60 backdrop-blur-md border border-white/20 shadow-xl">
+            <button
+              type="button"
+              onClick={(e) => handleChangeTone('tsundere', e)}
+              className={`px-2.5 py-1 rounded-xl text-[10px] font-black transition-all cursor-pointer ${
+                currentTone === 'tsundere'
+                  ? 'bg-rose-500 text-white shadow-md shadow-rose-500/30'
+                  : 'text-slate-300 hover:text-white hover:bg-white/10'
+              }`}
+            >
+              😏 츤데레
+            </button>
+            <button
+              type="button"
+              onClick={(e) => handleChangeTone('strict', e)}
+              className={`px-2.5 py-1 rounded-xl text-[10px] font-black transition-all cursor-pointer ${
+                currentTone === 'strict'
+                  ? 'bg-indigo-500 text-white shadow-md shadow-indigo-500/30'
+                  : 'text-slate-300 hover:text-white hover:bg-white/10'
+              }`}
+            >
+              ⚡ 엄격
+            </button>
+            <button
+              type="button"
+              onClick={(e) => handleChangeTone('affectionate', e)}
+              className={`px-2.5 py-1 rounded-xl text-[10px] font-black transition-all cursor-pointer ${
+                currentTone === 'affectionate'
+                  ? 'bg-emerald-500 text-white shadow-md shadow-emerald-500/30'
+                  : 'text-slate-300 hover:text-white hover:bg-white/10'
+              }`}
+            >
+              ❤️ 다정
+            </button>
+          </div>
+
         </div>
 
         {/* Sound Wave Equalizer Bars synced with live audio wave */}
@@ -822,9 +1281,20 @@ export const SurpriseParentNagPopup: React.FC<SurpriseParentNagPopupProps> = ({
         </div>
       </div>
 
-      {/* 4. TOP CONTROLS (Dismiss, Next Voice, Toggle Audio, Photo Settings) */}
+      {/* 4. TOP CONTROLS (Dismiss, Language Toggle, Next Voice, Toggle Audio, Photo Settings) */}
       <div className="absolute top-4 sm:top-6 right-4 sm:right-6 flex items-center gap-2 pointer-events-auto z-20">
         
+        {/* Language Quick Switch Pill */}
+        <button
+          type="button"
+          onClick={(e) => handleChangeLang(nagLang === 'ko' ? 'en' : nagLang === 'en' ? 'bilingual' : 'ko', e)}
+          className="px-2.5 py-2 rounded-2xl bg-white/15 hover:bg-white/25 backdrop-blur-md text-white font-black text-xs flex items-center gap-1.5 transition-all shadow-lg border border-white/20 active:scale-95 cursor-pointer"
+          title="잔소리 언어 모드 변경 (한글 / 영어 / 한+영 듀얼)"
+        >
+          <Languages className="w-3.5 h-3.5 text-amber-300" />
+          <span>{nagLang === 'ko' ? '🇰🇷 한글' : nagLang === 'en' ? '🇺🇸 English' : '🌐 한+영'}</span>
+        </button>
+
         {/* Next Nag Voice Button */}
         <button
           type="button"

@@ -113,24 +113,25 @@ export const SentenceListeningFillGame: React.FC<SentenceListeningFillGameProps>
     };
   }, [currentSentence, shuffledSentences]);
 
-  // Play audio with selected speed
+  // Play audio with selected speed without mutating global settings
   const playAudio = useCallback(
     (customSpeed?: number) => {
       if (!currentSentence) return;
       const speed = customSpeed ?? selectedSpeed;
-      speechService.updateSettings({ speed });
-      speechService.speakOnce(currentSentence.text);
+      speechService.speakOnce(currentSentence.text, 'en-US', speed);
     },
     [currentSentence, selectedSpeed]
   );
 
-  // Auto-play audio when sentence changes
+  // Auto-play audio when sentence changes (do not reset question state on speed toggle)
   useEffect(() => {
     setSelectedChoice(null);
     setStatus('playing');
     setShowMeaningHint(false);
-    playAudio(selectedSpeed);
-  }, [currentIndex, playAudio, selectedSpeed]);
+    if (currentSentence) {
+      speechService.speakOnce(currentSentence.text, 'en-US', selectedSpeed);
+    }
+  }, [currentIndex, currentSentence]);
 
   const handleSelectChoice = (choice: string) => {
     if (status === 'correct') return;

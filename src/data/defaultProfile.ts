@@ -39,8 +39,11 @@ export const DEFAULT_USER_PROFILE: UserProfile = {
   grade: 'high',
   gradeLabel: '고등/수능 (1,800단어)',
   dailyWordGoal: 20,
+  dailyPronunciationGoal: 3,
   motto: '매일 꾸준히 20단어로 영단어 완전 정복!',
   createdAt: new Date().toISOString(),
   isLocked: true,
   nagCharacter: 'mom',
+  nagTone: 'tsundere',
+  nagLanguage: 'bilingual',
 };

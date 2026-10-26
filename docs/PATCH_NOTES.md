@@ -2,7 +2,41 @@
 
 ---
 
-## 🚀 Version 3.57.0 (최신 업데이트)
+## 🚀 Version 3.59.0 (최신 업데이트)
+
+### 🎙️ 마이크 녹음 및 음성 인식(STT) 오류 전면 해결
+- **🤖 AI 롤플레이 음성 인식(STT) 먹통 오류 수정**:
+  - `AIRoleplayView`의 `toggleSpeechRecognition`에서 React 상태 클로저 격리로 인해 `onend` 이벤트 발생 시 인식된 음성 텍스트가 항상 빈 문자열(`""`)로 남아 AI 대화창에 사용자 음성이 전송되지 않던 치명적 결함을 `liveTranscriptRef` 및 `handleSendMessageRef` 동기화 아키텍처로 완전 해결했습니다.
+- **🎵 리듬 단어 게임 음성 히트 모드 연속 인식 안정화**:
+  - `RhythmWordGame`의 `useEffect` 의존성 배열에 프레임 단위로 재생성되던 `handleLaneHit`가 포함되어 있어, 게임 루프 도중 매 프레임마다 `reco.abort()`가 호출되어 마이크 스트림이 강제 종료되거나 브라우저 권한 에러를 일으키던 문제를 `handleLaneHitRef` 래퍼로 분리하여 끊김 없는 실시간 발화 인식을 완성했습니다.
+- **🎴 무작위 발음 퀴즈 표적 텍스트 클로저 결함 해결**:
+  - `PronunciationModal`에서 [무작위 발음 퀴즈]로 신규 어휘가 출제되었을 때, 음성 평가 엔진(`handleEvaluationCompleted`)이 이전 표적 텍스트를 참조하여 정답을 발음해도 0점으로 오판하던 문제를 `currentTargetTextRef` 및 `handleEvaluationCompletedRef`로 동기화하여 정확한 점수 산정과 녹음 저장이 이루어지도록 개선했습니다.
+
+### 🔊 오디오 재생(TTS/AudioContext) 정밀 최적화
+- **⚡ 문장 빈칸 채우기 배속 변경 시 문제 초기화 방지**:
+  - `SentenceListeningFillGame`에서 0.8x/1.2x 등 배속 버튼을 클릭할 때 전역 `speechService.settings`가 영구 변경되고 기존 문제 풀이 상태가 초기화(`reset`)되던 문제를 개선하여, 전역 설정 오염 없이 독립 배속으로 즉시 다시 들을 수 있도록 `speechService.speakOnce(text, lang, customRate)` 파이프라인을 구축했습니다.
+- **📖 사전 검색 어휘 단일 재생 정밀화**:
+  - `CommercialDictionarySearch`에서 발음 듣기 클릭 시 전역 무한 루프 설정(`loopMode`)의 영향을 받아 단어가 무한 반복되던 문제를 단일 발화 모드(`speakOnce`)로 전환하여 깔끔한 원터치 발음 청취를 지원합니다.
+
+---
+
+## 🚀 Version 3.58.0
+
+### 🌐 엄마·아빠 잔소리 영어/한글 이중 지원 (Bilingual Parent Nagging) & 실시간 음성 자막 HUD
+- **🇺🇸 원어민 영어 잔소리 대본 전면 구축**:
+  - 츤데레(Tsundere), 엄격(Strict), 다정(Affectionate) 3가지 톤앤매너와 30분 연속 열공 5분 휴식, 학습 시작, 목표 달성, 학습 지연 등 상황별로 엄마와 아빠의 개성을 살린 고품질 원어민 영어 잔소리 대본(`toneDataMapEn`, `fallbackSituationsMapEn`)을 완성했습니다.
+- **🔄 3단 언어 모드 셀렉터 (🇰🇷 한글 / 🇺🇸 English / 🌐 한+영 듀얼)**:
+  - 잔소리 팝업 상단 툴바 및 하단 HUD에 즉각적인 언어 전환 버튼을 배치하여 언제든지 원하는 언어로 잔소리를 들을 수 있습니다.
+- **🗣️ 한+영 듀얼 모드 순차 음성 재생 파이프라인**:
+  - `한+영 듀얼` 모드 선택 시 원어민 영어 음성(`en-US`)이 먼저 생생하게 재생된 뒤 350ms의 자연스러운 간격을 두고 한국어 음성(`ko-KR`)이 연속으로 발화되어 원어민 표현 청취 및 직독직해 학습 효과를 동시에 누릴 수 있습니다.
+- **💬 실시간 이중 자막 및 발화 상태 네온 하이라이트**:
+  - 전면 HUD 박스에 영어 대본과 한국어 번역문을 동시 배치하고, 현재 발화 중인 언어(🇺🇸 ENGLISH / 🇰🇷 한국어)에 실시간 네온 링과 엠버 하이라이트를 연출하여 직관성을 극대화했습니다.
+- **⚙️ 프로필 및 기기 설정 영속화**:
+  - `UserProfileModal` 및 기기 스토리지(`wordloop_nag_lang_pref`)에 언어 설정을 연동하여 재실행 시에도 사용자가 선택한 언어 모드가 유지됩니다.
+
+---
+
+## 🚀 Version 3.57.0
 
 ### 🎴 PronunciationModal 무작위 발음 퀴즈 3D 플립 카드 애니메이션
 - **🔄 3D 플립 카드(3D Card Flip) 트랜지션 애니메이션**:

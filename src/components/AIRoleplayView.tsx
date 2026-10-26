@@ -84,7 +84,9 @@ export const AIRoleplayView: React.FC<AIRoleplayViewProps> = ({
   // Voice Speech Recognition State
   const [isRecording, setIsRecording] = useState<boolean>(false);
   const [liveTranscript, setLiveTranscript] = useState<string>('');
+  const liveTranscriptRef = useRef<string>('');
   const recognitionRef = useRef<any>(null);
+  const handleSendMessageRef = useRef<(textToSend?: string) => Promise<void>>(() => Promise.resolve());
 
   // Recommended Hints State
   const [currentHints, setCurrentHints] = useState<Array<{ en: string; ko: string }>>([]);
@@ -214,6 +216,7 @@ export const AIRoleplayView: React.FC<AIRoleplayViewProps> = ({
       recognition.onstart = () => {
         setIsRecording(true);
         setLiveTranscript('');
+        liveTranscriptRef.current = '';
       };
 
       recognition.onresult = (event: any) => {
@@ -221,6 +224,7 @@ export const AIRoleplayView: React.FC<AIRoleplayViewProps> = ({
         for (let i = 0; i < event.results.length; i++) {
           transcript += event.results[i][0].transcript;
         }
+        liveTranscriptRef.current = transcript;
         setLiveTranscript(transcript);
       };
 
@@ -231,8 +235,10 @@ export const AIRoleplayView: React.FC<AIRoleplayViewProps> = ({
 
       recognition.onend = () => {
         setIsRecording(false);
-        if (liveTranscript.trim()) {
-          handleSendMessage(liveTranscript.trim());
+        const textToSubmit = liveTranscriptRef.current.trim();
+        if (textToSubmit) {
+          handleSendMessageRef.current(textToSubmit);
+          liveTranscriptRef.current = '';
           setLiveTranscript('');
         }
       };
@@ -252,6 +258,7 @@ export const AIRoleplayView: React.FC<AIRoleplayViewProps> = ({
     speechService.stop();
     setInputText('');
     setLiveTranscript('');
+    liveTranscriptRef.current = '';
 
     const userMsgId = `msg-user-${Date.now()}`;
     const userMsg: RoleplayMessage = {
@@ -333,6 +340,7 @@ export const AIRoleplayView: React.FC<AIRoleplayViewProps> = ({
       setIsAiThinking(false);
     }
   };
+  handleSendMessageRef.current = handleSendMessage;
 
   // Generate End-of-Dialogue Report
   const handleFinishAndGenerateReport = async () => {
