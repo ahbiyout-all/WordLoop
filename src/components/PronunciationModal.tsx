@@ -4,6 +4,8 @@ import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip, ReferenceL
 import { speechService } from '../services/speechService';
 import { PronunciationResult, VocabItem, SentenceItem } from '../types';
 import { AudioWaveform } from './AudioWaveform';
+import { PronunciationDeficiencyHighlighter } from './PronunciationDeficiencyHighlighter';
+import { ShadowingQuizView } from './ShadowingQuizView';
 import { recordPronunciationDone } from '../services/habitQuestService';
 import {
   getVoiceHistoryForTarget,
@@ -453,7 +455,7 @@ export const PronunciationModal: React.FC<PronunciationModalProps> = ({
   onClose,
   onSuccessEvaluation,
 }) => {
-  const [activeTab, setActiveTab] = useState<'practice' | 'recordings' | 'history'>('practice');
+  const [activeTab, setActiveTab] = useState<'practice' | 'shadowingQuiz' | 'recordings' | 'history'>('practice');
   const [pronunciationHistory, setPronunciationHistory] = useState<PronunciationHistoryItem[]>(() => loadPronunciationHistory());
   const [pronGoal, setPronGoal] = useState(() => getPronunciationGoalFromStorage());
 
@@ -1469,7 +1471,18 @@ export const PronunciationModal: React.FC<PronunciationModalProps> = ({
               }`}
             >
               <Mic className="w-3.5 h-3.5" />
-              <span>실시간 발음 측정</span>
+              <span>실시간 측정</span>
+            </button>
+            <button
+              onClick={() => setActiveTab('shadowingQuiz')}
+              className={`flex-1 py-2 text-xs font-bold border-b-2 flex items-center justify-center gap-1.5 transition-all ${
+                activeTab === 'shadowingQuiz'
+                  ? 'border-indigo-600 text-indigo-600 dark:border-indigo-400 dark:text-indigo-400'
+                  : 'border-transparent text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
+              }`}
+            >
+              <Sparkles className="w-3.5 h-3.5 text-amber-500 fill-amber-500" />
+              <span>⚡ 쉐도잉 퀴즈</span>
             </button>
             <button
               onClick={() => setActiveTab('recordings')}
@@ -1883,6 +1896,33 @@ export const PronunciationModal: React.FC<PronunciationModalProps> = ({
                     {result.feedback}
                   </p>
                 </div>
+              )}
+
+              {/* 80% 미만 부족 발음 구간 시각화 & 집중 교정 컴포넌트 */}
+              {result && result.score < 80 && (
+                <PronunciationDeficiencyHighlighter
+                  score={result.score}
+                  targetText={currentTargetText}
+                  transcript={transcript || ''}
+                  syllableDiagnostics={syllableDiagnostics}
+                  wordMatches={result.wordMatches}
+                  userAudioUrl={trimmedAudioUrl || latestRecordedAudioUrl}
+                  userWaveformData={
+                    alignedUserSamples.length > 0
+                      ? alignedUserSamples
+                      : (userVoiceSegment?.normalizedWaveform || restoredWaveformData)
+                  }
+                  referenceWaveformData={referenceProfile.samples}
+                  totalDurationSec={
+                    userVoiceSegment?.activeDurationSec ||
+                    userVoiceSegment?.durationSec ||
+                    referenceProfile.estimatedDurationSec ||
+                    1.5
+                  }
+                  playingSyllableId={playingSyllableId}
+                  onPlaySyllableSegment={handlePlaySyllableSegment}
+                  onStartMicRecording={handleStartListening}
+                />
               )}
 
               {/* Realtime & Recorded Audio Waveform Visualizer */}
@@ -2451,6 +2491,19 @@ export const PronunciationModal: React.FC<PronunciationModalProps> = ({
                 </div>
               )}
             </>
+          ) : activeTab === 'shadowingQuiz' ? (
+            <ShadowingQuizView
+              initialTargetText={currentTargetText}
+              onClose={onClose}
+              onSuccessEvaluation={onSuccessEvaluation}
+              onSwitchToPracticeTab={(text) => {
+                if (text) {
+                  setCurrentTargetText(text);
+                  currentTargetTextRef.current = text;
+                }
+                setActiveTab('practice');
+              }}
+            />
           ) : activeTab === 'recordings' ? (
             /* Recent Recordings Tab View */
             <div className="space-y-3 min-h-[220px] flex flex-col justify-between">
@@ -2689,6 +2742,19 @@ export const PronunciationModal: React.FC<PronunciationModalProps> = ({
               <Sparkles className="w-3.5 h-3.5 fill-current shrink-0" />
               <span>⭐ 무작위 발음 퀴즈</span>
             </button>
+
+            {/* Shadowing Quiz Mode Quick Button */}
+            {activeTab !== 'shadowingQuiz' && (
+              <button
+                type="button"
+                onClick={() => setActiveTab('shadowingQuiz')}
+                className="px-3 py-2 rounded-xl bg-gradient-to-r from-indigo-600 to-indigo-700 hover:from-indigo-500 hover:to-indigo-600 text-white font-black text-xs shadow-md transition-all active:scale-95 flex items-center gap-1.5 cursor-pointer"
+                title="원어민 발음을 듣고 즉시 따라 말하는 실시간 쉐도잉 퀴즈 모드로 전환합니다"
+              >
+                <Sparkles className="w-3.5 h-3.5 fill-current text-amber-400 shrink-0" />
+                <span>⚡ 쉐도잉 퀴즈 모드</span>
+              </button>
+            )}
           </div>
 
           <button
