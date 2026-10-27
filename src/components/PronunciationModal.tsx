@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { X, Mic, MicOff, Volume2, RotateCcw, CheckCircle2, AlertCircle, Award, History, Play, Pause, Trash2, Activity, Sparkles, Zap, BarChart3, TrendingUp } from 'lucide-react';
+import { X, Mic, MicOff, Volume2, RotateCcw, CheckCircle2, AlertCircle, Award, History, Play, Pause, Trash2, Activity, Sparkles, Zap, BarChart3, TrendingUp, HelpCircle, Laptop, Smartphone, Settings, ShieldAlert, RefreshCw, Check } from 'lucide-react';
 import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip, ReferenceLine } from 'recharts';
 import { speechService } from '../services/speechService';
 import { PronunciationResult, VocabItem, SentenceItem } from '../types';
@@ -485,6 +485,8 @@ export const PronunciationModal: React.FC<PronunciationModalProps> = ({
       currentTargetTextRef.current = targetText;
       setRandomQuizToast(null);
       setIsFlipping(false);
+      setMicErrorNotice(null);
+      setShowMicGuideModal(false);
     }
   }, [isOpen, targetText]);
   const [isListening, setIsListening] = useState(false);
@@ -499,6 +501,15 @@ export const PronunciationModal: React.FC<PronunciationModalProps> = ({
   const [isPlayingLatestAudio, setIsPlayingLatestAudio] = useState(false);
   const [isPlayingTargetAudio, setIsPlayingTargetAudio] = useState(false);
   const [autoStopReason, setAutoStopReason] = useState<SilenceStopReason | null>(null);
+
+  // Microphone permission & device troubleshooting guide states
+  const [micErrorNotice, setMicErrorNotice] = useState<{
+    type: 'denied' | 'not_found' | 'general';
+    title: string;
+    desc: string;
+  } | null>(null);
+  const [showMicGuideModal, setShowMicGuideModal] = useState<boolean>(false);
+  const [micGuideTab, setMicGuideTab] = useState<'desktop' | 'mobile' | 'os'>('desktop');
 
   // Recent 3 audio snippets state
   const [recentRecordings, setRecentRecordings] = useState<AudioSnippet[]>([]);
@@ -923,6 +934,19 @@ export const PronunciationModal: React.FC<PronunciationModalProps> = ({
 
         reco.onerror = (event: any) => {
           console.warn('SpeechRecognition error:', event.error);
+          if (event.error === 'not-allowed' || event.error === 'service-not-allowed') {
+            setMicErrorNotice({
+              type: 'denied',
+              title: '마이크 사용 권한이 차단되었습니다.',
+              desc: '음성 인식을 시작하려면 브라우저 마이크 접근 권한을 허용해 주세요.',
+            });
+          } else if (event.error === 'audio-capture') {
+            setMicErrorNotice({
+              type: 'not_found',
+              title: '마이크 오디오를 입력받을 수 없습니다.',
+              desc: '마이크가 올바르게 연결되어 있는지 또는 다른 앱에서 사용 중인지 확인해 주세요.',
+            });
+          }
           stopListeningInternal();
         };
 
@@ -970,6 +994,7 @@ export const PronunciationModal: React.FC<PronunciationModalProps> = ({
    */
   const handleStartListening = async () => {
     handleStartListeningRef.current = handleStartListening;
+    setMicErrorNotice(null);
 
     // 1. Immediately cancel all AI synthesis, previous recording session & active audio playback
     speechService.stop();
@@ -1146,8 +1171,28 @@ export const PronunciationModal: React.FC<PronunciationModalProps> = ({
 
         mediaRecorderRef.current = mediaRecorder;
         mediaRecorder.start();
-      } catch (err) {
+      } catch (err: any) {
         console.warn('Microphone MediaRecorder error:', err);
+        let errType: 'denied' | 'not_found' | 'general' = 'general';
+        let title = '마이크 접근에 실패했습니다.';
+        let desc = '마이크 연결 상태 또는 브라우저 권한 설정을 확인해 주세요.';
+
+        if (err?.name === 'NotAllowedError' || err?.name === 'PermissionDeniedError') {
+          errType = 'denied';
+          title = '마이크 사용 권한이 거부되었습니다.';
+          desc = '브라우저 주소창 설정 또는 기기 권한 설정에서 마이크 사용을 허용해야 발음 측정이 가능합니다.';
+        } else if (err?.name === 'NotFoundError' || err?.name === 'DevicesNotFoundError') {
+          errType = 'not_found';
+          title = '연결된 마이크 장치를 찾을 수 없습니다.';
+          desc = '마이크가 바르게 연결되어 있는지 또는 하드웨어 연결을 확인해 주세요.';
+        } else if (err?.name === 'NotReadableError' || err?.name === 'TrackStartError') {
+          errType = 'not_found';
+          title = '마이크 오디오 장치를 시작할 수 없습니다.';
+          desc = '마이크가 다른 프로그램(화상회의, 통화 등)에서 이미 사용 중인지 확인해 주세요.';
+        }
+
+        setMicErrorNotice({ type: errType, title, desc });
+        setIsListening(false);
       }
     }
 
@@ -1453,6 +1498,44 @@ export const PronunciationModal: React.FC<PronunciationModalProps> = ({
 
         {/* Scrollable Main Content Area */}
         <div className="flex-1 min-h-0 overflow-y-auto px-3.5 py-3 sm:px-6 sm:py-4 space-y-3">
+          {/* Microphone Permission / Device Error Banner */}
+          {micErrorNotice && (
+            <div className="p-3 sm:p-3.5 rounded-2xl bg-amber-500/10 dark:bg-amber-950/50 border border-amber-500/30 text-amber-900 dark:text-amber-200 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2.5 shadow-xs animate-in fade-in slide-in-from-top-1">
+              <div className="flex items-start gap-2.5 min-w-0">
+                <span className="p-1.5 rounded-xl bg-amber-500/20 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5">
+                  <ShieldAlert className="w-4 h-4" />
+                </span>
+                <div className="min-w-0">
+                  <h4 className="font-extrabold text-amber-950 dark:text-amber-100 text-xs sm:text-sm flex items-center gap-1.5">
+                    <span>{micErrorNotice.title}</span>
+                  </h4>
+                  <p className="text-[11px] sm:text-xs text-amber-800 dark:text-amber-300/90 mt-0.5 leading-relaxed">
+                    {micErrorNotice.desc}
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2 shrink-0 self-end sm:self-center w-full sm:w-auto pt-1 sm:pt-0 border-t sm:border-t-0 border-amber-500/20">
+                <button
+                  type="button"
+                  onClick={() => setShowMicGuideModal(true)}
+                  className="flex-1 sm:flex-initial px-3 py-1.5 rounded-xl bg-amber-600 hover:bg-amber-500 text-slate-950 font-black text-xs flex items-center justify-center gap-1.5 shadow-2xs transition-all cursor-pointer active:scale-95"
+                >
+                  <HelpCircle className="w-3.5 h-3.5" />
+                  <span>마이크 설정 해결 방법</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setMicErrorNotice(null)}
+                  className="p-1.5 rounded-xl hover:bg-amber-500/20 text-amber-700 dark:text-amber-300 transition-colors"
+                  title="닫기"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+          )}
+
           {activeTab === 'practice' ? (
             <>
               {/* Daily Pronunciation Goal Live Banner */}
@@ -2615,6 +2698,215 @@ export const PronunciationModal: React.FC<PronunciationModalProps> = ({
             닫기
           </button>
         </div>
+
+        {/* Microphone Troubleshooting Guide Sub-Modal */}
+        {showMicGuideModal && (
+          <div className="fixed inset-0 z-[70] bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-3 sm:p-4 animate-in fade-in duration-200">
+            <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl max-w-lg w-full max-h-[85dvh] flex flex-col shadow-2xl overflow-hidden relative animate-in zoom-in-95 duration-200">
+              
+              {/* Modal Header */}
+              <div className="shrink-0 px-4 py-3.5 sm:px-6 sm:py-4 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between bg-slate-50/80 dark:bg-slate-900/90">
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <span className="p-2 rounded-2xl bg-amber-500/10 text-amber-600 dark:text-amber-400 shrink-0">
+                    <HelpCircle className="w-5 h-5" />
+                  </span>
+                  <div className="min-w-0">
+                    <h3 className="text-sm sm:text-base font-extrabold text-slate-900 dark:text-white truncate">
+                      마이크 설정 해결 방법 가이드
+                    </h3>
+                    <p className="text-[11px] sm:text-xs text-slate-500 dark:text-slate-400 truncate">
+                      권한 차단 해제 및 오디오 장치 연결 문제 해결 가이드
+                    </p>
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => setShowMicGuideModal(false)}
+                  className="p-1.5 rounded-full hover:bg-slate-200 dark:hover:bg-slate-800 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 shrink-0"
+                  title="닫기"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              {/* Tab Selector */}
+              <div className="shrink-0 px-4 pt-2.5 sm:px-6 bg-white dark:bg-slate-900 border-b border-slate-100 dark:border-slate-800 flex items-center gap-1">
+                <button
+                  type="button"
+                  onClick={() => setMicGuideTab('desktop')}
+                  className={`flex-1 py-2 text-xs font-bold border-b-2 flex items-center justify-center gap-1.5 transition-all ${
+                    micGuideTab === 'desktop'
+                      ? 'border-indigo-600 text-indigo-600 dark:border-indigo-400 dark:text-indigo-400'
+                      : 'border-transparent text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
+                  }`}
+                >
+                  <Laptop className="w-3.5 h-3.5" />
+                  <span>데스크톱 PC</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setMicGuideTab('mobile')}
+                  className={`flex-1 py-2 text-xs font-bold border-b-2 flex items-center justify-center gap-1.5 transition-all ${
+                    micGuideTab === 'mobile'
+                      ? 'border-indigo-600 text-indigo-600 dark:border-indigo-400 dark:text-indigo-400'
+                      : 'border-transparent text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
+                  }`}
+                >
+                  <Smartphone className="w-3.5 h-3.5" />
+                  <span>모바일 기기</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setMicGuideTab('os')}
+                  className={`flex-1 py-2 text-xs font-bold border-b-2 flex items-center justify-center gap-1.5 transition-all ${
+                    micGuideTab === 'os'
+                      ? 'border-indigo-600 text-indigo-600 dark:border-indigo-400 dark:text-indigo-400'
+                      : 'border-transparent text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
+                  }`}
+                >
+                  <Settings className="w-3.5 h-3.5" />
+                  <span>OS 및 연결</span>
+                </button>
+              </div>
+
+              {/* Scrollable Guide Content */}
+              <div className="flex-1 min-h-0 overflow-y-auto p-4 sm:p-6 space-y-4 text-xs">
+                {micGuideTab === 'desktop' && (
+                  <div className="space-y-3.5">
+                    <div className="p-3 rounded-2xl bg-indigo-50/80 dark:bg-indigo-950/40 border border-indigo-100 dark:border-indigo-900/50 flex items-start gap-3">
+                      <span className="w-6 h-6 rounded-full bg-indigo-600 text-white font-black text-xs flex items-center justify-center shrink-0 mt-0.5">
+                        1
+                      </span>
+                      <div>
+                        <h4 className="font-bold text-slate-900 dark:text-white text-xs sm:text-sm">
+                          주소창 좌측 설정 아이콘(🔒 / 🎛️) 클릭
+                        </h4>
+                        <p className="text-slate-600 dark:text-slate-300 mt-1 leading-relaxed">
+                          Chrome, Edge, Brave 등 웹 브라우저 상단 **주소 표시줄 맨 좌측의 자물쇠(🔒) 또는 설정(🎛️)** 아이콘을 클릭합니다.
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="p-3 rounded-2xl bg-indigo-50/80 dark:bg-indigo-950/40 border border-indigo-100 dark:border-indigo-900/50 flex items-start gap-3">
+                      <span className="w-6 h-6 rounded-full bg-indigo-600 text-white font-black text-xs flex items-center justify-center shrink-0 mt-0.5">
+                        2
+                      </span>
+                      <div>
+                        <h4 className="font-bold text-slate-900 dark:text-white text-xs sm:text-sm">
+                          마이크 접근 권한을 '허용(Allow)'으로 변경
+                        </h4>
+                        <p className="text-slate-600 dark:text-slate-300 mt-1 leading-relaxed">
+                          표시되는 팝업 메뉴에서 **마이크(Microphone)** 항목을 찾아 **'허용(Allow)'** 토글 버튼을 선택해 주세요.
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="p-3 rounded-2xl bg-emerald-50/80 dark:bg-emerald-950/40 border border-emerald-100 dark:border-emerald-900/50 flex items-start gap-3">
+                      <span className="w-6 h-6 rounded-full bg-emerald-600 text-white font-black text-xs flex items-center justify-center shrink-0 mt-0.5">
+                        3
+                      </span>
+                      <div>
+                        <h4 className="font-bold text-slate-900 dark:text-white text-xs sm:text-sm">
+                          페이지 새로고침 (F5 또는 Cmd+R)
+                        </h4>
+                        <p className="text-slate-600 dark:text-slate-300 mt-1 leading-relaxed">
+                          권한 변경 적용을 위해 키보드의 **F5** 키 또는 새로고침 버튼을 누른 후 다시 '실시간 발음 측정'을 시도해 보세요.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {micGuideTab === 'mobile' && (
+                  <div className="space-y-4">
+                    {/* iOS Safari Guide */}
+                    <div className="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/60 space-y-2">
+                      <h4 className="font-extrabold text-slate-900 dark:text-white flex items-center gap-1.5 text-xs sm:text-sm">
+                        <span>아이폰/아이패드 (iOS Safari)</span>
+                      </h4>
+                      <ol className="list-decimal list-inside space-y-1.5 text-slate-600 dark:text-slate-300 leading-relaxed pl-1">
+                        <li>아이폰/아이패드 **기기 [설정]** 앱을 엽니다.</li>
+                        <li>스크롤을 내려 **[Safari]** 메뉴를 선택합니다.</li>
+                        <li>웹사이트 설정 항목의 **[마이크]**를 누른 후 **'허용'**으로 변경합니다.</li>
+                        <li>Safari 앱으로 돌아와 화면을 새로고침합니다.</li>
+                      </ol>
+                    </div>
+
+                    {/* Android Chrome / Samsung Internet Guide */}
+                    <div className="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/60 space-y-2">
+                      <h4 className="font-extrabold text-slate-900 dark:text-white flex items-center gap-1.5 text-xs sm:text-sm">
+                        <span>안드로이드 (Chrome / 삼성 인터넷)</span>
+                      </h4>
+                      <ol className="list-decimal list-inside space-y-1.5 text-slate-600 dark:text-slate-300 leading-relaxed pl-1">
+                        <li>브라우저 상단 주소창 좌측 **자물쇠(🔒)** 아이콘을 터치합니다.</li>
+                        <li>**[권한]** 또는 **[사이트 설정]** 메뉴를 선택합니다.</li>
+                        <li>**[마이크]** 접근 권한을 **'허용'**으로 변경합니다.</li>
+                        <li>페이지를 새로고침 후 발음 연습을 다시 시작하세요.</li>
+                      </ol>
+                    </div>
+                  </div>
+                )}
+
+                {micGuideTab === 'os' && (
+                  <div className="space-y-3.5">
+                    <div className="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/60 space-y-1.5">
+                      <h4 className="font-extrabold text-slate-900 dark:text-white text-xs sm:text-sm">
+                        🖥️ Windows 개인정보 권한 확인
+                      </h4>
+                      <p className="text-slate-600 dark:text-slate-300 leading-relaxed">
+                        `시작 &gt; 설정 &gt; 개인 정보 및 보안 &gt; 마이크`에서 **'앱에서 마이크에 액세스하도록 허용'** 옵션이 켜져 있는지 확인해 주세요.
+                      </p>
+                    </div>
+
+                    <div className="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/60 space-y-1.5">
+                      <h4 className="font-extrabold text-slate-900 dark:text-white text-xs sm:text-sm">
+                        🍎 macOS 개인정보 보호 설정
+                      </h4>
+                      <p className="text-slate-600 dark:text-slate-300 leading-relaxed">
+                        `시스템 설정 &gt; 개인정보 보호 및 보안 &gt; 마이크`로 이동하여 사용 중인 브라우저(Chrome, Safari 등)가 허용 목록에 체크되어 있는지 확인하세요.
+                      </p>
+                    </div>
+
+                    <div className="p-3.5 rounded-2xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800/60 space-y-1.5 text-amber-900 dark:text-amber-200">
+                      <h4 className="font-extrabold text-xs sm:text-sm">
+                        🎧 하드웨어 및 다른 앱 점유 체크
+                      </h4>
+                      <p className="text-[11px] sm:text-xs leading-relaxed">
+                        외장 마이크나 3.5mm/USB 헤드셋 케이블이 단단히 꽂혀 있는지, 또는 Zoom, Discord, 통화 앱 등에서 마이크를 이미 독점 사용 중인지 점검하세요.
+                      </p>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Modal Footer Actions */}
+              <div className="shrink-0 px-4 py-3 sm:px-6 border-t border-slate-100 dark:border-slate-800 bg-slate-50/80 dark:bg-slate-900/90 flex items-center justify-between gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowMicGuideModal(false);
+                    setMicErrorNotice(null);
+                    handleStartListening();
+                  }}
+                  className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-extrabold text-xs flex items-center gap-1.5 shadow-sm transition-all cursor-pointer active:scale-95"
+                >
+                  <RefreshCw className="w-3.5 h-3.5" />
+                  <span>마이크 권한 재시도</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setShowMicGuideModal(false)}
+                  className="px-4 py-2 rounded-xl bg-slate-200/80 dark:bg-slate-800 hover:bg-slate-300 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 font-bold text-xs transition-colors"
+                >
+                  닫기
+                </button>
+              </div>
+
+            </div>
+          </div>
+        )}
 
       </div>
     </div>

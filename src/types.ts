@@ -70,6 +70,7 @@ export interface AudioSettings {
   loopMode: boolean;   // Master continuous loop toggle
   maxRepeatCount: number; // Specified repeat count limit (0 = infinite/무한반복, 1, 2, 3, 5, 10)
   readKorean: boolean; // Option to read Korean meaning after English text
+  breakChimeVolume?: number; // 5-minute break notification chime volume (0.0 to 1.0)
 }
 
 export interface WordMatch {

@@ -30,14 +30,15 @@ import {
   Gauge,
   Clock,
   Music,
-  Globe
+  Globe,
+  Bell
 } from 'lucide-react';
 import { VocabItem, SentenceItem, Category, UserProfile, AudioSettings } from '../types';
 import { DEFAULT_CATEGORIES } from '../data/defaultVocab';
 import { VocabCard } from './VocabCard';
 import { SentenceCard } from './SentenceCard';
 import { CurriculumExplorerModal } from './CurriculumExplorerModal';
-import { speechService } from '../services/speechService';
+import { speechService, playBreakStartChime, playBreakEndChime } from '../services/speechService';
 import { formatEduSentenceMeaning } from '../utils/meaningUtils';
 import {
   StartupRandomConfig,
@@ -189,6 +190,10 @@ export const VocabList: React.FC<VocabListProps> = React.memo(({
 
   const handleReadKoreanToggle = (readKorean: boolean) => {
     speechService.updateSettings({ readKorean });
+  };
+
+  const handleBreakChimeVolumeChange = (breakChimeVolume: number) => {
+    speechService.updateSettings({ breakChimeVolume });
   };
 
   const handleVoiceChange = (voiceURI: string) => {
@@ -1595,6 +1600,60 @@ export const VocabList: React.FC<VocabListProps> = React.memo(({
                           </button>
                         ))}
                       </div>
+                    </div>
+                  </div>
+
+                  {/* 5분 힐링 휴식 알림음 볼륨 설정 & 미리듣기 */}
+                  <div className="p-3.5 sm:p-4 rounded-2xl bg-gradient-to-r from-emerald-500/10 via-teal-500/10 to-indigo-500/10 border border-emerald-500/30 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <label className="text-xs font-black text-slate-900 dark:text-white flex items-center gap-1.5">
+                        <Bell className="w-4 h-4 text-emerald-500 shrink-0" />
+                        <span>☕ 5분 힐링 휴식 알림음 볼륨</span>
+                      </label>
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-xs font-black font-mono px-2 py-0.5 rounded-lg bg-emerald-500 text-slate-950 shadow-xs">
+                          {Math.round((audioSettings.breakChimeVolume ?? 0.7) * 100)}%
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Slider */}
+                    <div className="space-y-1">
+                      <input
+                        type="range"
+                        min="0"
+                        max="1"
+                        step="0.05"
+                        value={audioSettings.breakChimeVolume ?? 0.7}
+                        onChange={(e) => handleBreakChimeVolumeChange(parseFloat(e.target.value))}
+                        className="w-full h-2 bg-slate-200 dark:bg-slate-700 rounded-lg appearance-none cursor-pointer accent-emerald-500"
+                      />
+                      <div className="flex justify-between text-[10px] text-slate-400 font-bold px-0.5">
+                        <span>0% (무음)</span>
+                        <span>30% (소프트)</span>
+                        <span>70% (추천)</span>
+                        <span>100% (최대)</span>
+                      </div>
+                    </div>
+
+                    {/* Test Chime Buttons */}
+                    <div className="grid grid-cols-2 gap-2 pt-0.5">
+                      <button
+                        type="button"
+                        onClick={() => playBreakStartChime(audioSettings.breakChimeVolume ?? 0.7)}
+                        className="py-2 px-2.5 rounded-xl bg-white dark:bg-slate-900 hover:bg-emerald-50 dark:hover:bg-slate-800 border border-emerald-500/40 text-emerald-600 dark:text-emerald-400 font-black text-[11px] flex items-center justify-center gap-1.5 shadow-xs transition-all active:scale-95 cursor-pointer"
+                      >
+                        <Volume2 className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
+                        <span>▶ 시작 알림음 들어보기</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => playBreakEndChime(audioSettings.breakChimeVolume ?? 0.7)}
+                        className="py-2 px-2.5 rounded-xl bg-white dark:bg-slate-900 hover:bg-teal-50 dark:hover:bg-slate-800 border border-teal-500/40 text-teal-600 dark:text-teal-400 font-black text-[11px] flex items-center justify-center gap-1.5 shadow-xs transition-all active:scale-95 cursor-pointer"
+                      >
+                        <Volume2 className="w-3.5 h-3.5 text-teal-500 shrink-0" />
+                        <span>▶ 종료 알림음 들어보기</span>
+                      </button>
                     </div>
                   </div>
 

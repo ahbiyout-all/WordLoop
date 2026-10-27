@@ -9,13 +9,48 @@ export interface PatchNoteVersion {
   }[];
 }
 
-export const APP_VERSION = '3.59.0';
+export const APP_VERSION = '3.61.0';
 
 export const PATCH_NOTES_DATA: PatchNoteVersion[] = [
   {
-    version: '3.59.0',
+    version: '3.61.0',
     date: '2026-10',
     isLatest: true,
+    tagline: '발음 실시간 측정(PronunciationModal) 마이크 권한 거부 및 장치 감지 오류 친절 가이드 & 설정 해결 도움말 팝업 탑재',
+    highlights: [
+      {
+        category: '🎙️ 마이크 권한 및 오디오 장치 설정 해결 가이드 모달 탑재',
+        items: [
+          '⚠️ [실시간 마이크 권한/오류 배너 경고]: PronunciationModal에서 마이크 권한이 차단되거나(`NotAllowedError`/`not-allowed`), 연결된 오디오 장치를 찾을 수 없을 때(`NotFoundError`/`audio-capture`), 원인별 경고 배너 및 `[❓ 마이크 설정 해결 방법]` 직관적 안내 버튼이 즉시 상단에 표시됩니다.',
+          '💻 [데스크톱 브라우저 해결 가이드]: Chrome, Edge, Brave, Safari 등 PC 브라우저 주소창 좌측 자물쇠/설정(🔒/🎛️) 아이콘을 통해 마이크 권한을 "허용(Allow)"으로 변경하고 페이지를 새로고침(F5)하는 단계를 단계별 카드로 제공합니다.',
+          '📱 [모바일 기기 OS별 접근 가이드]: 아이폰/아이패드(iOS Safari 설정 > Safari > 마이크 허용) 및 안드로이드(Chrome / 삼성 인터넷 주소창 자물쇠 > 사이트 설정 > 마이크 허용) 환경에 맞춘 가이드를 탭으로 제공합니다.',
+          '⚙️ [OS 시스템 개인정보 & 하드웨어 연결 체크]: Windows 및 macOS 개인정보 보호 설정에서 브라우저 마이크 액세스 토글 확인 및 3.5mm/USB 헤드셋 단자 연결, 타 앱(Zoom, Discord) 마이크 점유 상태 점검 방법을 세심하게 안내합니다.',
+          '🔄 [원터치 마이크 권한 재시도 버튼]: 해결 도움말 모달 하단에 `[마이크 권한 재시도]` 버튼을 탑재하여 설정 변경 후 팝업을 새로 열지 않고도 바로 마이크 권한을 재요청 및 측정 재개가 가능합니다.',
+        ],
+      },
+    ],
+  },
+  {
+    version: '3.60.0',
+    date: '2026-10',
+    isLatest: false,
+    tagline: '5분간의 힐링 휴식 시작/종료 시 AudioContext 차별화 알림음 및 독립 볼륨 제어 기능 탑재',
+    highlights: [
+      {
+        category: '☕ 5분간의 휴식 시작 & 종료 AudioContext 차별화 알림음',
+        items: [
+          '🎵 [시작 알림음 (Rest Start Chime)]: 연속 30분 집중 후 5분 힐링 휴식이 시작될 때, 브라우저 `AudioContext` 신디사이저를 통해 부드럽고 차분하게 차오르는 상쾌한 4음 오름차순 시노이드 벨소리(C5-E5-G5-C6)가 자동 재생됩니다.',
+          '🔔 [종료 알림음 (Rest End Chime)]: 5분간의 휴식이 완료되거나 사용자가 학습을 재개할 때, 활력을 불어넣는 경쾌한 4음 청량 피날레 벨소리(G5-C6-E6-C6)가 오디오 컨텍스트로 합성 출력되어 집중 모드 전환을 즉각 알려줍니다.',
+          '🎚️ [사용자 지정 볼륨 슬라이더 & 미리듣기 버튼]: 오디오 설정 모달(`AudioSettingsModal`) 및 옵션 창에 `☕ 5분 힐링 휴식 알림음 볼륨` 슬라이더(0%~100%)와 `[▶ 시작 알림음 들어보기]`, `[▶ 종료 알림음 들어보기]` 미리듣기 버튼을 탑재하여 언제든지 알림음 음량을 개별 조절할 수 있습니다.',
+          '💾 [로컬 스토리지 영속화]: 사용자가 조절한 휴식 알림음 볼륨(`breakChimeVolume`) 설정은 로컬 스토리지(`wordloop_audio_settings`)에 자동 영속화되어 차후 휴식 알림 발생 시 항상 반영됩니다.',
+        ],
+      },
+    ],
+  },
+  {
+    version: '3.59.0',
+    date: '2026-10',
+    isLatest: false,
     tagline: '전역 오디오 재생 및 마이크 음성 녹음/인식 정밀 결함 전면 진단 및 수정 (Audio & Recording Robustness)',
     highlights: [
       {

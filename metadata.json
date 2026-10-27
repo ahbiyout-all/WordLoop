@@ -1,6 +1,6 @@
 {
   "name": "Self-Improvement & English Vocab",
-  "description": "WordLoop (v3.59.0): Comprehensive English vocabulary & sentence learning app with resilient audio playback, real-time speech evaluation, AI roleplay, rhythm game, and bilingual nagging.",
+  "description": "WordLoop (v3.61.0): Comprehensive English vocabulary & sentence learning app featuring Microphone Permission & Device Troubleshooting Guide in PronunciationModal, AudioContext break chimes, and bilingual parent nagging.",
   "requestFramePermissions": [
     "microphone"
   ],

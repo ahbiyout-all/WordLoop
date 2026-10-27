@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { ActiveTab, VocabItem, SentenceItem, Goal, DailyGoalHistory, UserProfile } from './types';
 import { DEFAULT_VOCAB, DEFAULT_SENTENCES } from './data/defaultVocab';
 import { DEFAULT_GOALS, generateSampleHistory } from './data/defaultGoals';
-import { speechService, initMobileAudioUnlock } from './services/speechService';
+import { speechService, initMobileAudioUnlock, playBreakStartChime, playBreakEndChime } from './services/speechService';
 import { Navbar } from './components/Navbar';
 import { VocabList } from './components/VocabList';
 import { GoalTracker } from './components/GoalTracker';
@@ -322,6 +322,7 @@ export default function App() {
       if (breakCountdownSeconds !== null) {
         if (breakCountdownSeconds <= 1) {
           setBreakCountdownSeconds(null);
+          playBreakEndChime();
           setRecoveryToast('☕ 5분간의 달콤한 휴식이 완료되었습니다! 머리가 맑아졌으니 다시 산뜻하게 시작해볼까요? 😊');
         } else {
           setBreakCountdownSeconds((prev) => (prev !== null ? prev - 1 : null));
@@ -1441,6 +1442,7 @@ export default function App() {
               type="button"
               onClick={() => {
                 setBreakCountdownSeconds(null);
+                playBreakEndChime();
                 setRecoveryToast('휴식을 마치고 다시 활기차게 학습을 재개합니다!');
               }}
               className="px-2.5 py-1.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-[11px] shrink-0 transition-transform active:scale-95 cursor-pointer shadow-md"
@@ -1461,6 +1463,7 @@ export default function App() {
             setSurpriseNagState((prev) => ({ ...prev, isOpen: false }));
             setBreakCountdownSeconds(300);
             setContinuousStudySeconds(0);
+            playBreakStartChime();
           }}
           onOpenPhotoSettings={() => setShowProfileModal(true)}
           onStartStudy={() => {

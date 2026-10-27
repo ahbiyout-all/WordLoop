@@ -18,6 +18,7 @@ const DEFAULT_AUDIO_SETTINGS: AudioSettings = {
   loopMode: true,   // Continuous repeat enabled
   maxRepeatCount: 0, // Default 0 = Infinite repetition (무한 반복)
   readKorean: true,  // Default enabled for Korean meaning reading
+  breakChimeVolume: 0.7, // Default 70% 5-minute break notification chime volume
 };
 
 function loadStoredAudioSettings(): AudioSettings {
@@ -34,6 +35,7 @@ function loadStoredAudioSettings(): AudioSettings {
       loopMode: typeof parsed.loopMode === 'boolean' ? parsed.loopMode : DEFAULT_AUDIO_SETTINGS.loopMode,
       maxRepeatCount: typeof parsed.maxRepeatCount === 'number' && parsed.maxRepeatCount >= 0 ? parsed.maxRepeatCount : DEFAULT_AUDIO_SETTINGS.maxRepeatCount,
       readKorean: typeof parsed.readKorean === 'boolean' ? parsed.readKorean : DEFAULT_AUDIO_SETTINGS.readKorean,
+      breakChimeVolume: typeof parsed.breakChimeVolume === 'number' && parsed.breakChimeVolume >= 0 && parsed.breakChimeVolume <= 1.0 ? parsed.breakChimeVolume : DEFAULT_AUDIO_SETTINGS.breakChimeVolume,
     };
   } catch {
     return { ...DEFAULT_AUDIO_SETTINGS };
@@ -932,6 +934,116 @@ class SpeechService {
       wordMatches,
       feedback,
     };
+  }
+
+  public playBreakStartChime(customVolume?: number): void {
+    playBreakStartChime(customVolume);
+  }
+
+  public playBreakEndChime(customVolume?: number): void {
+    playBreakEndChime(customVolume);
+  }
+}
+
+/**
+ * Synthesizes a gentle ascending celesta/bell chime using AudioContext for the start of a 5-minute break.
+ * @param customVolume Optional volume override (0.0 to 1.0). If omitted, reads from speechService settings.
+ */
+export function playBreakStartChime(customVolume?: number): void {
+  if (typeof window === 'undefined') return;
+  try {
+    const ctx = getSharedAudioContext();
+    if (!ctx) return;
+    if (ctx.state === 'suspended') {
+      ctx.resume().catch(() => {});
+    }
+
+    const currentSettings = speechService.getSettings();
+    const volume = customVolume ?? currentSettings.breakChimeVolume ?? 0.7;
+    if (volume <= 0) return;
+
+    // Ascending soothing notes: C5 (523.25Hz), E5 (659.25Hz), G5 (783.99Hz), C6 (1046.50Hz)
+    const notes = [
+      { freq: 523.25, start: 0, duration: 0.35 },
+      { freq: 659.25, start: 0.12, duration: 0.35 },
+      { freq: 783.99, start: 0.24, duration: 0.45 },
+      { freq: 1046.50, start: 0.36, duration: 0.60 },
+    ];
+
+    const now = ctx.currentTime;
+
+    notes.forEach(({ freq, start, duration }) => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(freq, now + start);
+
+      const noteVol = 0.22 * volume;
+      const startTime = now + start;
+      gain.gain.setValueAtTime(0.001, startTime);
+      gain.gain.linearRampToValueAtTime(noteVol, startTime + 0.03);
+      gain.gain.exponentialRampToValueAtTime(0.0001, startTime + duration);
+
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+
+      osc.start(startTime);
+      osc.stop(startTime + duration + 0.05);
+    });
+  } catch (e) {
+    console.warn('Failed to play break start chime:', e);
+  }
+}
+
+/**
+ * Synthesizes a bright, energetic 4-note chime using AudioContext for the end of a 5-minute break.
+ * @param customVolume Optional volume override (0.0 to 1.0). If omitted, reads from speechService settings.
+ */
+export function playBreakEndChime(customVolume?: number): void {
+  if (typeof window === 'undefined') return;
+  try {
+    const ctx = getSharedAudioContext();
+    if (!ctx) return;
+    if (ctx.state === 'suspended') {
+      ctx.resume().catch(() => {});
+    }
+
+    const currentSettings = speechService.getSettings();
+    const volume = customVolume ?? currentSettings.breakChimeVolume ?? 0.7;
+    if (volume <= 0) return;
+
+    // Refreshing energetic chime notes: G5 (783.99Hz), C6 (1046.50Hz), E6 (1318.51Hz), C6 (1046.50Hz)
+    const notes = [
+      { freq: 783.99, start: 0, duration: 0.25, type: 'sine' as OscillatorType },
+      { freq: 1046.50, start: 0.10, duration: 0.25, type: 'sine' as OscillatorType },
+      { freq: 1318.51, start: 0.20, duration: 0.35, type: 'triangle' as OscillatorType },
+      { freq: 1046.50, start: 0.32, duration: 0.50, type: 'sine' as OscillatorType },
+    ];
+
+    const now = ctx.currentTime;
+
+    notes.forEach(({ freq, start, duration, type }) => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+
+      osc.type = type;
+      osc.frequency.setValueAtTime(freq, now + start);
+
+      const noteVol = 0.25 * volume;
+      const startTime = now + start;
+      gain.gain.setValueAtTime(0.001, startTime);
+      gain.gain.linearRampToValueAtTime(noteVol, startTime + 0.02);
+      gain.gain.exponentialRampToValueAtTime(0.0001, startTime + duration);
+
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+
+      osc.start(startTime);
+      osc.stop(startTime + duration + 0.05);
+    });
+  } catch (e) {
+    console.warn('Failed to play break end chime:', e);
   }
 }
 
