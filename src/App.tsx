@@ -452,6 +452,17 @@ export default function App() {
     }
   }, [userProfile]);
 
+  // Sync real-time badge unlock events
+  useEffect(() => {
+    const handleBadgeUnlocked = (e: any) => {
+      if (e.detail?.profile) {
+        setUserProfile(e.detail.profile);
+      }
+    };
+    window.addEventListener('wordloop_badge_unlocked', handleBadgeUnlocked);
+    return () => window.removeEventListener('wordloop_badge_unlocked', handleBadgeUnlocked);
+  }, []);
+
   useEffect(() => {
     localStorage.setItem('wordloop_vocab', JSON.stringify(vocabList));
     // Atomic flush to emergency snapshot
@@ -1266,6 +1277,11 @@ export default function App() {
         <PronunciationModal
           isOpen={Boolean(pronunciationModalText)}
           targetText={pronunciationModalText}
+          userProfile={userProfile}
+          onOpenProfileModal={() => {
+            setPronunciationModalText(null);
+            setShowProfileModal(true);
+          }}
           onClose={() => setPronunciationModalText(null)}
           onSuccessEvaluation={() => {
             // Increment linked English goal

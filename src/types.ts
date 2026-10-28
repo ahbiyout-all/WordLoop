@@ -148,5 +148,16 @@ export interface UserProfile {
   streakDays?: number; // 학습 연속 일수
   lastSavedToDeviceAt?: string; // 마지막 장치 저장 일시
   savedToDeviceCount?: number; // 장치 저장 횟수
+  badges?: string[]; // 획득한 배지 ID 목록 (예: ['pronunciation_master'])
+  hasPronunciationMasterBadge?: boolean; // 쉐도잉 퀴즈 90점 이상 달성 시 발음 마스터 배지 해금 여부
+  pronunciationMasterUnlockedAt?: string; // 발음 마스터 배지 획득 일시
+  pronunciationMasterScore?: number; // 발음 마스터 배지 획득 시 달성 점수
+  badgeDetails?: {
+    id: string;
+    name: string;
+    description: string;
+    unlockedAt: string;
+    icon?: string;
+  }[];
 }
 

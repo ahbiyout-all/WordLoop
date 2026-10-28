@@ -320,6 +320,7 @@ export const StatsDashboard: React.FC<StatsDashboardProps> = ({
         history={history}
         totalRepeatsCount={totalRepeatsCount}
         vocabCount={vocabCount}
+        userProfile={userProfile}
       />
 
       {/* 5. Animated 'Mastery Growth' Bar with Subtle Scale-Up */}

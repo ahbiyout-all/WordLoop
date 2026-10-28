@@ -338,6 +338,72 @@ app.get("/api/health", (_req, res) => {
   res.json({ status: "ok", timestamp: new Date().toISOString() });
 });
 
+// 📦 Android APK Download & Metadata Endpoints
+const APK_PUBLIC_DIR = path.join(process.cwd(), "public", "downloads");
+const APK_FILENAME = "WordLoop-v3.65.0.apk";
+
+// Serve /downloads statically so /downloads/WordLoop.apk and /downloads/WordLoop-v3.65.0.apk work directly
+app.use("/downloads", express.static(APK_PUBLIC_DIR));
+
+// 1. Direct APK Download Endpoint
+app.get(["/api/download/apk", "/download/apk", "/WordLoop.apk"], (_req, res) => {
+  const possiblePaths = [
+    path.join(APK_PUBLIC_DIR, APK_FILENAME),
+    path.join(APK_PUBLIC_DIR, "WordLoop.apk"),
+    path.join(process.cwd(), "public", "WordLoop.apk"),
+    path.join(process.cwd(), "dist", "downloads", APK_FILENAME),
+    path.join(process.cwd(), "dist", "downloads", "WordLoop.apk"),
+    path.join(process.cwd(), "dist", "WordLoop.apk"),
+  ];
+
+  const apkPath = possiblePaths.find((p) => fs.existsSync(p));
+  if (!apkPath) {
+    return res.status(404).json({
+      error: "안드로이드 APK 파일을 찾을 수 없습니다. 빌드 스크립트를 먼저 실행해주세요.",
+    });
+  }
+
+  const stat = fs.statSync(apkPath);
+  res.setHeader("Content-Type", "application/vnd.android.package-archive");
+  res.setHeader("Content-Disposition", `attachment; filename="${APK_FILENAME}"`);
+  res.setHeader("Content-Length", stat.size.toString());
+  res.setHeader("Cache-Control", "public, max-age=3600");
+
+  const stream = fs.createReadStream(apkPath);
+  stream.pipe(res);
+});
+
+// 2. APK Release Info Endpoint
+app.get("/api/apk/info", (_req, res) => {
+  const metaPath = path.join(APK_PUBLIC_DIR, "apk-release.json");
+  if (fs.existsSync(metaPath)) {
+    try {
+      const data = JSON.parse(fs.readFileSync(metaPath, "utf8"));
+      return res.json(data);
+    } catch {
+      // fallback
+    }
+  }
+
+  const apkPath = path.join(APK_PUBLIC_DIR, APK_FILENAME);
+  const exists = fs.existsSync(apkPath);
+  const size = exists ? fs.statSync(apkPath).size : 0;
+
+  res.json({
+    appName: "WordLoop",
+    packageName: "com.wordloop.app",
+    version: "3.65.0",
+    versionCode: 36500,
+    filename: APK_FILENAME,
+    downloadUrl: "/api/download/apk",
+    directUrl: `/downloads/${APK_FILENAME}`,
+    aliasUrl: "/downloads/WordLoop.apk",
+    sizeBytes: size,
+    sizeFormatted: `${(size / (1024 * 1024)).toFixed(2)} MB`,
+    available: exists,
+  });
+});
+
 // Combined Dictionary Lookup Endpoint (1. FreeDictionaryAPI + 2. Open Wiktionary + 5. Gemini AI)
 app.get("/api/dictionary/lookup", async (req, res) => {
   try {

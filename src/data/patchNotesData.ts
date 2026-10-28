@@ -9,13 +9,49 @@ export interface PatchNoteVersion {
   }[];
 }
 
-export const APP_VERSION = '3.64.0';
+export const APP_VERSION = '3.66.0';
 
 export const PATCH_NOTES_DATA: PatchNoteVersion[] = [
   {
-    version: '3.64.0',
+    version: '3.66.0',
     date: '2026-10',
     isLatest: true,
+    tagline: 'PronunciationModal 쉐도잉 퀴즈 90점 이상 달성 시 "발음 마스터" 배지 수여 및 사용자 프로필 연동',
+    highlights: [
+      {
+        category: '🎙️ 발음 마스터 명예 배지 부여 & 사용자 프로필 연동',
+        items: [
+          '🏆 [발음 마스터 (Pronunciation Master) 배지 수여]: PronunciationModal의 쉐도잉 퀴즈(Shadowing Quiz) 모드에서 정확도 90% 이상(S-Rank) 달성 시 사용자에게 최고 명예 배지인 "발음 마스터"를 공식 수여합니다.',
+          '✨ [결과 화면 즉시 축하 배너]: 90점 이상 달성 시 화려한 골드 그라데이션의 축하 카드 및 실시간 배지 부여 알림, [내 프로필에서 확인하기] 직통 버튼을 제공합니다.',
+          '👤 [사용자 프로필(UserProfileModal) 명예 배지함 연동]: 프로필 설정 탭 상단에 [🏆 나의 학습 명예 배지] 섹션을 신설하여 획득한 배지, 취득 점수, 획득 일시를 영구 보관하고 표시합니다.',
+          '🔒 [도전 동기 부여 잠금 UI]: 미획득 상태에서는 잠금 아이콘과 함께 "쉐도잉 퀴즈 90점 이상 달성 시 해금" 가이드가 안내됩니다.',
+          '📊 [학습 통계 대시보드(MilestoneBadgeSystem) 동기화]: StatsDashboard의 마일스톤 배지 목록에도 발음 마스터 배지를 추가하여 종합 달성률 및 점수에 반영됩니다.',
+        ],
+      },
+    ],
+  },
+  {
+    version: '3.65.0',
+    date: '2026-10',
+    isLatest: false,
+    tagline: '안드로이드 독립형 설치 패키지(APK) 추가 및 인앱 원클릭 직접 다운로드 지원',
+    highlights: [
+      {
+        category: '📱 안드로이드 독립형 설치 패키지 (.apk) 신규 추가',
+        items: [
+          '📦 [WordLoop 독립형 APK 패키지 생성 및 배포]: 플레이스토어 없이도 스마트폰에 즉시 설치 가능한 공식 안드로이드 APK 파일(WordLoop-v3.65.0.apk, 1.25MB)을 패키징하여 제공합니다.',
+          '⚡ [원클릭 직통 다운로드 엔드포인트 구축]: `/api/download/apk`, `/download/apk`, `/downloads/WordLoop.apk` 전용 스트리밍 다운로드 파이프라인을 지원합니다.',
+          '📲 [홈 화면 추가 모달 내 APK 직접 설치 카드]: AddToHomeScreenModal 안드로이드 탭 상단에 독립형 APK 다운로드 버튼과 출처 허용 설치 가이드를 직관적으로 배치했습니다.',
+          '🚀 [GitHubUpdateModal & Navbar 다운로드 연동]: 상단 네비게이션 도구 메뉴 및 릴리스 업데이트 모달에서 원터치로 APK를 바로 다운로드할 수 있습니다.',
+          '🛠️ [자동 패키징 빌드 스크립트 탑재]: `npm run build:apk` 명령어를 통해 언제든지 최신 웹 빌드 소스를 포함하는 정식 Android APK 패키지를 자동 재생성할 수 있습니다.',
+        ],
+      },
+    ],
+  },
+  {
+    version: '3.64.0',
+    date: '2026-10',
+    isLatest: false,
     tagline: 'PronunciationModal 내 실시간 음소(Phoneme) 단위 정확도 채점 "쉐도잉 퀴즈" 모드 탑재',
     highlights: [
       {

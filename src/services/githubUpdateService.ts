@@ -147,7 +147,7 @@ export class GitHubUpdateService {
         publishedAt: data.published_at || new Date().toISOString(),
         htmlUrl: data.html_url || GITHUB_RELEASES_URL,
         downloadUrlPC: pcAsset?.browser_download_url,
-        downloadUrlApk: apkAsset?.browser_download_url,
+        downloadUrlApk: apkAsset?.browser_download_url || '/api/download/apk',
         downloadUrlIOS: iosAsset?.browser_download_url,
         downloadUrlWeb: webAsset?.browser_download_url,
         checkedAt: Date.now(),
@@ -165,6 +165,7 @@ export class GitHubUpdateService {
         releaseNotes: '오프라인 환경이거나 네트워크 상태를 확인해주세요.',
         publishedAt: new Date().toISOString(),
         htmlUrl: GITHUB_RELEASES_URL,
+        downloadUrlApk: '/api/download/apk',
         checkedAt: Date.now(),
         error: err?.message || '네트워크 확인 필요',
       };

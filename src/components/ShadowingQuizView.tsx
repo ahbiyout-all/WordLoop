@@ -38,12 +38,15 @@ import {
   WaveformBarPhonemeColor,
 } from '../utils/phonemeAnalysisUtils';
 import { recordPronunciationDone } from '../services/habitQuestService';
+import { unlockPronunciationMasterBadge } from '../services/badgeService';
 
 export interface ShadowingQuizViewProps {
   initialTargetText: string;
   onClose?: () => void;
   onSuccessEvaluation?: () => void;
   onSwitchToPracticeTab?: (text?: string) => void;
+  onOpenProfileModal?: () => void;
+  onBadgeAwarded?: (badgeId: string, score: number) => void;
 }
 
 // Preset recommended sentences across difficulty levels for shadowing quiz
@@ -61,6 +64,8 @@ export const ShadowingQuizView: React.FC<ShadowingQuizViewProps> = ({
   onClose,
   onSuccessEvaluation,
   onSwitchToPracticeTab,
+  onOpenProfileModal,
+  onBadgeAwarded,
 }) => {
   const [quizText, setQuizText] = useState(initialTargetText || QUIZ_PRESETS[0].text);
   const [phase, setPhase] = useState<'idle' | 'listening_ai' | 'countdown' | 'recording_user' | 'evaluating' | 'result'>('idle');
@@ -68,6 +73,7 @@ export const ShadowingQuizView: React.FC<ShadowingQuizViewProps> = ({
   const [transcript, setTranscript] = useState<string>('');
   const [interimTranscript, setInterimTranscript] = useState<string>('');
   const [quizScore, setQuizScore] = useState<number | null>(null);
+  const [isNewBadgeUnlocked, setIsNewBadgeUnlocked] = useState<boolean>(false);
   const [streakCombo, setStreakCombo] = useState<number>(0);
   const [latencyMs, setLatencyMs] = useState<number | null>(null);
   const [isPlayingUserAudio, setIsPlayingUserAudio] = useState<boolean>(false);
@@ -380,6 +386,21 @@ export const ShadowingQuizView: React.FC<ShadowingQuizViewProps> = ({
         playTone(440, 'triangle', 0.35);
       }
 
+      // Pronunciation Master Badge awarding (90%+ accuracy in Shadowing Quiz)
+      if (computedScore >= 90) {
+        try {
+          const unlockResult = unlockPronunciationMasterBadge(computedScore);
+          setIsNewBadgeUnlocked(unlockResult.isNewUnlock);
+          if (onBadgeAwarded) {
+            onBadgeAwarded('pronunciation_master', computedScore);
+          }
+        } catch (e) {
+          console.warn('Failed to unlock Pronunciation Master badge:', e);
+        }
+      } else {
+        setIsNewBadgeUnlocked(false);
+      }
+
       setPhase('result');
     }, 600);
   };
@@ -606,6 +627,45 @@ export const ShadowingQuizView: React.FC<ShadowingQuizViewProps> = ({
                 </div>
               );
             })()}
+
+            {/* Pronunciation Master Badge Celebration Card (90%+ Accuracy) */}
+            {quizScore >= 90 && (
+              <div className="p-4 rounded-2xl bg-gradient-to-r from-amber-500/20 via-yellow-400/15 to-amber-600/25 border-2 border-amber-400 dark:border-amber-500 shadow-xl shadow-amber-500/10 flex flex-col sm:flex-row items-center justify-between gap-3 animate-in fade-in slide-in-from-top-2 duration-300">
+                <div className="flex items-center gap-3.5">
+                  <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-amber-400 via-yellow-400 to-amber-600 text-slate-950 flex items-center justify-center text-2xl shadow-lg shadow-amber-500/30 shrink-0 ring-4 ring-amber-400/20">
+                    🎙️
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="text-[11px] font-black px-2 py-0.5 rounded-full bg-amber-500 text-slate-950 font-mono flex items-center gap-1 shadow-xs">
+                        <Sparkles className="w-3 h-3" />
+                        {isNewBadgeUnlocked ? '신규 배지 획득!' : '발음 마스터 입증!'}
+                      </span>
+                      <span className="text-xs font-black text-amber-700 dark:text-amber-300">
+                        정확도 {quizScore}% (90% 이상 조건 달성)
+                      </span>
+                    </div>
+                    <h4 className="text-sm font-black text-slate-900 dark:text-white mt-1">
+                      🏆 '발음 마스터' 배지가 프로필 정보에 부여되었습니다!
+                    </h4>
+                    <p className="text-[11px] text-slate-600 dark:text-slate-300 mt-0.5">
+                      원어민급 쉐도잉 정확도를 기록하여 사용자 프로필의 명예 배지함에 영구 보관됩니다.
+                    </p>
+                  </div>
+                </div>
+
+                {onOpenProfileModal && (
+                  <button
+                    type="button"
+                    onClick={onOpenProfileModal}
+                    className="w-full sm:w-auto px-4 py-2.5 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-black text-xs shadow-md transition-all active:scale-95 shrink-0 flex items-center justify-center gap-1.5 cursor-pointer"
+                  >
+                    <Trophy className="w-4 h-4" />
+                    <span>프로필 배지함 보기</span>
+                  </button>
+                )}
+              </div>
+            )}
 
             {/* Recognized Speech Box */}
             <div className="p-3 rounded-2xl bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700/80 text-xs">

@@ -364,30 +364,19 @@ export const GitHubUpdateModal: React.FC<GitHubUpdateModalProps> = ({
                       Android (.apk)
                     </span>
                     <span className="text-[10px] text-slate-400 block truncate">
-                      모바일 직접 설치 패키지
+                      공식 오프라인 패키지 (1.25MB)
                     </span>
                   </div>
                 </div>
-                {updateData?.downloadUrlApk ? (
-                  <a
-                    href={updateData.downloadUrlApk}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="px-2.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs flex items-center gap-1 active:scale-95 transition-all shrink-0"
-                  >
-                    <Download className="w-3 h-3" />
-                    <span>APK</span>
-                  </a>
-                ) : (
-                  <a
-                    href={releasesUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="px-2.5 py-1.5 rounded-lg bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 font-bold text-[11px] flex items-center gap-1 active:scale-95 transition-all shrink-0"
-                  >
-                    <span>릴리스</span>
-                  </a>
-                )}
+                <a
+                  href={updateData?.downloadUrlApk || "/api/download/apk"}
+                  download="WordLoop-v3.65.0.apk"
+                  className="px-2.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs flex items-center gap-1 active:scale-95 transition-all shrink-0 shadow-sm"
+                  title="WordLoop APK 직접 다운로드"
+                >
+                  <Download className="w-3 h-3" />
+                  <span>APK 받기</span>
+                </a>
               </div>
 
               {/* iPhone / iOS PWA */}

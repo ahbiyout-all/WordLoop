@@ -1,6 +1,6 @@
 {
   "name": "Self-Improvement & English Vocab",
-  "description": "WordLoop (v3.64.0): Comprehensive English vocabulary & sentence learning app featuring Real-Time Shadowing Quiz Mode with Phoneme-Level Scoring in PronunciationModal, waveform color variations, and bilingual parent nagging.",
+  "description": "WordLoop (v3.66.0): Comprehensive English vocabulary & sentence learning app featuring Real-Time Shadowing Quiz Mode with 90%+ Pronunciation Master badge honors, user profile integration, Android APK download, and phoneme-level waveform analysis.",
   "requestFramePermissions": [
     "microphone"
   ],

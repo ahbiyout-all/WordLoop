@@ -561,6 +561,22 @@ export const Navbar: React.FC<NavbarProps> = ({
                   </button>
                 )}
 
+                {/* 7. Android Standalone APK Direct Download */}
+                <a
+                  href="/api/download/apk"
+                  download="WordLoop-v3.65.0.apk"
+                  onClick={() => setIsToolsMenuOpen(false)}
+                  className="w-full px-2.5 py-2 rounded-xl text-xs font-bold flex items-center justify-between text-slate-700 dark:text-slate-300 hover:bg-emerald-50 dark:hover:bg-emerald-950/40 hover:text-emerald-700 dark:hover:text-emerald-300 transition-colors cursor-pointer group"
+                >
+                  <div className="flex items-center gap-2">
+                    <Smartphone className="w-4 h-4 text-emerald-500 group-hover:scale-110 transition-transform" />
+                    <span>안드로이드 APK 다운로드</span>
+                  </div>
+                  <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 font-bold">
+                    APK
+                  </span>
+                </a>
+
                 {/* 7. Full Audio Settings */}
                 {onOpenAudioSettings && (
                   <button

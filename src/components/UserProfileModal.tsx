@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { UserProfile, StudyGradeLevel, NagCharacterSetting, NagTonePreset, NagLanguageMode, VocabItem, SentenceItem, Goal, DailyGoalHistory } from '../types';
 import { AVATAR_PRESETS, GRADE_LEVEL_OPTIONS, MOTTO_RECOMMENDATIONS, DEFAULT_USER_PROFILE } from '../data/defaultProfile';
 import {
@@ -54,6 +54,7 @@ import {
   DAD_PHOTO_PRESETS,
 } from '../utils/parentPhotoUtils';
 import { SurpriseParentNagPopup, SurpriseNagType } from './SurpriseParentNagPopup';
+import { getPronunciationMasterBadgeStatus } from '../services/badgeService';
 
 interface UserProfileModalProps {
   isOpen: boolean;
@@ -102,6 +103,10 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
   const [saveToast, setSaveToast] = useState<string | null>(null);
   const [storageStats, setStorageStats] = useState<DeviceStorageStats>(getDeviceStorageStats());
   const [previewNag, setPreviewNag] = useState<{ isOpen: boolean; speaker: 'mom' | 'dad'; type: SurpriseNagType } | null>(null);
+
+  const masterBadgeStatus = useMemo(() => {
+    return getPronunciationMasterBadgeStatus(userProfile);
+  }, [userProfile]);
 
   // Custom Nag Scripts Customizable States (BYOK support)
   const [geminiApiKey, setGeminiApiKey] = useState(() => {
@@ -230,6 +235,11 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
       isLocked: true,
       lastSavedToDeviceAt: new Date().toISOString(),
       savedToDeviceCount: (userProfile?.savedToDeviceCount || 0) + 1,
+      badges: userProfile?.badges,
+      hasPronunciationMasterBadge: userProfile?.hasPronunciationMasterBadge,
+      pronunciationMasterUnlockedAt: userProfile?.pronunciationMasterUnlockedAt,
+      pronunciationMasterScore: userProfile?.pronunciationMasterScore,
+      badgeDetails: userProfile?.badgeDetails,
     };
 
     onSaveProfile(updatedProfile);
@@ -272,6 +282,11 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
       isLocked: true,
       lastSavedToDeviceAt: new Date().toISOString(),
       savedToDeviceCount: (userProfile?.savedToDeviceCount || 0) + 1,
+      badges: userProfile?.badges,
+      hasPronunciationMasterBadge: userProfile?.hasPronunciationMasterBadge,
+      pronunciationMasterUnlockedAt: userProfile?.pronunciationMasterUnlockedAt,
+      pronunciationMasterScore: userProfile?.pronunciationMasterScore,
+      badgeDetails: userProfile?.badgeDetails,
     };
 
     onSaveProfile(updated);
@@ -442,6 +457,12 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
                   <HardDrive className="w-2.5 h-2.5" />
                   장치 로컬 보관
                 </span>
+                {masterBadgeStatus.isUnlocked && (
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-gradient-to-r from-amber-500/20 to-orange-500/20 text-amber-600 dark:text-amber-400 border border-amber-500/40 flex items-center gap-1 shadow-xs">
+                    <Trophy className="w-2.5 h-2.5 text-amber-500" />
+                    🎙️ 발음 마스터
+                  </span>
+                )}
               </div>
               <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
                 {isOnboarding
@@ -563,6 +584,73 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
                   </div>
                 </div>
               )}
+
+              {/* Honor Badges Section */}
+              <div className="p-3.5 rounded-2xl bg-gradient-to-br from-slate-900 via-slate-900 to-slate-950 text-white border border-slate-800 shadow-md space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <div className="w-6 h-6 rounded-lg bg-amber-500/20 text-amber-400 flex items-center justify-center text-xs">
+                      🏆
+                    </div>
+                    <div>
+                      <h4 className="text-xs font-black text-white">나의 학습 명예 배지</h4>
+                      <p className="text-[10px] text-slate-400">특수 실력 검증 및 미션 달성 시 프로필에 영구 수여되는 배지입니다.</p>
+                    </div>
+                  </div>
+                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-800 text-slate-300 border border-slate-700">
+                    {masterBadgeStatus.isUnlocked ? '1개 보유' : '0개 보유'}
+                  </span>
+                </div>
+
+                {/* Badge Item: Pronunciation Master */}
+                <div
+                  className={`p-3 rounded-xl border transition-all ${
+                    masterBadgeStatus.isUnlocked
+                      ? 'bg-gradient-to-r from-amber-500/15 via-yellow-500/10 to-amber-600/20 border-amber-500/40 text-white ring-1 ring-amber-500/30 shadow-md'
+                      : 'bg-slate-800/40 border-slate-800 text-slate-400'
+                  }`}
+                >
+                  <div className="flex items-start justify-between gap-2.5">
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <div
+                        className={`w-10 h-10 rounded-xl flex items-center justify-center text-xl shrink-0 shadow-sm ${
+                          masterBadgeStatus.isUnlocked
+                            ? 'bg-gradient-to-tr from-amber-400 to-amber-600 text-slate-950 shadow-amber-500/20 ring-2 ring-amber-400/40 animate-pulse'
+                            : 'bg-slate-800 text-slate-500 border border-slate-700'
+                        }`}
+                      >
+                        {masterBadgeStatus.isUnlocked ? '🎙️' : '🔒'}
+                      </div>
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <span className="font-extrabold text-xs text-white">
+                            발음 마스터 (Pronunciation Master)
+                          </span>
+                          {masterBadgeStatus.isUnlocked ? (
+                            <span className="text-[9px] font-black px-1.5 py-0.2 rounded bg-amber-500 text-slate-950">
+                              ✨ 획득 완료 ({masterBadgeStatus.score || userProfile?.pronunciationMasterScore || 90}점)
+                            </span>
+                          ) : (
+                            <span className="text-[9px] font-bold px-1.5 py-0.2 rounded bg-slate-700 text-slate-400">
+                              🔒 미획득 (쉐도잉 퀴즈 90점 이상)
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-[10px] text-slate-300 dark:text-slate-400 mt-0.5 leading-snug">
+                          {masterBadgeStatus.isUnlocked
+                            ? 'PronunciationModal의 [쉐도잉 퀴즈] 모드에서 정확도 90% 이상을 달성하여 원어민급 발음 실력을 공인받았습니다.'
+                            : 'PronunciationModal의 [쉐도잉 퀴즈] 모드에서 정확도 90% 이상 달성 시 즉시 프로필에 수여됩니다.'}
+                        </p>
+                        {masterBadgeStatus.isUnlocked && masterBadgeStatus.unlockedAt && (
+                          <span className="text-[9px] text-amber-300/80 font-mono mt-0.5 block">
+                            📅 획득 일시: {new Date(masterBadgeStatus.unlockedAt).toLocaleDateString()}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
 
               {/* 1. Name Input */}
               <div className="space-y-1.5">

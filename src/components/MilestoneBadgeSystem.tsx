@@ -18,13 +18,14 @@ import {
   Layers,
   Info,
 } from 'lucide-react';
-import { Goal, DailyGoalHistory } from '../types';
+import { Goal, DailyGoalHistory, UserProfile } from '../types';
 
 interface MilestoneBadgeSystemProps {
   goals: Goal[];
   history: DailyGoalHistory[];
   totalRepeatsCount: number;
   vocabCount: number;
+  userProfile?: UserProfile | null;
 }
 
 export type BadgeCategory = 'all' | 'streak' | 'repeats' | 'vocab' | 'goals';
@@ -51,6 +52,7 @@ export const MilestoneBadgeSystem: React.FC<MilestoneBadgeSystemProps> = ({
   history,
   totalRepeatsCount,
   vocabCount,
+  userProfile,
 }) => {
   const [selectedCategory, setSelectedCategory] = useState<BadgeCategory>('all');
   const [filterUnlockedOnly, setFilterUnlockedOnly] = useState<boolean>(false);
@@ -314,6 +316,18 @@ export const MilestoneBadgeSystem: React.FC<MilestoneBadgeSystemProps> = ({
         targetValue: 1,
         unit: '회',
       },
+      {
+        id: 'pronunciation_master',
+        title: 'Pronunciation Master',
+        koreanTitle: '발음 마스터',
+        category: 'goals',
+        tier: 'gold',
+        iconType: 'trophy',
+        description: 'PronunciationModal의 쉐도잉 퀴즈(Shadowing Quiz) 모드에서 90% 이상의 완벽한 원어민급 발음 정확도를 달성하여 수여된 최고 명예 배지입니다.',
+        requirementText: '쉐도잉 퀴즈 정확도 90% 이상 달성',
+        targetValue: 90,
+        unit: '점',
+      },
     ];
 
     // Compute status for each badge
@@ -328,12 +342,16 @@ export const MilestoneBadgeSystem: React.FC<MilestoneBadgeSystemProps> = ({
       } else if (def.category === 'goals') {
         if (def.id === 'goals-perfect') {
           currentVal = isTodayPerfect ? 1 : 0;
+        } else if (def.id === 'pronunciation_master') {
+          currentVal = userProfile?.pronunciationMasterScore || (userProfile?.hasPronunciationMasterBadge ? 95 : 0);
         } else {
           currentVal = allTimeCompletedGoals;
         }
       }
 
-      const unlocked = currentVal >= def.targetValue;
+      const unlocked = def.id === 'pronunciation_master'
+        ? (Boolean(userProfile?.hasPronunciationMasterBadge) || currentVal >= def.targetValue)
+        : currentVal >= def.targetValue;
       const progress =
         def.targetValue > 0
           ? Math.min(100, Math.round((currentVal / def.targetValue) * 100))
@@ -356,7 +374,7 @@ export const MilestoneBadgeSystem: React.FC<MilestoneBadgeSystemProps> = ({
       totalCount: badgeList.length,
       totalScore: score,
     };
-  }, [goals, history, totalRepeatsCount, vocabCount]);
+  }, [goals, history, totalRepeatsCount, vocabCount, userProfile]);
 
   // Filtered badges based on user selection
   const filteredBadges = useMemo(() => {

@@ -2,11 +2,12 @@ import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { X, Mic, MicOff, Volume2, RotateCcw, CheckCircle2, AlertCircle, Award, History, Play, Pause, Trash2, Activity, Sparkles, Zap, BarChart3, TrendingUp, HelpCircle, Laptop, Smartphone, Settings, ShieldAlert, RefreshCw, Check } from 'lucide-react';
 import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip, ReferenceLine } from 'recharts';
 import { speechService } from '../services/speechService';
-import { PronunciationResult, VocabItem, SentenceItem } from '../types';
+import { PronunciationResult, VocabItem, SentenceItem, UserProfile } from '../types';
 import { AudioWaveform } from './AudioWaveform';
 import { PronunciationDeficiencyHighlighter } from './PronunciationDeficiencyHighlighter';
 import { ShadowingQuizView } from './ShadowingQuizView';
 import { recordPronunciationDone } from '../services/habitQuestService';
+import { getPronunciationMasterBadgeStatus } from '../services/badgeService';
 import {
   getVoiceHistoryForTarget,
   saveVoiceRecordingForTarget,
@@ -447,6 +448,8 @@ interface PronunciationModalProps {
   targetText: string;
   onClose: () => void;
   onSuccessEvaluation?: () => void; // Option to record goal achievement
+  onOpenProfileModal?: () => void;
+  userProfile?: UserProfile | null;
 }
 
 export const PronunciationModal: React.FC<PronunciationModalProps> = ({
@@ -454,10 +457,15 @@ export const PronunciationModal: React.FC<PronunciationModalProps> = ({
   targetText,
   onClose,
   onSuccessEvaluation,
+  onOpenProfileModal,
+  userProfile,
 }) => {
   const [activeTab, setActiveTab] = useState<'practice' | 'shadowingQuiz' | 'recordings' | 'history'>('practice');
   const [pronunciationHistory, setPronunciationHistory] = useState<PronunciationHistoryItem[]>(() => loadPronunciationHistory());
   const [pronGoal, setPronGoal] = useState(() => getPronunciationGoalFromStorage());
+  const isMasterBadgeUnlocked = useMemo(() => {
+    return getPronunciationMasterBadgeStatus(userProfile).isUnlocked;
+  }, [userProfile]);
 
   useEffect(() => {
     const syncGoal = () => setPronGoal(getPronunciationGoalFromStorage());
@@ -1442,9 +1450,21 @@ export const PronunciationModal: React.FC<PronunciationModalProps> = ({
                 <Mic className="w-4 h-4 sm:w-5 sm:h-5" />
               </span>
               <div className="min-w-0">
-                <h3 className="text-sm sm:text-lg font-extrabold text-slate-900 dark:text-white truncate">
-                  발음 실시간 측정 & 쉐도잉
-                </h3>
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  <h3 className="text-sm sm:text-lg font-extrabold text-slate-900 dark:text-white truncate">
+                    발음 실시간 측정 & 쉐도잉
+                  </h3>
+                  {isMasterBadgeUnlocked && (
+                    <span
+                      onClick={onOpenProfileModal}
+                      className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-black bg-gradient-to-r from-amber-500/20 to-orange-500/20 text-amber-600 dark:text-amber-400 border border-amber-500/40 shadow-xs cursor-pointer hover:scale-105 transition-transform"
+                      title="발음 마스터 배지 보유 중! (클릭 시 프로필 열기)"
+                    >
+                      <Award className="w-3 h-3 text-amber-500" />
+                      <span>🎙️ 발음 마스터</span>
+                    </span>
+                  )}
+                </div>
                 <p className="text-[11px] sm:text-xs text-slate-500 dark:text-slate-400 truncate">
                   원어민 발음을 듣고 마이크로 직접 따라 말해보세요.
                 </p>
@@ -2496,6 +2516,7 @@ export const PronunciationModal: React.FC<PronunciationModalProps> = ({
               initialTargetText={currentTargetText}
               onClose={onClose}
               onSuccessEvaluation={onSuccessEvaluation}
+              onOpenProfileModal={onOpenProfileModal}
               onSwitchToPracticeTab={(text) => {
                 if (text) {
                   setCurrentTargetText(text);

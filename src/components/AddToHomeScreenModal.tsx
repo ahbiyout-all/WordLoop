@@ -317,16 +317,56 @@ export const AddToHomeScreenModal: React.FC<AddToHomeScreenModalProps> = ({
             </div>
           )}
 
-          {/* 2. Android Chrome / Samsung Visual Guide */}
+          {/* 2. Android Chrome / Samsung Visual Guide + Direct APK Package */}
           {activeOS === 'android' && (
-            <div className="space-y-3">
-              <div className="flex items-center justify-between">
+            <div className="space-y-3.5">
+              {/* Direct Standalone APK Card */}
+              <div className="p-4 rounded-2xl bg-gradient-to-br from-emerald-500/10 via-teal-500/5 to-indigo-500/10 border-2 border-emerald-500/30 dark:border-emerald-500/40 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <div className="w-8 h-8 rounded-xl bg-emerald-600 text-white flex items-center justify-center shadow-md shadow-emerald-600/30">
+                      <Smartphone className="w-4 h-4" />
+                    </div>
+                    <div>
+                      <h4 className="font-black text-xs sm:text-sm text-slate-900 dark:text-white flex items-center gap-1.5">
+                        <span>WordLoop 독립형 APK 직접 설치</span>
+                        <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-emerald-500 text-white font-extrabold font-mono">
+                          v3.65.0
+                        </span>
+                      </h4>
+                      <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                        구글 플레이스토어 없이 스마트폰에 바로 설치되는 공식 APK 파일 (1.25 MB)
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <a
+                    href="/api/download/apk"
+                    download="WordLoop-v3.65.0.apk"
+                    className="flex-1 py-2.5 px-4 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-black text-xs flex items-center justify-center gap-2 shadow-lg shadow-emerald-600/20 active:scale-[0.98] transition-all cursor-pointer"
+                  >
+                    <Download className="w-4 h-4" />
+                    <span>WordLoop APK 즉시 다운로드 (1클릭)</span>
+                  </a>
+                </div>
+
+                <div className="text-[10px] text-slate-500 dark:text-slate-400 bg-white/70 dark:bg-slate-900/70 p-2.5 rounded-xl border border-slate-200/60 dark:border-slate-800 space-y-0.5">
+                  <div className="font-bold text-slate-700 dark:text-slate-300">💡 APK 간편 설치 안내:</div>
+                  <div>1. 위 다운로드 버튼 터치 후 상단 알림창의 다운로드 완료 알림 클릭</div>
+                  <div>2. '출처를 알 수 없는 앱 설치 허용' 토글 활성화 후 [설치]를 누르면 완료됩니다.</div>
+                </div>
+              </div>
+
+              {/* Alternative: PWA Home Screen */}
+              <div className="flex items-center justify-between pt-1">
                 <span className="text-xs font-black text-slate-900 dark:text-white flex items-center gap-1.5">
-                  <Smartphone className="w-4 h-4 text-emerald-500" />
-                  <span>안드로이드(갤럭시/크롬/삼성인터넷) 2단계</span>
+                  <PlusSquare className="w-4 h-4 text-emerald-500" />
+                  <span>또는 브라우저(크롬/삼성) 홈 화면에 바로 추가</span>
                 </span>
-                <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/40 px-2 py-0.5 rounded-md">
-                  Chrome / Samsung
+                <span className="text-[10px] font-bold text-slate-500 bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded-md">
+                  PWA 모드
                 </span>
               </div>
 
