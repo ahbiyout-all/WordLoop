@@ -443,8 +443,8 @@ app.get("/api/apk/info", (_req, res) => {
   res.json({
     appName: "WordLoop",
     packageName: "com.wordloop.app",
-    version: "3.69.0",
-    versionCode: 36900,
+    version: "3.70.0",
+    versionCode: 37000,
     filename: APK_FILENAME,
     downloadUrl: "/api/download/apk",
     directUrl: `/downloads/${APK_FILENAME}`,

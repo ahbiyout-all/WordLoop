@@ -2,7 +2,19 @@
 
 ---
 
-## 🚀 Version 3.68.0 (최신 업데이트)
+## 🚀 Version 3.70.0 (최신 업데이트)
+
+### 📦 안드로이드 바이너리 AXML APK 빌드 개편 & 인앱 직통 다운로드 엔드포인트 연동
+- **📱 안드로이드 바이너리 AXML (Magic Header 0x00080003) 매니페스트 컴파일 적용**:
+  - 포코폰(POCO / Xiaomi MIUI, HyperOS) 및 최신 안드로이드 OS의 `PackageInstaller`가 요구하는 안드로이드 정식 바이너리 AXML 인코딩을 `package-apk.py`에 구현했습니다. 이로써 `INSTALL_PARSE_FAILED_BAD_MANIFEST` (패키지 파싱 중 오류)가 완전히 해결되었습니다.
+- **💡 GitHub Releases 첨부파일 부재 시 인앱 APK 직접 다운로드 가이드 강화**:
+  - 깃허브 외부 저장소 Releases 첨부파일에 `.exe` 및 `.zip`만 표시되고 `.apk` 파일이 보이지 않는 경우에도, 사용자가 당황하지 않고 앱 내부 **[WordLoop APK 인앱 받기]** 버튼을 통해 컴파일된 `WordLoop-v3.70.0.apk` 정식 파일(73.75 MB)을 즉시 직접 다운로드할 수 있도록 안내 및 다운로드 모달을 개선했습니다.
+- **🛡️ 10KB `.apk.html` 가짜 응답 차단 및 ArrayBuffer 용량 검증**:
+  - 웹 미리보기 환경의 보안 쿠키 응답(10KB HTML)이 `.apk.html`로 저장되는 현상을 방지하도록 클라이언트 JS 다운로드 엔진에서 `500KB` 용량 검증 로직을 탑재했습니다.
+
+---
+
+## 🚀 Version 3.68.0
 
 ### 🚨 안드로이드 크롬 APK 다운로드 완료 후 "Cookie check / Action required" 웹뷰 오작동 해결 가이드 & 패키지 헤더 검증
 - **📱 크롬 내 `content://` 파일 렌더링 예외 분석 & 원인 구명**:

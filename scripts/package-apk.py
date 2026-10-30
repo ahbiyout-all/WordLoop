@@ -20,8 +20,8 @@ DIST_DIR = os.path.join(ROOT_DIR, 'dist')
 PUBLIC_DOWNLOADS_DIR = os.path.join(ROOT_DIR, 'public', 'downloads')
 PUBLIC_DIR = os.path.join(ROOT_DIR, 'public')
 
-VERSION = "3.69.0"
-VERSION_CODE = 36900
+VERSION = "3.70.0"
+VERSION_CODE = 37000
 PACKAGE_NAME = "com.wordloop.app"
 APP_NAME = "WordLoop"
 

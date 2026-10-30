@@ -578,7 +578,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                     <span>안드로이드 APK 설치 센터</span>
                   </div>
                   <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 font-bold">
-                    v3.68.0
+                    v3.70.0
                   </span>
                 </button>
 

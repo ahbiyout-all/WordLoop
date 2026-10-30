@@ -9,13 +9,29 @@ export interface PatchNoteVersion {
   }[];
 }
 
-export const APP_VERSION = '3.68.0';
+export const APP_VERSION = '3.70.0';
 
 export const PATCH_NOTES_DATA: PatchNoteVersion[] = [
   {
-    version: '3.68.0',
+    version: '3.70.0',
     date: '2026-10',
     isLatest: true,
+    tagline: '안드로이드 바이너리 AXML APK 빌드 개편 및 인앱 직통 다운로드 엔드포인트 연동',
+    highlights: [
+      {
+        category: '📦 안드로이드 패키지 파싱 오류 완전 해결 & 인앱 직통 APK 다운로드',
+        items: [
+          '📱 [안드로이드 바이너리 AXML 인코딩 적용]: 포코폰(POCO / Xiaomi) 및 안드로이드 OS PackageInstaller가 요구하는 안드로이드 정식 바이너리 AXML(Magic Header 0x00080003) 매니페스트 컴파일을 구현하여 패키지 파싱 오류를 완전 해결했습니다.',
+          '💡 [GitHub Releases 첨부파일 부재 대응 인앱 APK 직접 다운로드]: 깃허브 외부 저장소 첨부파일에 .apk가 없는 경우에도 앱 내부 [WordLoop APK 인앱 받기] 버튼을 통해 v3.70.0 정식 APK를 1초 만에 바로 받아 설치할 수 있도록 개선했습니다.',
+          '🛡️ [10KB .apk.html 가짜 저장 차단]: 미리보기 쿠키 페이지(10KB)가 서빙되는 경우 클라이언트에서 500KB 용량 검증으로 가짜 수신을 자동 차단합니다.',
+        ],
+      },
+    ],
+  },
+  {
+    version: '3.68.0',
+    date: '2026-10',
+    isLatest: false,
     tagline: '안드로이드 크롬 APK 설치 시 "Cookie check / Action required" 웹뷰 오작동 문제 해결 가이드 & 패키지 헤더 검증',
     highlights: [
       {
