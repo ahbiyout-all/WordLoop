@@ -1,15 +1,15 @@
 {
   "appName": "WordLoop",
   "packageName": "com.wordloop.app",
-  "version": "3.65.0",
-  "versionCode": 36500,
-  "filename": "WordLoop-v3.65.0.apk",
+  "version": "3.69.0",
+  "versionCode": 36900,
+  "filename": "WordLoop-v3.69.0.apk",
   "downloadUrl": "/api/download/apk",
-  "directUrl": "/downloads/WordLoop-v3.65.0.apk",
+  "directUrl": "/downloads/WordLoop-v3.69.0.apk",
   "aliasUrl": "/downloads/WordLoop.apk",
-  "sizeBytes": 4997697,
-  "sizeFormatted": "4.77 MB",
-  "sha256": "ed20640805554287445c76bebb191a66b0baa5efc8c251d3f82abd6605f0d95d",
-  "md5": "0bf8154468a87166244e5190f1ede6b4",
-  "builtAt": "2026-10-28T08:17:46Z"
+  "sizeBytes": 22482862,
+  "sizeFormatted": "21.44 MB",
+  "sha256": "98dbfe334a4f5af31548e1dd864da97924cc17f29785e00ab6d2577ac6cba974",
+  "md5": "c5536277f4b8c590ad34b9d35990077e",
+  "builtAt": "2026-10-30T07:50:59Z"
 }

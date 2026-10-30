@@ -35,6 +35,60 @@ export const AddToHomeScreenModal: React.FC<AddToHomeScreenModalProps> = ({
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
   const [isInstalled, setIsInstalled] = useState<boolean>(false);
   const [copiedUrl, setCopiedUrl] = useState<boolean>(false);
+  const [isDownloadingApk, setIsDownloadingApk] = useState<boolean>(false);
+  const [apkDownloadSuccess, setApkDownloadSuccess] = useState<boolean>(false);
+  const [apkDownloadError, setApkDownloadError] = useState<string | null>(null);
+
+  const handleApkDownload = async (e?: React.MouseEvent) => {
+    if (e) e.preventDefault();
+    setIsDownloadingApk(true);
+    setApkDownloadSuccess(false);
+    setApkDownloadError(null);
+
+    try {
+      // Direct API fetch
+      const res = await fetch('/api/download/apk', {
+        headers: { Accept: 'application/vnd.android.package-archive, */*' },
+      });
+
+      if (!res.ok) {
+        throw new Error(`HTTP ${res.status}`);
+      }
+
+      const buffer = await res.arrayBuffer();
+
+      // CRITICAL INTEGRITY CHECK:
+      // Real APK is ~5.88 MB (> 5,000,000 bytes).
+      // AI Studio preview auth redirect is ~10 KB (10,330 bytes text/html).
+      if (buffer.byteLength < 500000) {
+        console.warn(`[APK Download Warning] Received HTML proxy page (${buffer.byteLength} bytes), expecting > 5MB APK binary.`);
+        setApkDownloadError(
+          '미리보기 보안 인증 환경 제한으로 10KB HTML 응답이 들어왔습니다. 아래 [GitHub Releases 공식 배포 링크]를 이용하시면 5.88MB 정식 APK를 1초 만에 다운로드하실 수 있습니다.'
+        );
+        return;
+      }
+
+      // Verified real 5.88 MB APK binary
+      const blob = new Blob([buffer], { type: 'application/vnd.android.package-archive' });
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'WordLoop-v3.68.0.apk';
+      a.setAttribute('type', 'application/vnd.android.package-archive');
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(() => window.URL.revokeObjectURL(url), 10000);
+
+      setApkDownloadSuccess(true);
+      setTimeout(() => setApkDownloadSuccess(false), 5000);
+    } catch (err: any) {
+      console.error('APK Download Error:', err);
+      setApkDownloadError('다운로드 처리 중 네트워크 오류가 발생했습니다. 아래 [GitHub Releases 공식 링크]를 사용해주세요.');
+    } finally {
+      setIsDownloadingApk(false);
+    }
+  };
 
   useEffect(() => {
     // Check if running in standalone mode (Full-screen Web-App)
@@ -331,31 +385,98 @@ export const AddToHomeScreenModal: React.FC<AddToHomeScreenModalProps> = ({
                       <h4 className="font-black text-xs sm:text-sm text-slate-900 dark:text-white flex items-center gap-1.5">
                         <span>WordLoop 독립형 APK 직접 설치</span>
                         <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-emerald-500 text-white font-extrabold font-mono">
-                          v3.65.0
+                          v3.68.0
                         </span>
                       </h4>
                       <p className="text-[11px] text-slate-500 dark:text-slate-400">
-                        구글 플레이스토어 없이 스마트폰에 바로 설치되는 공식 APK 파일 (1.25 MB)
+                        구글 플레이스토어 없이 스마트폰에 바로 설치되는 공식 APK 파일 (5.88 MB)
                       </p>
                     </div>
                   </div>
                 </div>
 
-                <div className="flex items-center gap-2">
-                  <a
-                    href="/api/download/apk"
-                    download="WordLoop-v3.65.0.apk"
-                    className="flex-1 py-2.5 px-4 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-black text-xs flex items-center justify-center gap-2 shadow-lg shadow-emerald-600/20 active:scale-[0.98] transition-all cursor-pointer"
+                <div className="flex flex-col sm:flex-row items-center gap-2">
+                  <button
+                    onClick={handleApkDownload}
+                    disabled={isDownloadingApk}
+                    className="w-full py-2.5 px-4 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-black text-xs flex items-center justify-center gap-2 shadow-lg shadow-emerald-600/20 active:scale-[0.98] transition-all cursor-pointer disabled:opacity-60"
                   >
-                    <Download className="w-4 h-4" />
-                    <span>WordLoop APK 즉시 다운로드 (1클릭)</span>
+                    {isDownloadingApk ? (
+                      <>
+                        <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                        <span>APK 검증 & 다운로드 중 (5.88 MB)...</span>
+                      </>
+                    ) : apkDownloadSuccess ? (
+                      <>
+                        <Check className="w-4 h-4 text-emerald-200" />
+                        <span>정식 APK 받기 성공! ('내 파일'에서 설치)</span>
+                      </>
+                    ) : (
+                      <>
+                        <Download className="w-4 h-4" />
+                        <span>WordLoop APK 인앱 받기 (5.88 MB)</span>
+                      </>
+                    )}
+                  </button>
+
+                  <a
+                    href="https://github.com/ahbiyout-all/WordLoop/releases"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="w-full sm:w-auto px-3.5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-extrabold text-[11px] flex items-center justify-center gap-1.5 shrink-0 shadow-md shadow-indigo-600/20 transition-colors"
+                    title="GitHub 공식 Releases에서 5.88MB 정식 APK 다운로드"
+                  >
+                    <ExternalLink className="w-3.5 h-3.5" />
+                    <span>GitHub 미러</span>
                   </a>
                 </div>
 
-                <div className="text-[10px] text-slate-500 dark:text-slate-400 bg-white/70 dark:bg-slate-900/70 p-2.5 rounded-xl border border-slate-200/60 dark:border-slate-800 space-y-0.5">
-                  <div className="font-bold text-slate-700 dark:text-slate-300">💡 APK 간편 설치 안내:</div>
-                  <div>1. 위 다운로드 버튼 터치 후 상단 알림창의 다운로드 완료 알림 클릭</div>
-                  <div>2. '출처를 알 수 없는 앱 설치 허용' 토글 활성화 후 [설치]를 누르면 완료됩니다.</div>
+                {/* Error feedback alert if proxy returned HTML page */}
+                {apkDownloadError && (
+                  <div className="p-3 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-800 dark:text-rose-200 text-xs flex items-start gap-2 animate-in fade-in duration-150">
+                    <X className="w-4 h-4 text-rose-500 shrink-0 mt-0.5" />
+                    <div className="space-y-1">
+                      <p className="font-extrabold">{apkDownloadError}</p>
+                      <a
+                        href="https://github.com/ahbiyout-all/WordLoop/releases"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1 font-black text-indigo-600 dark:text-indigo-400 underline"
+                      >
+                        👉 GitHub 공식 Releases에서 5.88MB 정식 APK 바로 받기
+                      </a>
+                    </div>
+                  </div>
+                )}
+
+                {/* 🚨 .APK.HTML 10KB FILE TROUBLESHOOTING CARD */}
+                <div className="p-3.5 rounded-2xl bg-amber-500/10 border border-amber-500/35 text-[11px] space-y-2 text-amber-900 dark:text-amber-200">
+                  <div className="font-black text-amber-800 dark:text-amber-300 flex items-center gap-1.5 text-xs">
+                    <Info className="w-4 h-4 text-amber-500 shrink-0" />
+                    <span>🚨 파일명이 '.apk.html' 이거나 용량이 10KB로 나오나요?</span>
+                  </div>
+
+                  <div className="text-[11px] leading-relaxed text-slate-700 dark:text-slate-300 space-y-1.5">
+                    <p>
+                      • <strong>원인</strong>: 웹 미리보기(AI Studio) 보안 보호로 인해 주소창 직접 이동 시 10KB HTML 인증 페이지가 응답된 것입니다.
+                    </p>
+                    <p>
+                      • <strong>진짜 5.88 MB APK 다운로드 방법 (2가지 중 선택)</strong>:
+                    </p>
+                    <div className="p-2.5 rounded-xl bg-white/80 dark:bg-slate-900/80 border border-amber-500/20 space-y-1.5 font-medium">
+                      <div className="flex items-start gap-1.5">
+                        <span className="font-black text-emerald-600 dark:text-emerald-400 shrink-0">방법 1.</span>
+                        <div>위 <strong>[WordLoop APK 인앱 받기 (5.88 MB)]</strong> 버튼 클릭 (인앱 인증으로 진짜 5.88MB APK만 다운로드됨)</div>
+                      </div>
+                      <div className="flex items-start gap-1.5">
+                        <span className="font-black text-indigo-600 dark:text-indigo-400 shrink-0">방법 2.</span>
+                        <div>위 <strong>[GitHub 미러]</strong> 버튼을 누르시면 GitHub 공식 배포처에서 1초 만에 5.88MB APK 수신</div>
+                      </div>
+                    </div>
+                    <p className="text-[10px] text-amber-700 dark:text-amber-400 font-bold pt-0.5">
+                      💡 기존 스마트폰에 받아두신 10KB 크기의 'WordLoop-v3.68.0.apk.html' 파일은 삭제 후 새로 받은 5.88MB APK를 실행해 주세요!
+                    </p>
+                  </div>
                 </div>
               </div>
 

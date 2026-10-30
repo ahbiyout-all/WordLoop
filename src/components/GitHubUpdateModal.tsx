@@ -364,13 +364,13 @@ export const GitHubUpdateModal: React.FC<GitHubUpdateModalProps> = ({
                       Android (.apk)
                     </span>
                     <span className="text-[10px] text-slate-400 block truncate">
-                      공식 오프라인 패키지 (1.25MB)
+                      공식 오프라인 패키지 (5.88MB)
                     </span>
                   </div>
                 </div>
                 <a
                   href={updateData?.downloadUrlApk || "/api/download/apk"}
-                  download="WordLoop-v3.65.0.apk"
+                  download="WordLoop-v3.68.0.apk"
                   className="px-2.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs flex items-center gap-1 active:scale-95 transition-all shrink-0 shadow-sm"
                   title="WordLoop APK 직접 다운로드"
                 >

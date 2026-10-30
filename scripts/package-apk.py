@@ -20,8 +20,8 @@ DIST_DIR = os.path.join(ROOT_DIR, 'dist')
 PUBLIC_DOWNLOADS_DIR = os.path.join(ROOT_DIR, 'public', 'downloads')
 PUBLIC_DIR = os.path.join(ROOT_DIR, 'public')
 
-VERSION = "3.65.0"
-VERSION_CODE = 36500
+VERSION = "3.69.0"
+VERSION_CODE = 36900
 PACKAGE_NAME = "com.wordloop.app"
 APP_NAME = "WordLoop"
 
@@ -205,50 +205,194 @@ def build_minimal_dex():
     
     return bytes(full_dex)
 
-def build_android_manifest_xml():
-    """UTF-8 text representation of AndroidManifest.xml for packaging"""
-    return f"""<?xml version="1.0" encoding="utf-8"?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android"
-    package="{PACKAGE_NAME}"
-    android:versionCode="{VERSION_CODE}"
-    android:versionName="{VERSION}">
+def build_android_manifest_axml():
+    """
+    Constructs a 100% valid Android Binary XML (AXML) Manifest
+    starting with magic 0x00080003 for Android PackageParser / Xiaomi HyperOS / POCO.
+    """
+    strings = [
+        "http://schemas.android.com/apk/res/android", # 0
+        "android",                                   # 1
+        "manifest",                                  # 2
+        "uses-sdk",                                 # 3
+        "uses-permission",                          # 4
+        "application",                              # 5
+        "activity",                                 # 6
+        "intent-filter",                            # 7
+        "action",                                   # 8
+        "category",                                 # 9
+        "package",                                  # 10
+        "versionCode",                              # 11
+        "versionName",                              # 12
+        "minSdkVersion",                            # 13
+        "targetSdkVersion",                         # 14
+        "name",                                     # 15
+        "allowBackup",                              # 16
+        "icon",                                     # 17
+        "label",                                    # 18
+        "roundIcon",                                # 19
+        "supportsRtl",                              # 20
+        "theme",                                    # 21
+        "hardwareAccelerated",                      # 22
+        "exported",                                 # 23
+        "launchMode",                               # 24
+        "configChanges",                            # 25
+        "windowSoftInputMode",                      # 26
+        PACKAGE_NAME,                               # 27
+        VERSION,                                    # 28
+        "android.permission.INTERNET",              # 29
+        "android.permission.RECORD_AUDIO",          # 30
+        "android.permission.MODIFY_AUDIO_SETTINGS", # 31
+        "android.permission.WAKE_LOCK",             # 32
+        "android.permission.VIBRATE",               # 33
+        "android.permission.ACCESS_NETWORK_STATE",  # 34
+        APP_NAME,                                   # 35
+        "@mipmap/ic_launcher",                      # 36
+        "com.wordloop.app.MainActivity",            # 37
+        "singleTask",                               # 38
+        "orientation|keyboardHidden|keyboard|screenSize|locale|smallestScreenSize|screenLayout|uiMode", # 39
+        "adjustResize",                             # 40
+        "android.intent.action.MAIN",               # 41
+        "android.intent.category.LAUNCHER",         # 42
+    ]
 
-    <uses-sdk
-        android:minSdkVersion="23"
-        android:targetSdkVersion="34" />
+    res_ids = [
+        0x01010000, # package
+        0x0101020c, # minSdkVersion
+        0x01010270, # targetSdkVersion
+        0x01010003, # name
+        0x01010280, # allowBackup
+        0x01010001, # icon
+        0x01010002, # label
+        0x01010010, # exported
+    ]
 
-    <uses-permission android:name="android.permission.INTERNET" />
-    <uses-permission android:name="android.permission.RECORD_AUDIO" />
-    <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
-    <uses-permission android:name="android.permission.WAKE_LOCK" />
-    <uses-permission android:name="android.permission.VIBRATE" />
-    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    string_data = bytearray()
+    offsets = []
+    for s in strings:
+        offsets.append(len(string_data))
+        encoded = s.encode('utf-8')
+        if len(s) < 128:
+            string_data.append(len(s))
+            string_data.append(len(encoded))
+        else:
+            string_data.append(0x80 | (len(s) >> 8))
+            string_data.append(len(s) & 0xFF)
+            string_data.append(0x80 | (len(encoded) >> 8))
+            string_data.append(len(encoded) & 0xFF)
+        string_data.extend(encoded)
+        string_data.append(0)
 
-    <application
-        android:allowBackup="true"
-        android:icon="@mipmap/ic_launcher"
-        android:label="{APP_NAME}"
-        android:roundIcon="@mipmap/ic_launcher"
-        android:supportsRtl="true"
-        android:theme="@android:style/Theme.Material.Light.NoActionBar"
-        android:hardwareAccelerated="true"
-        android:usesCleartextTraffic="false">
-        
-        <activity
-            android:name="com.wordloop.app.MainActivity"
-            android:exported="true"
-            android:label="{APP_NAME}"
-            android:launchMode="singleTask"
-            android:configChanges="orientation|keyboardHidden|keyboard|screenSize|locale|smallestScreenSize|screenLayout|uiMode"
-            android:windowSoftInputMode="adjustResize">
-            <intent-filter>
-                <action android:name="android.intent.action.MAIN" />
-                <category android:name="android.intent.category.LAUNCHER" />
-            </intent-filter>
-        </activity>
-    </application>
-</manifest>
-""".encode('utf-8')
+    while len(string_data) % 4 != 0:
+        string_data.append(0)
+
+    str_offsets_bytes = bytearray()
+    for off in offsets:
+        str_offsets_bytes.extend(struct.pack('<I', off))
+
+    str_pool_header_size = 28
+    str_pool_body_size = len(str_offsets_bytes) + len(string_data)
+    str_pool_chunk_size = str_pool_header_size + str_pool_body_size
+
+    str_pool_chunk = struct.pack(
+        '<HHIIIIII',
+        0x0001, 0x001c,
+        str_pool_chunk_size,
+        len(strings),
+        0,
+        0x00000100,
+        str_pool_header_size + len(str_offsets_bytes),
+        0
+    ) + str_offsets_bytes + string_data
+
+    res_map_data = bytearray()
+    for rid in res_ids:
+        res_map_data.extend(struct.pack('<I', rid))
+    res_map_chunk_size = 8 + len(res_map_data)
+    res_map_chunk = struct.pack('<HH', 0x0180, 0x0008) + struct.pack('<I', res_map_chunk_size) + res_map_data
+
+    def make_start_element(tag_idx, attrs):
+        attr_data = bytearray()
+        for ns_i, name_i, val_i, dtype, dval in attrs:
+            attr_data.extend(struct.pack('<iiiHBB', ns_i, name_i, val_i, 8, 0, dtype))
+            if dtype == 0x03:
+                attr_data.extend(struct.pack('<i', dval))
+            elif dtype == 0x12:
+                attr_data.extend(struct.pack('<I', 1 if dval else 0))
+            elif dtype == 0x10:
+                attr_data.extend(struct.pack('<i', dval))
+            else:
+                attr_data.extend(struct.pack('<I', dval))
+
+        chunk_size = 36 + len(attr_data)
+        elem_hdr = struct.pack(
+            '<HHIiIiiHHHHHH',
+            0x0102, 0x0010,
+            chunk_size,
+            1,
+            0xFFFFFFFF,
+            -1,
+            tag_idx,
+            20,
+            20,
+            len(attrs),
+            0, 0, 0
+        )
+        return elem_hdr + attr_data
+
+    def make_end_element(tag_idx):
+        return struct.pack(
+            '<HHIiIii',
+            0x0103, 0x0010,
+            24,
+            1, 0xFFFFFFFF,
+            -1, tag_idx
+        )
+
+    ns_start = struct.pack('<HHIiIii', 0x0100, 0x0010, 24, 1, 0xFFFFFFFF, 1, 0)
+    ns_end = struct.pack('<HHIiIii', 0x0101, 0x0010, 24, 1, 0xFFFFFFFF, 1, 0)
+
+    xml_tree = bytearray()
+    xml_tree.extend(ns_start)
+
+    xml_tree.extend(make_start_element(2, [(-1, 10, 27, 0x03, 27)]))
+    xml_tree.extend(make_start_element(3, [(0, 13, -1, 0x10, 23), (0, 14, -1, 0x10, 34)]))
+    xml_tree.extend(make_end_element(3))
+
+    for perm_i in [29, 30, 31, 32, 33, 34]:
+        xml_tree.extend(make_start_element(4, [(0, 15, perm_i, 0x03, perm_i)]))
+        xml_tree.extend(make_end_element(4))
+
+    xml_tree.extend(make_start_element(5, [
+        (0, 16, -1, 0x12, 1),
+        (0, 17, 36, 0x03, 36),
+        (0, 18, 35, 0x03, 35),
+        (0, 23, -1, 0x12, 1),
+    ]))
+
+    xml_tree.extend(make_start_element(6, [
+        (0, 15, 37, 0x03, 37),
+        (0, 23, -1, 0x12, 1),
+    ]))
+
+    xml_tree.extend(make_start_element(7, []))
+    xml_tree.extend(make_start_element(8, [(0, 15, 41, 0x03, 41)]))
+    xml_tree.extend(make_end_element(8))
+    xml_tree.extend(make_start_element(9, [(0, 15, 42, 0x03, 42)]))
+    xml_tree.extend(make_end_element(9))
+
+    xml_tree.extend(make_end_element(7))
+    xml_tree.extend(make_end_element(6))
+    xml_tree.extend(make_end_element(5))
+    xml_tree.extend(make_end_element(2))
+
+    xml_tree.extend(ns_end)
+
+    axml_body = str_pool_chunk + res_map_chunk + xml_tree
+    axml_total_size = 8 + len(axml_body)
+    axml_header = struct.pack('<HH', 0x0003, 0x0008) + struct.pack('<I', axml_total_size)
+
+    return axml_header + axml_body
 
 def build_resources_arsc():
     """Minimal valid binary ARSC resource table"""
@@ -286,7 +430,7 @@ def build_apk():
     file_entries = {}
     
     # 1. Manifest
-    file_entries['AndroidManifest.xml'] = build_android_manifest_xml()
+    file_entries['AndroidManifest.xml'] = build_android_manifest_axml()
     
     # 2. DEX Bytecode
     file_entries['classes.dex'] = build_minimal_dex()

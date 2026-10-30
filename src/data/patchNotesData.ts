@@ -9,13 +9,46 @@ export interface PatchNoteVersion {
   }[];
 }
 
-export const APP_VERSION = '3.66.0';
+export const APP_VERSION = '3.68.0';
 
 export const PATCH_NOTES_DATA: PatchNoteVersion[] = [
   {
-    version: '3.66.0',
+    version: '3.68.0',
     date: '2026-10',
     isLatest: true,
+    tagline: '안드로이드 크롬 APK 설치 시 "Cookie check / Action required" 웹뷰 오작동 문제 해결 가이드 & 패키지 헤더 검증',
+    highlights: [
+      {
+        category: '🚨 크롬 안드로이드 APK 설치 오작동(Cookie check 화면) 해결 가이드 탑재',
+        items: [
+          '📱 [크롬 내 content:// 파일 렌더링 예외 원인 분석 & 트러블슈팅 가이드]: 안드로이드 크롬에서 APK 다운로드 알림 클릭 시 패키지 설치 프로그램 대신 크롬 웹뷰가 APK 바이너리를 웹페이지로 열어 "Cookie check: Action required" 에러가 발생하는 원인을 규명하고 30초 내 완전 해결 가이드를 탑재했습니다.',
+          '📂 [스마트폰 기본 [내 파일] 앱 직접 실행 안내]: 스마트폰의 기본 [내 파일] (또는 [다운로드] 폴더) 앱에서 `WordLoop-v3.68.0.apk` 터치 후 [패키지 설치 프로그램]을 선택하여 100% 정상 설치하는 단계를 모달 내 시각화 안내 카드로 내장했습니다.',
+          '🛡️ [서버/정적 파일 MIME 패키지 헤더 보강 (`server.ts`)]: `/downloads` 정적 서빙 및 API 다운로드 스트림에 `application/vnd.android.package-archive` 및 `Content-Disposition: attachment` 헤더를 강제하여 브라우저에서 인라인 열기가 발생하는 현상을 차단했습니다.',
+        ],
+      },
+    ],
+  },
+  {
+    version: '3.67.0',
+    date: '2026-10',
+    isLatest: false,
+    tagline: '안드로이드 APK 다운로드 무중단 내결함성 파이프라인 구축 & 클라이언트 Blob 폴백 원터치 다운로드 탑재',
+    highlights: [
+      {
+        category: '📱 안드로이드 APK 파일 다운로드 실패 결함 전면 해결',
+        items: [
+          '🛠️ [안드로이드 APK 물리 패키지 재창조 & 파일 경로 검색 고도화]: `WordLoop-v3.67.0.apk` (1.26 MB) 정식 패키지를 빌드하고, `/api/download/apk` 엔드포인트에서 버전에 구애받지 않고 유효한 APK 패키지 파일을 동적으로 탐색하여 제공하도록 개편했습니다.',
+          '🛡️ [서버 404 원천 차단 온디맨드 빌드 & 버퍼 폴백]: 디스크 내 APK 파일 부재 시 서버에서 온디맨드 패키징 스크립트를 즉시 가동하고, 비상시에도 유효한 안드로이드 패키지 200 OK 응답을 반환하여 다운로드 실패를 원천 차단했습니다.',
+          '⚡ [클라이언트 메모리 Blob 스트리밍 원터치 다운로드]: `AddToHomeScreenModal` 내 APK 받기 버튼 클릭 시 `fetch` -> `Blob` 오디오/패키지 스트리밍 파이프라인을 구동하여 브라우저 리다이렉트 블록 환경에서도 안전하게 APK를 받도록 구현했습니다.',
+          '💡 [인앱 브라우저 & 안드로이드 간편 설치 가이드 강화]: 카카오톡/네이버 인앱 브라우저에서의 다운로드 제한 대처법("Chrome으로 열기") 및 안드로이드 "출처를 알 수 없는 앱 설치 허용" 단계를 친절하게 안내합니다.',
+        ],
+      },
+    ],
+  },
+  {
+    version: '3.66.0',
+    date: '2026-10',
+    isLatest: false,
     tagline: 'PronunciationModal 쉐도잉 퀴즈 90점 이상 달성 시 "발음 마스터" 배지 수여 및 사용자 프로필 연동',
     highlights: [
       {
