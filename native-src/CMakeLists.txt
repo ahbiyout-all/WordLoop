@@ -54,6 +54,13 @@ add_library(WordLoopToneSynthEngine SHARED
 )
 target_include_directories(WordLoopToneSynthEngine PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 
+# 7. WordLoopShadowEngine.dll (Real-Time Phoneme Alignment, Shadowing Quiz & Discrepancy Heatmap)
+add_library(WordLoopShadowEngine SHARED
+    WordLoopShadowEngine.h
+    WordLoopShadowEngine.cpp
+)
+target_include_directories(WordLoopShadowEngine PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
+
 # Output directories
 set_target_properties(
     WordLoopAudioEngine
@@ -62,6 +69,7 @@ set_target_properties(
     WordLoopMorphEngine
     WordLoopTrayHook
     WordLoopToneSynthEngine
+    WordLoopShadowEngine
     PROPERTIES
     RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin"
     LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/lib"

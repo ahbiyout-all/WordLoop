@@ -39,7 +39,7 @@ if %errorlevel% neq 0 (
 )
 
 echo =========================================================
-echo [SUCCESS] WordLoop 6 Native DLLs built successfully!
+echo [SUCCESS] WordLoop 7 Native DLLs built successfully!
 echo Binaries located in: native-src\build\bin\Release\
 echo   1. WordLoopAudioEngine.dll
 echo   2. WordLoopFastDB.dll
@@ -47,5 +47,6 @@ echo   3. WordLoopSRSNeuralEngine.dll
 echo   4. WordLoopMorphEngine.dll
 echo   5. WordLoopTrayHook.dll
 echo   6. WordLoopToneSynthEngine.dll
+echo   7. WordLoopShadowEngine.dll
 echo =========================================================
 pause

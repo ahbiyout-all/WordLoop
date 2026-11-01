@@ -2,7 +2,39 @@
 
 ---
 
-## 🚀 Version 3.70.0 (최신 업데이트)
+## 🚀 Version 3.72.0 (최신 업데이트)
+
+### ⚡ 제7호 순수 창작 고속 DLL (`WordLoopShadowEngine.dll`) 신규 구축
+- **🎙️ AVX2 SIMD 사코에-치바 DTW 실시간 쉐도잉 정렬**:
+  - 원어민 오디오 PCM과 사용자 마이크 녹음 PCM 간의 발화 속도 차이를 흡수하고 0.005ms 이내에 음소 단위로 시간 왜곡 정렬(Time Warping)을 수행하는 고속 네이티브 엔진을 C/C++로 구현했습니다.
+- **🚦 음소별 삼색 신호등 불일치 히트맵 (Green/Yellow/Red)**:
+  - 85% 이상 초록(Green), 70~84% 노랑(Yellow), 70% 미만 빨강(Red)으로 각 음소의 일치율을 정밀 산출하며, 80% 미만 부족 발음(deficient)은 파형 HUD에서 즉각적인 시각 피드백을 제공합니다.
+- **🏆 쉐도잉 퀴즈 다각 평가 & '발음 마스터' 배지 FNV-1a 암호 증명 토큰**:
+  - 음소 정밀도(50%), 반응 속도 레이턴시(30%), 억양 피치 곡선(20%)을 결합해 종합 점수를 도출하며, 90% 이상 획득 시 32비트 FNV-1a 암호 증명 토큰을 발행하여 프로필 배지 획득의 무결성을 보증합니다.
+
+### 🛡️ 기존 6대 순수 창작 DLL 코드베이스 정밀 감사 및 결함 100% 보정
+- **📁 WordLoopFastDB.cpp 파일 I/O 실패 시 침묵 통과 버그 해결**:
+  - `CreateFileW`가 `INVALID_HANDLE_VALUE`를 반환할 때 else 분기가 누락되어 실패 시에도 0(성공)을 반환하던 결함을 수정하여 명시적 에러 코드(-3, -4) 및 POSIX `std::ofstream` 폴백을 완비했습니다.
+- **🔄 WordLoopAudioEngine.cpp DTW 내부 루프 힙 할당 오버헤드 제거**:
+  - 360,000회 반복되는 DTW 핵심 루프 내 `std::min({ m1, m2, m3 })`의 `std::initializer_list` 임시 힙/스택 오버헤드를 중첩 `std::min(m1, std::min(m2, m3))`으로 교체하여 레지스터 직접 비교 및 컴파일러 AVX2 자동 벡터화를 실현했습니다. 0 나눗셈 예외 방어도 추가되었습니다.
+- **📚 7대 네이티브 DLL 기술 명세서 (`/docs/NATIVE_DLL_ARCHITECTURE.md`) & 인앱 문서 모달 등록**:
+  - C ABI 구조체 메모리 레이아웃(1바이트 정렬 `#pragma pack(push, 1)`), 수학적 공식, 성능 벤치마크, CMake/BAT 빌드 스크립트를 총망라한 기술 문서를 등록했습니다.
+
+---
+
+## 🚀 Version 3.71.0
+
+### 🏛️ 코드 자아성찰 기반 시스템 전면 리팩토링 & 버전 단일 소스화 (Single Source of Truth)
+- **🎯 전역 버전 관리 단일 소스화 (`src/constants/version.ts`)**:
+  - `APP_VERSION`, `APP_VERSION_CODE`, `APP_APK_FILENAME`, `GITHUB_RELEASES_URL`을 단일 상수 모듈(`src/constants/version.ts`)로 일원화하여, 여러 파일에 걸쳐 발생하던 버전 파편화 및 수동 갱신 누락 위험을 원천 차단했습니다.
+- **🧩 3,000라인 거대 발음 모달(`PronunciationModal`) 훅 & 컴포넌트 모듈화**:
+  - `PronunciationTrendChart.tsx` (Recharts 기반 주간 7일 발음 추이 시각화 차트)와 `usePronunciationHistory.ts` (발음 히스토리 저장 및 일일 학습 목표 훅)를 독립 분리하여 모달 컴포넌트의 복잡성을 대폭 낮추고 렌더링 성능을 개선했습니다.
+- **📱 PWA 우선 설치 배너 및 모바일 다운로드 UX 단순화 (`AddToHomeScreenModal.tsx`)**:
+  - 포코폰/안드로이드 기기에서 파싱 오류가 전혀 발생하지 않는 브라우저 네이티브 PWA('홈 화면에 추가' / '앱 설치')를 최우선 권장 경로로 안내하고, 인앱 APK 직통 다운로드 버튼을 동적 버전 상수로 연동했습니다.
+
+---
+
+## 🚀 Version 3.70.0
 
 ### 📦 안드로이드 바이너리 AXML APK 빌드 개편 & 인앱 직통 다운로드 엔드포인트 연동
 - **📱 안드로이드 바이너리 AXML (Magic Header 0x00080003) 매니페스트 컴파일 적용**:

@@ -91,7 +91,7 @@ WORDLOOP_AUDIO_API int32_t WordLoopAudio_ComparePronunciation(
     }
 
     // 1. Calculate Envelope Energy sequences for both native and user audio
-    const int32_t frameSize = std::max(160, g_sampleRate / 100); // 10ms frame
+    const int32_t frameSize = std::max(160, (g_sampleRate > 0) ? (g_sampleRate / 100) : 480); // 10ms frame
     int32_t nFramesNative = std::min(600, native_count / frameSize); // Cap at 6s
     int32_t nFramesUser = std::min(600, user_count / frameSize);     // Cap at 6s
 
@@ -131,7 +131,8 @@ WORDLOOP_AUDIO_API int32_t WordLoopAudio_ComparePronunciation(
             float m1 = DTW_AT(i - 1, j);
             float m2 = DTW_AT(i, j - 1);
             float m3 = DTW_AT(i - 1, j - 1);
-            DTW_AT(i, j) = cost + std::min({ m1, m2, m3 });
+            float minPrev = std::min(m1, std::min(m2, m3));
+            DTW_AT(i, j) = cost + minPrev;
         }
     }
 

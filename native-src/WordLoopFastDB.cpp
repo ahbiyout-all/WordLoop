@@ -182,15 +182,33 @@ WORDLOOP_FASTDB_API int32_t WordLoopDB_SaveEncryptedVault(
         FILE_ATTRIBUTE_NORMAL,
         NULL
     );
-    if (hFile != INVALID_HANDLE_VALUE) {
-        DWORD written = 0;
-        WriteFile(hFile, encryptedData.data(), (DWORD)encryptedData.size(), &written, NULL);
-        CloseHandle(hFile);
-        return 0;
+    if (hFile == INVALID_HANDLE_VALUE) {
+        return -3; // Error: Failed to create or open vault destination
     }
-#endif
 
+    DWORD written = 0;
+    BOOL writeSuccess = WriteFile(hFile, encryptedData.data(), (DWORD)encryptedData.size(), &written, NULL);
+    CloseHandle(hFile);
+
+    if (!writeSuccess || written != (DWORD)encryptedData.size()) {
+        return -4; // Error: Partial write or disk full
+    }
     return 0; // Success
+#else
+    // Cross-platform standard file write fallback
+    if (!vault_path) return -3;
+    // Simple narrow path fallback conversion for POSIX environments
+    std::string narrowPath;
+    const wchar_t* p = vault_path;
+    while (*p) {
+        narrowPath += (char)(*p++);
+    }
+    std::ofstream ofs(narrowPath, std::ios::binary);
+    if (!ofs.is_open()) return -3;
+    ofs.write(reinterpret_cast<const char*>(encryptedData.data()), encryptedData.size());
+    if (!ofs.good()) return -4;
+    return 0; // Success
+#endif
 }
 
 WORDLOOP_FASTDB_API void WordLoopDB_Close(void) {

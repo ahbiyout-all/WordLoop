@@ -20,8 +20,15 @@ DIST_DIR = os.path.join(ROOT_DIR, 'dist')
 PUBLIC_DOWNLOADS_DIR = os.path.join(ROOT_DIR, 'public', 'downloads')
 PUBLIC_DIR = os.path.join(ROOT_DIR, 'public')
 
-VERSION = "3.70.0"
-VERSION_CODE = 37000
+try:
+    with open(os.path.join(ROOT_DIR, 'package.json'), 'r', encoding='utf-8') as f:
+        _pkg = json.load(f)
+        VERSION = _pkg.get('version', '3.71.0')
+except Exception:
+    VERSION = "3.71.0"
+
+_v_parts = [int(p) if p.isdigit() else 0 for p in VERSION.split('.')]
+VERSION_CODE = _v_parts[0] * 10000 + (_v_parts[1] if len(_v_parts) > 1 else 0) * 100 + (_v_parts[2] if len(_v_parts) > 2 else 0)
 PACKAGE_NAME = "com.wordloop.app"
 APP_NAME = "WordLoop"
 

@@ -32,6 +32,7 @@ import { ActiveTab, UserProfile } from '../types';
 import { getUserGeminiKey } from '../services/apiClient';
 import { UpdateCheckResult } from '../services/githubUpdateService';
 import { RealtimeAudioSpeedWidget } from './RealtimeAudioSpeedWidget';
+import { APP_VERSION } from '../constants/version';
 
 interface NavbarProps {
   activeTab: ActiveTab;
@@ -578,7 +579,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                     <span>안드로이드 APK 설치 센터</span>
                   </div>
                   <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 font-bold">
-                    v3.70.0
+                    v{APP_VERSION}
                   </span>
                 </button>
 

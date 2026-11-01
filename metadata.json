@@ -1,6 +1,6 @@
 {
   "name": "Self-Improvement & English Vocab",
-  "description": "WordLoop (v3.70.0): Comprehensive English vocabulary & sentence learning app featuring Android Binary AXML APK Package Installer, direct in-app APK download engine, Real-Time Shadowing Quiz, and phoneme waveform analysis.",
+  "description": "WordLoop (v3.72.0): Comprehensive English vocabulary learning app featuring 7 pure custom C/C++ native DLLs (AVX2 SIMD ShadowEngine, AudioEngine, FastDB, FSRS SRSNeuralEngine, MorphEngine, TrayHook, ToneSynth), Shadowing Quiz, and Android Binary AXML APK packaging.",
   "requestFramePermissions": [
     "microphone"
   ],

@@ -27,7 +27,7 @@ import {
   GITHUB_REPO_OWNER,
   GITHUB_REPO_NAME,
 } from '../services/githubUpdateService';
-import { APP_VERSION } from '../data/patchNotesData';
+import { APP_VERSION, APP_APK_FILENAME } from '../constants/version';
 
 interface GitHubUpdateModalProps {
   isOpen: boolean;
@@ -370,7 +370,7 @@ export const GitHubUpdateModal: React.FC<GitHubUpdateModalProps> = ({
                 </div>
                 <a
                   href={updateData?.downloadUrlApk || "/api/download/apk"}
-                  download="WordLoop-v3.70.0.apk"
+                  download={APP_APK_FILENAME}
                   className="px-2.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs flex items-center gap-1 active:scale-95 transition-all shrink-0 shadow-sm"
                   title="WordLoop APK 직접 다운로드"
                 >

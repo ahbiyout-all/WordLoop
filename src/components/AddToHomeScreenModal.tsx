@@ -18,6 +18,12 @@ import {
   Info,
   Apple,
 } from 'lucide-react';
+import {
+  APP_VERSION,
+  APP_APK_FILENAME,
+  APP_APK_DOWNLOAD_PATH,
+  GITHUB_RELEASES_URL,
+} from '../constants/version';
 
 interface AddToHomeScreenModalProps {
   isOpen: boolean;
@@ -47,7 +53,7 @@ export const AddToHomeScreenModal: React.FC<AddToHomeScreenModalProps> = ({
 
     try {
       // Direct API fetch
-      const res = await fetch('/api/download/apk', {
+      const res = await fetch(APP_APK_DOWNLOAD_PATH, {
         headers: { Accept: 'application/vnd.android.package-archive, */*' },
       });
 
@@ -58,22 +64,22 @@ export const AddToHomeScreenModal: React.FC<AddToHomeScreenModalProps> = ({
       const buffer = await res.arrayBuffer();
 
       // CRITICAL INTEGRITY CHECK:
-      // Real APK is ~5.88 MB (> 5,000,000 bytes).
+      // Real APK is > 5MB (> 5,000,000 bytes).
       // AI Studio preview auth redirect is ~10 KB (10,330 bytes text/html).
       if (buffer.byteLength < 500000) {
         console.warn(`[APK Download Warning] Received HTML proxy page (${buffer.byteLength} bytes), expecting > 5MB APK binary.`);
         setApkDownloadError(
-          '미리보기 보안 인증 환경 제한으로 10KB HTML 응답이 들어왔습니다. 아래 [GitHub Releases 공식 배포 링크]를 이용하시면 5.88MB 정식 APK를 1초 만에 다운로드하실 수 있습니다.'
+          '미리보기 보안 인증 환경 제한으로 10KB HTML 응답이 들어왔습니다. 상단의 [추천 PWA 홈 화면에 추가]를 이용하시면 오류 0%로 즉시 설치하실 수 있습니다.'
         );
         return;
       }
 
-      // Verified real 5.88 MB APK binary
+      // Verified real APK binary
       const blob = new Blob([buffer], { type: 'application/vnd.android.package-archive' });
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = 'WordLoop-v3.70.0.apk';
+      a.download = APP_APK_FILENAME;
       a.setAttribute('type', 'application/vnd.android.package-archive');
       document.body.appendChild(a);
       a.click();
@@ -385,11 +391,11 @@ export const AddToHomeScreenModal: React.FC<AddToHomeScreenModalProps> = ({
                       <h4 className="font-black text-xs sm:text-sm text-slate-900 dark:text-white flex items-center gap-1.5">
                         <span>WordLoop 독립형 APK 직접 설치</span>
                         <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-emerald-500 text-white font-extrabold font-mono">
-                          v3.70.0
+                          v{APP_VERSION}
                         </span>
                       </h4>
                       <p className="text-[11px] text-slate-500 dark:text-slate-400">
-                        구글 플레이스토어 없이 스마트폰에 바로 설치되는 공식 APK 파일
+                        구글 플레이스토어 없이 스마트폰에 바로 설치되는 공식 바이너리 APK 파일
                       </p>
                     </div>
                   </div>
@@ -414,13 +420,13 @@ export const AddToHomeScreenModal: React.FC<AddToHomeScreenModalProps> = ({
                     ) : (
                       <>
                         <Download className="w-4 h-4" />
-                        <span>WordLoop APK 인앱 받기 (v3.70.0)</span>
+                        <span>WordLoop APK 인앱 받기 (v{APP_VERSION})</span>
                       </>
                     )}
                   </button>
 
                   <a
-                    href="https://github.com/ahbiyout-all/WordLoop/releases"
+                    href={GITHUB_RELEASES_URL}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="w-full sm:w-auto px-3.5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-extrabold text-[11px] flex items-center justify-center gap-1.5 shrink-0 shadow-md shadow-indigo-600/20 transition-colors"
@@ -453,10 +459,10 @@ export const AddToHomeScreenModal: React.FC<AddToHomeScreenModalProps> = ({
                       • <strong>상황 설명</strong>: GitHub 릴리스 외부 저장소 게시물에는 `.exe`(PC) 또는 `.zip` 파일만 등록되어 있을 수 있습니다.
                     </p>
                     <p>
-                      • <strong>즉시 설치 방법</strong>: 깃허브에 .apk 파일이 없더라도 위의 <strong className="text-emerald-600 dark:text-emerald-400">[WordLoop APK 인앱 받기]</strong> 버튼을 누르시면, 안드로이드 패키지 설치자 파싱 오류가 완벽히 수정된 <strong>WordLoop-v3.70.0.apk</strong> 정식 파일이 바로 다운로드됩니다!
+                      • <strong>즉시 설치 방법</strong>: 깃허브에 .apk 파일이 없더라도 위의 <strong className="text-emerald-600 dark:text-emerald-400">[WordLoop APK 인앱 받기]</strong> 버튼을 누르시면, 안드로이드 패키지 설치자 파싱 오류가 완벽히 수정된 <strong>{APP_APK_FILENAME}</strong> 정식 파일이 바로 다운로드됩니다!
                     </p>
                     <p className="text-[10px] text-amber-700 dark:text-amber-400 font-bold pt-0.5">
-                      💡 스마트폰 [내 파일] &gt; [Download] 폴더의 기존 10KB `.apk.html` 파일은 삭제하신 후, 인앱에서 받은 `WordLoop-v3.70.0.apk`를 설치해 주세요.
+                      💡 스마트폰 [내 파일] &gt; [Download] 폴더의 기존 10KB `.apk.html` 파일은 삭제하신 후, 인앱에서 받은 `{APP_APK_FILENAME}`를 설치해 주세요.
                     </p>
                   </div>
                 </div>

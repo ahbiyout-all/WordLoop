@@ -4,11 +4,14 @@
  * Target: Real-time update checks, semantic version comparison, and direct installer downloads.
  */
 
-import { APP_VERSION } from '../data/patchNotesData';
+import {
+  APP_VERSION,
+  GITHUB_REPO_OWNER,
+  GITHUB_REPO_NAME,
+  GITHUB_RELEASES_URL,
+} from '../constants/version';
 
-export const GITHUB_REPO_OWNER = 'ahbiyout-all';
-export const GITHUB_REPO_NAME = 'WordLoop';
-export const GITHUB_RELEASES_URL = `https://github.com/${GITHUB_REPO_OWNER}/${GITHUB_REPO_NAME}/releases`;
+export { APP_VERSION, GITHUB_REPO_OWNER, GITHUB_REPO_NAME, GITHUB_RELEASES_URL };
 export const GITHUB_API_LATEST_RELEASE = `https://api.github.com/repos/${GITHUB_REPO_OWNER}/${GITHUB_REPO_NAME}/releases/latest`;
 
 export interface GitHubAsset {

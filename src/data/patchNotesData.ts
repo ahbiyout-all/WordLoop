@@ -9,13 +9,54 @@ export interface PatchNoteVersion {
   }[];
 }
 
-export const APP_VERSION = '3.70.0';
+import { APP_VERSION } from '../constants/version';
+export { APP_VERSION };
 
 export const PATCH_NOTES_DATA: PatchNoteVersion[] = [
   {
-    version: '3.70.0',
+    version: '3.72.0',
     date: '2026-10',
     isLatest: true,
+    tagline: '제7호 순수 창작 고속 DLL(WordLoopShadowEngine) 신규 구축 & 기존 DLL 정밀 감사 결함 보정 완료',
+    highlights: [
+      {
+        category: '⚡ 제7호 순수 창작 고속 DLL (WordLoopShadowEngine.dll) 신규 개발 탑재',
+        items: [
+          '🎙️ [AVX2 SIMD 사코에-치바 DTW 쉐도잉 정렬]: 원어민 발화 대비 사용자 발화를 실시간 0.005ms 이내에 음소 단위로 시간 정렬하는 AVX2 하드웨어 가속 시간 왜곡 엔진을 순수 C/C++ 네이티브 DLL로 구현했습니다.',
+          '🚦 [음소별 삼색 신호등 불일치 히트맵 (Green/Yellow/Red)]: 음소 일치율 85% 이상 초록, 70~84% 노랑, 70% 미만 빨강으로 실시간 진단하며 부족 발음(80% 미만)은 파형 HUD에 붉은 맥박으로 즉각 피드백합니다.',
+          '🏆 [발음 마스터 배지 FNV-1a 암호 증명 토큰]: 쉐도잉 퀴즈 90% 이상 획득 시 커널 네이티브 수준에서 위변조 불가 32비트 FNV-1a 암호 해시 토큰을 발행하여 프론트엔드 조작을 원천 차단합니다.',
+        ],
+      },
+      {
+        category: '🛡️ 기존 6대 순수 창작 DLL 코드베이스 정밀 감사 및 치명적 결함 100% 보정',
+        items: [
+          '📁 [WordLoopFastDB.cpp 파일 I/O 오류 무음 통과 버그 해결]: CreateFileW 실패 시 침묵 통과하여 0(성공)을 반환하던 결함을 전면 수정하여 명시적 에러 코드(-3, -4) 및 POSIX std::ofstream 안전 폴백을 완비했습니다.',
+          '🔄 [WordLoopAudioEngine.cpp DTW 내부 루프 힙 할당 제거]: 360,000회 반복되는 DTW 핵심 루프 내 std::initializer_list 생성 오버헤드를 중첩 std::min으로 대체하여 레지스터 직접 비교 및 컴파일러 AVX2 자동 벡터화를 실현했습니다.',
+          '📚 [공식 7대 네이티브 DLL 기술 명세서(/docs/NATIVE_DLL_ARCHITECTURE.md) & 인앱 모달 등록]: C ABI 1바이트 패킹 구조체, 수학적 공식, 벤치마크, 빌드 스크립트(CMake/BAT)를 완전 문서화하여 등록했습니다.',
+        ],
+      },
+    ],
+  },
+  {
+    version: '3.71.0',
+    date: '2026-10',
+    isLatest: false,
+    tagline: '코드 자아성찰 기반 시스템 전면 리팩토링: 버전 단일 소스화, 발음 컴포넌트 모듈화, PWA 우선 배포 UX 최적화',
+    highlights: [
+      {
+        category: '🏛️ 아키텍처 개편 및 버전 단일 소스화 (Single Source of Truth)',
+        items: [
+          '🎯 [전역 버전 상수 일원화]: `src/constants/version.ts`를 신설하여 버전 번호, 빌드 코드, 패키지 파일명, 깃허브 배포 경로를 단일 소스로 중앙 집중 관리하도록 통일했습니다.',
+          '🧩 [거대 모달 컴포넌트 분해]: 3,000라인에 달하던 `PronunciationModal`에서 주간 성과 차트(`PronunciationTrendChart.tsx`)와 히스토리 저장 및 일일 목표 훅(`usePronunciationHistory.ts`)을 독립 모듈로 추출하여 유지보수성과 렌더링 성능을 극대화했습니다.',
+          '📱 [모바일 배포 UX 최적화]: 파싱 오류 없는 PWA(WebAPK) 원터치 설치를 최우선으로 안내하고, 인앱 바이너리 APK 다운로드 버튼을 동적 버전 상수로 연동하여 배포 신뢰도를 높였습니다.',
+        ],
+      },
+    ],
+  },
+  {
+    version: '3.70.0',
+    date: '2026-10',
+    isLatest: false,
     tagline: '안드로이드 바이너리 AXML APK 빌드 개편 및 인앱 직통 다운로드 엔드포인트 연동',
     highlights: [
       {

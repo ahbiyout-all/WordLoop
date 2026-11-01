@@ -340,7 +340,12 @@ app.get("/api/health", (_req, res) => {
 
 // 📦 Android APK Download & Metadata Endpoints
 const APK_PUBLIC_DIR = path.join(process.cwd(), "public", "downloads");
-const APK_FILENAME = "WordLoop-v3.69.0.apk";
+let SERVER_APP_VERSION = "3.71.0";
+try {
+  const pkgData = JSON.parse(fs.readFileSync(path.join(process.cwd(), "package.json"), "utf8"));
+  if (pkgData.version) SERVER_APP_VERSION = pkgData.version;
+} catch {}
+const APK_FILENAME = `WordLoop-v${SERVER_APP_VERSION}.apk`;
 
 // Serve /downloads statically with strict APK package MIME headers
 app.use(
@@ -443,8 +448,8 @@ app.get("/api/apk/info", (_req, res) => {
   res.json({
     appName: "WordLoop",
     packageName: "com.wordloop.app",
-    version: "3.70.0",
-    versionCode: 37000,
+    version: SERVER_APP_VERSION,
+    versionCode: 37100,
     filename: APK_FILENAME,
     downloadUrl: "/api/download/apk",
     directUrl: `/downloads/${APK_FILENAME}`,
