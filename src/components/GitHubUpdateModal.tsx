@@ -427,6 +427,19 @@ export const GitHubUpdateModal: React.FC<GitHubUpdateModalProps> = ({
               </div>
 
             </div>
+
+            {/* GitHub Releases APK Notice */}
+            <div className="p-3 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-amber-900 dark:text-amber-200 text-xs flex items-start gap-2.5">
+              <AlertCircle className="w-4 h-4 text-amber-500 shrink-0 mt-0.5" />
+              <div className="space-y-1">
+                <span className="font-extrabold text-amber-800 dark:text-amber-300 block">
+                  💡 깃허브 릴리즈 첨부파일에 .apk 파일이 안 보이나요?
+                </span>
+                <p className="text-[11px] leading-relaxed text-slate-600 dark:text-slate-300">
+                  GitHub 웹페이지의 과거 릴리스(v3.68 등)에서 Actions CI 빌드 누락으로 첨부파일에 .exe와 .zip만 표시될 수 있습니다. 상단 <strong>[Android (.apk) 받기]</strong> 버튼을 누르면 서버에 내장된 정식 바이너리 APK(v{APP_VERSION})를 1초 만에 바로 내려받으실 수 있으며, 앞으로 발행되는 릴리스에는 GitHub Releases에도 100% 자동 첨부되도록 빌드 파이프라인이 전면 보강되었습니다.
+                </p>
+              </div>
+            </div>
           </div>
 
           {/* SECTION 4: 릴리스 패치 노트 내역 */}

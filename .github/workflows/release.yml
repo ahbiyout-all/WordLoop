@@ -95,26 +95,19 @@ jobs:
   build-android:
     name: 📱 Build Android App (.apk)
     runs-on: ubuntu-latest
-    continue-on-error: true
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
 
       - name: Setup Node.js (LTS)
         uses: actions/setup-node@v4
         with:
           node-version: 22
-
-      - name: Setup Java 17
-        uses: actions/setup-java@v4
-        with:
-          distribution: 'temurin'
-          java-version: '17'
-
-      - name: Setup Android SDK
-        uses: android-actions/setup-android@v3
-        with:
-          packages: 'platform-tools'
 
       - name: Install Dependencies
         run: npm install
@@ -122,32 +115,45 @@ jobs:
       - name: Build Web Assets
         run: node scripts/build-web.js
 
-      - name: Install Capacitor Android
-        run: npm install @capacitor/core --save && npm install @capacitor/cli @capacitor/android --save-dev
-
-      - name: Sync Capacitor Android
-        run: node scripts/sync-android.js auto
-
-      - name: Build Android APK (Gradle)
+      - name: 🔨 Package Standalone Android APK (Binary AXML 0x00080003)
         run: |
+          mkdir -p release_artifacts
+          python3 scripts/package-apk.py release_artifacts
+          VER=$(node -p "try { require('./package.json').version } catch(e) { '3.72.0' }")
+          TAG="${{ github.ref_name || 'latest' }}"
+          if [ -f "public/downloads/WordLoop-v${VER}.apk" ]; then
+            cp "public/downloads/WordLoop-v${VER}.apk" "release_artifacts/WordLoop-${TAG}.apk" || true
+          fi
+          if [ -f "public/downloads/WordLoop.apk" ]; then
+            cp "public/downloads/WordLoop.apk" "release_artifacts/WordLoop.apk" || true
+          fi
+          echo "========================================="
+          echo "📦 Android APK release artifacts:"
+          ls -lh release_artifacts/
+          echo "========================================="
+
+      - name: Try Optional Capacitor Android Gradle Build
+        continue-on-error: true
+        run: |
+          npm install --save-dev @capacitor/core @capacitor/cli @capacitor/android --legacy-peer-deps || true
+          node scripts/sync-android.js auto || true
           if [ -d "android" ] && [ -f "android/gradlew" ]; then
             cd android
             chmod +x ./gradlew
-            ./gradlew assembleDebug --no-daemon
+            ./gradlew assembleDebug --no-daemon || true
             cd ..
-            mkdir -p release_artifacts
-            TAG="${{ github.ref_name || 'latest' }}"
-            cp android/app/build/outputs/apk/debug/app-debug.apk release_artifacts/WordLoop-${TAG}.apk
-            ls -la release_artifacts/
-          else
-            echo "Android directory not generated, skipping APK build."
+            if [ -f "android/app/build/outputs/apk/debug/app-debug.apk" ]; then
+              TAG="${{ github.ref_name || 'latest' }}"
+              cp android/app/build/outputs/apk/debug/app-debug.apk "release_artifacts/WordLoop-Capacitor-${TAG}.apk" || true
+            fi
           fi
 
       - name: Upload Android APK Artifact
         uses: actions/upload-artifact@v4
         with:
           name: android-apk
-          path: release_artifacts/*
+          path: release_artifacts/*.apk
+          if-no-files-found: error
 
   # ============================================================
   # 4. BUILD IOS PACKAGE (PWA / XCODE ARCHIVE)
@@ -218,29 +224,45 @@ jobs:
           path: all_release_assets
           merge-multiple: true
 
-      - name: List All Downloaded Assets
-        run: |
-          echo "========================================="
-          echo "📦 Assets to be published on GitHub:"
-          ls -lh all_release_assets/ || true
-          echo "========================================="
-
       - name: Generate Release Notes and Dynamic Tag
         id: release_meta
         run: |
           if [ "${{ github.ref_type }}" = "tag" ]; then
             TAG="${{ github.ref_name }}"
           else
-            VER=$(node -p "try { require('./package.json').version } catch(e) { '3.13.0' }")
+            VER=$(node -p "try { require('./package.json').version } catch(e) { '3.72.0' }")
             TAG="v${VER}"
           fi
           echo "tag=${TAG}" >> $GITHUB_OUTPUT
           echo "Processing notes for ${TAG}..."
           if [ -f "docs/PATCH_NOTES.md" ]; then
-            head -n 40 docs/PATCH_NOTES.md > current_notes.txt
+            head -n 45 docs/PATCH_NOTES.md > current_notes.txt
           else
             echo "WordLoop Release ${TAG}" > current_notes.txt
           fi
+
+      - name: 🛡️ Verify and Guarantee Android APK is Present
+        run: |
+          echo "========================================="
+          echo "🔍 Checking for Android APK in all_release_assets..."
+          if ! ls all_release_assets/*.apk 1> /dev/null 2>&1; then
+            echo "⚠️ [Warning] APK artifact was missing from build-android! Generating directly via package-apk.py..."
+            node scripts/build-web.js
+            python3 scripts/package-apk.py all_release_assets
+            VER=$(node -p "try { require('./package.json').version } catch(e) { '3.72.0' }")
+            TAG="${{ steps.release_meta.outputs.tag }}"
+            if [ -f "public/downloads/WordLoop-v${VER}.apk" ]; then
+              cp "public/downloads/WordLoop-v${VER}.apk" "all_release_assets/WordLoop-${TAG}.apk" || true
+            elif [ -f "public/downloads/WordLoop.apk" ]; then
+              cp "public/downloads/WordLoop.apk" "all_release_assets/WordLoop-${TAG}.apk" || true
+            fi
+          else
+            echo "✅ Android APK successfully verified in release assets!"
+          fi
+          echo "========================================="
+          echo "📦 Final verified assets to be published on GitHub Release:"
+          ls -lh all_release_assets/
+          echo "========================================="
 
       - name: Publish to GitHub Releases
         uses: softprops/action-gh-release@v2

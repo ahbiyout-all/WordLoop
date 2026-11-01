@@ -23,9 +23,9 @@ PUBLIC_DIR = os.path.join(ROOT_DIR, 'public')
 try:
     with open(os.path.join(ROOT_DIR, 'package.json'), 'r', encoding='utf-8') as f:
         _pkg = json.load(f)
-        VERSION = _pkg.get('version', '3.71.0')
+        VERSION = _pkg.get('version', '3.72.0')
 except Exception:
-    VERSION = "3.71.0"
+    VERSION = "3.72.0"
 
 _v_parts = [int(p) if p.isdigit() else 0 for p in VERSION.split('.')]
 VERSION_CODE = _v_parts[0] * 10000 + (_v_parts[1] if len(_v_parts) > 1 else 0) * 100 + (_v_parts[2] if len(_v_parts) > 2 else 0)
@@ -542,6 +542,18 @@ def build_apk():
         
     with open(apk_out_path, 'rb') as src, open(apk_root_path, 'wb') as dst:
         dst.write(src.read())
+
+    # Optional: Copy to specified output directory or release_artifacts if present
+    target_dir = sys.argv[1] if len(sys.argv) > 1 and not sys.argv[1].startswith('-') else None
+    if not target_dir and os.path.exists(os.path.join(ROOT_DIR, 'release_artifacts')):
+        target_dir = os.path.join(ROOT_DIR, 'release_artifacts')
+        
+    if target_dir:
+        os.makedirs(target_dir, exist_ok=True)
+        extra_target = os.path.join(target_dir, apk_filename)
+        with open(apk_out_path, 'rb') as src, open(extra_target, 'wb') as dst:
+            dst.write(src.read())
+        print(f"📦 [Release Artifact] Copied APK to: {extra_target}")
         
     # File statistics & checksums
     apk_size = os.path.getsize(apk_out_path)
