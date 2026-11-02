@@ -1023,27 +1023,43 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
                         </label>
 
                         {/* Mom Preset Chips */}
-                        <div className="flex items-center gap-1 pt-0.5">
+                        <div className="flex items-center gap-1.5 pt-0.5">
                           <span className="text-[9px] text-slate-400 font-bold shrink-0">추천:</span>
-                          <div className="flex items-center gap-1 overflow-x-auto custom-scrollbar">
-                            {MOM_PHOTO_PRESETS.map((p) => (
-                              <button
-                                key={p.id}
-                                type="button"
-                                onClick={() => handleSelectMomPreset(p.dataUrl)}
-                                title={`${p.name}: ${p.description}`}
-                                className="px-1.5 py-0.5 rounded-md bg-white dark:bg-slate-800 hover:bg-rose-200 dark:hover:bg-rose-900/60 border border-rose-200 dark:border-rose-800 text-rose-800 dark:text-rose-300 text-[9px] font-bold shrink-0 transition-colors cursor-pointer"
-                              >
-                                {p.name.replace(' 엄마', '')}
-                              </button>
-                            ))}
+                          <div className="flex items-center gap-1 overflow-x-auto custom-scrollbar py-0.5">
+                            {MOM_PHOTO_PRESETS.map((p) => {
+                              const isSelected = momPhotoUrl === p.dataUrl;
+                              return (
+                                <button
+                                  key={p.id}
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.preventDefault();
+                                    e.stopPropagation();
+                                    handleSelectMomPreset(p.dataUrl);
+                                  }}
+                                  title={`${p.name}: ${p.description}`}
+                                  className={`px-2 py-0.5 rounded-lg border text-[10px] font-bold shrink-0 transition-all cursor-pointer flex items-center gap-1 ${
+                                    isSelected
+                                      ? 'bg-rose-500 text-white border-rose-500 shadow-sm ring-2 ring-rose-300 dark:ring-rose-800 font-black'
+                                      : 'bg-white dark:bg-slate-800 hover:bg-rose-100 dark:hover:bg-rose-900/60 border-rose-200 dark:border-rose-800 text-rose-800 dark:text-rose-300'
+                                  }`}
+                                >
+                                  {isSelected && <span className="text-[9px]">✓</span>}
+                                  <span>{p.name.replace(' 엄마', '')}</span>
+                                </button>
+                              );
+                            })}
                           </div>
                         </div>
 
                         {momPhotoUrl && (
                           <button
                             type="button"
-                            onClick={handleRemoveMomPhoto}
+                            onClick={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              handleRemoveMomPhoto();
+                            }}
                             className="w-full py-1 px-2 rounded-lg bg-transparent hover:bg-rose-200/50 dark:hover:bg-rose-900/50 text-rose-600 dark:text-rose-400 text-[10px] font-bold flex items-center justify-center gap-1 transition-colors cursor-pointer"
                           >
                             <Trash2 className="w-3 h-3" />
@@ -1067,7 +1083,11 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
                       </span>
                       <button
                         type="button"
-                        onClick={() => setPreviewNag({ isOpen: true, speaker: 'dad', type: 'high_achievement' })}
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          setPreviewNag({ isOpen: true, speaker: 'dad', type: 'high_achievement' });
+                        }}
                         className="px-2 py-1 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-[10px] font-black flex items-center gap-1 shadow-sm cursor-pointer active:scale-95"
                       >
                         <Eye className="w-3 h-3" />
@@ -1107,27 +1127,43 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
                         </label>
 
                         {/* Dad Preset Chips */}
-                        <div className="flex items-center gap-1 pt-0.5">
+                        <div className="flex items-center gap-1.5 pt-0.5">
                           <span className="text-[9px] text-slate-400 font-bold shrink-0">추천:</span>
-                          <div className="flex items-center gap-1 overflow-x-auto custom-scrollbar">
-                            {DAD_PHOTO_PRESETS.map((p) => (
-                              <button
-                                key={p.id}
-                                type="button"
-                                onClick={() => handleSelectDadPreset(p.dataUrl)}
-                                title={`${p.name}: ${p.description}`}
-                                className="px-1.5 py-0.5 rounded-md bg-white dark:bg-slate-800 hover:bg-blue-200 dark:hover:bg-blue-900/60 border border-blue-200 dark:border-blue-800 text-blue-800 dark:text-blue-300 text-[9px] font-bold shrink-0 transition-colors cursor-pointer"
-                              >
-                                {p.name.replace(' 아빠', '')}
-                              </button>
-                            ))}
+                          <div className="flex items-center gap-1 overflow-x-auto custom-scrollbar py-0.5">
+                            {DAD_PHOTO_PRESETS.map((p) => {
+                              const isSelected = dadPhotoUrl === p.dataUrl;
+                              return (
+                                <button
+                                  key={p.id}
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.preventDefault();
+                                    e.stopPropagation();
+                                    handleSelectDadPreset(p.dataUrl);
+                                  }}
+                                  title={`${p.name}: ${p.description}`}
+                                  className={`px-2 py-0.5 rounded-lg border text-[10px] font-bold shrink-0 transition-all cursor-pointer flex items-center gap-1 ${
+                                    isSelected
+                                      ? 'bg-blue-600 text-white border-blue-600 shadow-sm ring-2 ring-blue-300 dark:ring-blue-800 font-black'
+                                      : 'bg-white dark:bg-slate-800 hover:bg-blue-100 dark:hover:bg-blue-900/60 border-blue-200 dark:border-blue-800 text-blue-800 dark:text-blue-300'
+                                  }`}
+                                >
+                                  {isSelected && <span className="text-[9px]">✓</span>}
+                                  <span>{p.name.replace(' 아빠', '')}</span>
+                                </button>
+                              );
+                            })}
                           </div>
                         </div>
 
                         {dadPhotoUrl && (
                           <button
                             type="button"
-                            onClick={handleRemoveDadPhoto}
+                            onClick={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              handleRemoveDadPhoto();
+                            }}
                             className="w-full py-1 px-2 rounded-lg bg-transparent hover:bg-blue-200/50 dark:hover:bg-blue-900/50 text-blue-600 dark:text-blue-400 text-[10px] font-bold flex items-center justify-center gap-1 transition-colors cursor-pointer"
                           >
                             <Trash2 className="w-3 h-3" />

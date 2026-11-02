@@ -25,6 +25,7 @@ import {
 import { ActiveTab, UserProfile, VocabItem, SentenceItem, Goal, DailyGoalHistory } from '../types';
 import { speechService } from '../services/speechService';
 import { getUserGeminiKey } from '../services/apiClient';
+import { StreakFire } from './StreakFire';
 
 interface MainLauncherDashboardProps {
   userProfile: UserProfile | null;
@@ -247,10 +248,13 @@ export const MainLauncherDashboard: React.FC<MainLauncherDashboardProps> = ({
                   <span className="text-[10px] text-emerald-300 font-bold">· 프로필</span>
                 </button>
               )}
-              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 sm:px-3 sm:py-1 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 text-[11px] sm:text-xs font-bold">
-                <Flame className="w-3.5 h-3.5 text-amber-400 fill-amber-400 animate-bounce" />
-                <span>{streak}일 연속 학습 중</span>
-              </span>
+              {streak > 0 && (
+                <StreakFire
+                  streak={streak}
+                  size={isCompactHeight ? 'sm' : 'md'}
+                  onClick={onOpenProfileModal}
+                />
+              )}
               <span
                 className="inline-flex items-center gap-1 px-2 py-0.5 sm:py-1 rounded-full bg-white/10 text-slate-300 border border-white/15 text-[10px] font-mono"
                 title="모바일/태블릿/PC 화면 해상도에 맞춰 상하좌우 간격이 실시간 자동 보정됩니다"

@@ -1264,7 +1264,6 @@ export default function App() {
         totalRepeatsCount={totalRepeatsCount}
         onSaveProfile={(updatedProfile) => {
           setUserProfile(updatedProfile);
-          setShowProfileModal(false);
         }}
         onClose={() => setShowProfileModal(false)}
         onExportAllData={handleExportAllData}
