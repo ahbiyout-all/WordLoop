@@ -1,4 +1,5 @@
 import { Goal, DailyGoalHistory } from '../types';
+import { getLocalDateString } from '../utils/dateUtils';
 
 export const DEFAULT_GOALS: Goal[] = [
   {
@@ -62,7 +63,7 @@ export function generateSampleHistory(): DailyGoalHistory[] {
   for (let i = 29; i >= 0; i--) {
     const d = new Date(today);
     d.setDate(d.getDate() - i);
-    const dateStr = d.toISOString().split('T')[0];
+    const dateStr = getLocalDateString(d);
 
     // Seed realistic streak pattern
     const completed = i === 0 ? 0 : Math.floor(Math.random() * 3) + 1;

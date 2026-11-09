@@ -32,6 +32,8 @@ import { ActiveTab, UserProfile } from '../types';
 import { getUserGeminiKey } from '../services/apiClient';
 import { UpdateCheckResult } from '../services/githubUpdateService';
 import { RealtimeAudioSpeedWidget } from './RealtimeAudioSpeedWidget';
+import { LevelExperienceBar } from './LevelExperienceBar';
+import { StudentLevelInfo, calculateStudentLevel } from '../services/studentGamificationService';
 import { APP_VERSION } from '../constants/version';
 
 interface NavbarProps {
@@ -47,6 +49,7 @@ interface NavbarProps {
   onOpenGitHubUpdateModal?: () => void;
   updateData?: UpdateCheckResult | null;
   userProfile?: UserProfile | null;
+  levelInfo?: StudentLevelInfo;
   onOpenProfileModal?: () => void;
   onTriggerRandomLaunch?: () => void;
   onOpenDailyQuest?: () => void;
@@ -56,6 +59,7 @@ interface NavbarProps {
   onSwitchToListMode?: () => void;
   onOpenAudioSettings?: () => void;
   onOpenNativeDllModal?: () => void;
+  onOpenRecordingHistory?: () => void;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
@@ -71,6 +75,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   onOpenGitHubUpdateModal,
   updateData,
   userProfile,
+  levelInfo,
   onOpenProfileModal,
   onTriggerRandomLaunch,
   onOpenDailyQuest,
@@ -80,6 +85,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   onSwitchToListMode,
   onOpenAudioSettings,
   onOpenNativeDllModal,
+  onOpenRecordingHistory,
 }) => {
   const [hasCustomKey, setHasCustomKey] = useState<boolean>(() => Boolean(getUserGeminiKey()));
   const [isMoreMenuOpen, setIsMoreMenuOpen] = useState<boolean>(false);
@@ -88,6 +94,12 @@ export const Navbar: React.FC<NavbarProps> = ({
 
   const moreMenuRef = useRef<HTMLDivElement>(null);
   const toolsMenuRef = useRef<HTMLDivElement>(null);
+
+  // Compute student level info for experience bar tracking
+  const computedLevelInfo = levelInfo || calculateStudentLevel({
+    totalRepeatsCount: repeatCount,
+    streakDays: userProfile?.streakDays ?? 1,
+  });
 
   // Sync API Key state
   useEffect(() => {
@@ -379,6 +391,15 @@ export const Navbar: React.FC<NavbarProps> = ({
             </div>
           )}
 
+          {/* Student Level Experience Bar (Tracks progress toward next student title) */}
+          <div className="hidden sm:flex shrink-0">
+            <LevelExperienceBar
+              levelInfo={computedLevelInfo}
+              onClick={onOpenProfileModal}
+              variant="compact"
+            />
+          </div>
+
           {/* 1. Real-time Audio Speed Control Widget */}
           <RealtimeAudioSpeedWidget onOpenFullSettings={onOpenAudioSettings} />
 
@@ -541,6 +562,25 @@ export const Navbar: React.FC<NavbarProps> = ({
                     </div>
                     <span className="text-[10px] px-1.5 py-0.5 rounded bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 font-bold">
                       x64
+                    </span>
+                  </button>
+                )}
+
+                {/* Voice Recording History & AudioEngine DTW Comparison */}
+                {onOpenRecordingHistory && (
+                  <button
+                    onClick={() => {
+                      onOpenRecordingHistory();
+                      setIsToolsMenuOpen(false);
+                    }}
+                    className="w-full px-2.5 py-2 rounded-xl text-xs font-bold flex items-center justify-between text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+                  >
+                    <div className="flex items-center gap-2">
+                      <History className="w-4 h-4 text-blue-500" />
+                      <span>음성 녹음 보관함 &amp; DTW 비교</span>
+                    </div>
+                    <span className="text-[10px] px-1.5 py-0.5 rounded bg-blue-500/10 text-blue-600 dark:text-blue-400 font-bold">
+                      AudioEngine
                     </span>
                   </button>
                 )}
@@ -715,6 +755,18 @@ export const Navbar: React.FC<NavbarProps> = ({
       {isMobileDrawerOpen && (
         <div className="md:hidden border-t border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-3 shadow-xl animate-in slide-in-from-top-2 duration-150">
           
+          {/* Mobile Student Level Experience Bar */}
+          <div className="mb-3">
+            <LevelExperienceBar
+              levelInfo={computedLevelInfo}
+              onClick={() => {
+                if (onOpenProfileModal) onOpenProfileModal();
+                setIsMobileDrawerOpen(false);
+              }}
+              variant="full"
+            />
+          </div>
+
           <div className="text-[11px] font-black uppercase tracking-wider text-slate-400 dark:text-slate-500 mb-2">
             전체 학습 & AI 도구 모음
           </div>
@@ -846,6 +898,23 @@ export const Navbar: React.FC<NavbarProps> = ({
                 <div>
                   <div className="text-xs font-bold text-indigo-700 dark:text-indigo-300 leading-tight">순수 창작 DLL</div>
                   <div className="text-[10px] text-slate-400">동작 원리 명세서</div>
+                </div>
+              </button>
+            )}
+
+            {/* Voice Recording History & AudioEngine DTW */}
+            {onOpenRecordingHistory && (
+              <button
+                onClick={() => {
+                  onOpenRecordingHistory();
+                  setIsMobileDrawerOpen(false);
+                }}
+                className="p-2.5 rounded-xl border border-blue-200 dark:border-blue-800/60 bg-blue-50/50 dark:bg-blue-950/30 text-left flex items-center gap-2.5 transition-colors cursor-pointer"
+              >
+                <History className="w-4 h-4 text-blue-500 shrink-0" />
+                <div>
+                  <div className="text-xs font-bold text-blue-700 dark:text-blue-300 leading-tight">음성 녹음 보관함</div>
+                  <div className="text-[10px] text-slate-400">AudioEngine DTW 비교</div>
                 </div>
               </button>
             )}

@@ -9,13 +9,19 @@ import {
   CartesianGrid,
   ReferenceLine,
 } from 'recharts';
-import { Mic, TrendingUp, Sparkles, Award, Zap, Activity } from 'lucide-react';
+import { Mic, TrendingUp, Sparkles, Award, Zap, Activity, History } from 'lucide-react';
 import {
   getRecent7DaysPronunciationStats,
   Pronunciation7DayStatsResult,
 } from '../services/voiceHistoryService';
 
-export const WeeklyPronunciationAccuracyChart: React.FC = () => {
+interface WeeklyPronunciationAccuracyChartProps {
+  onOpenRecordingHistory?: () => void;
+}
+
+export const WeeklyPronunciationAccuracyChart: React.FC<WeeklyPronunciationAccuracyChartProps> = ({
+  onOpenRecordingHistory,
+}) => {
   const [data, setData] = useState<Pronunciation7DayStatsResult | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(true);
 
@@ -132,6 +138,17 @@ export const WeeklyPronunciationAccuracyChart: React.FC = () => {
                 : `▼ ${improvementDelta}점`}
             </span>
           </div>
+
+          {onOpenRecordingHistory && (
+            <button
+              type="button"
+              onClick={onOpenRecordingHistory}
+              className="px-3 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold flex items-center gap-1.5 shadow-sm transition-all cursor-pointer"
+            >
+              <History className="w-3.5 h-3.5" />
+              <span>녹음 보관함 &amp; DTW 비교</span>
+            </button>
+          )}
         </div>
       </div>
 

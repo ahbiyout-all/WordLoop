@@ -40,6 +40,8 @@ import { OFFICIAL_CURRICULUM_3000_LIST } from '../data/officialCurriculum3000';
 import { DEFAULT_SENTENCES } from '../data/defaultVocab';
 import { speechService } from '../services/speechService';
 import { recordGameDone } from '../services/habitQuestService';
+import { confettiService } from '../services/confettiService';
+import { ComboFeedbackOverlay } from './ComboFeedbackOverlay';
 import { getCleanKoreanMeaning, getEnglishDefinition, QA_MODES_CONFIG } from '../utils/meaningUtils';
 import { QAModeSelector } from './QAModeSelector';
 import { WordMatchGame } from './WordMatchGame';
@@ -622,6 +624,9 @@ export const StudentWordGame: React.FC<StudentWordGameProps> = ({
             clearInterval(timerRef.current!);
             setIsSpeedPlaying(false);
             setIsSpeedGameOver(true);
+            if (speedScore > 50) {
+              confettiService.fireSideCannons();
+            }
             return 0;
           }
           return prev - 1;
@@ -647,11 +652,18 @@ export const StudentWordGame: React.FC<StudentWordGameProps> = ({
       const comboMultiplier = Math.min(speedCombo + 1, 5);
       const pts = 10 * comboMultiplier;
       const nextS = speedScore + pts;
+      const nextCombo = speedCombo + 1;
       setSpeedScore(nextS);
       updateHighScore(nextS);
-      setSpeedCombo((prev) => prev + 1);
+      setSpeedCombo(nextCombo);
+
+      // Student Gamification: Trigger Confetti on milestones!
+      if (nextCombo === 3 || nextCombo === 5 || nextCombo % 5 === 0) {
+        confettiService.fire({ particleCount: 35, spread: 60 });
+      }
+
       // Bonus time for streak
-      if ((speedCombo + 1) % 3 === 0) {
+      if (nextCombo % 3 === 0) {
         setTimeLeft((prev) => Math.min(prev + 3, 30));
       }
 
@@ -1379,6 +1391,7 @@ export const StudentWordGame: React.FC<StudentWordGameProps> = ({
           ) : (
             <div className="space-y-3 flex-1 flex flex-col justify-between">
               {/* Timer Bar & Combo */}
+              <ComboFeedbackOverlay combo={speedCombo} label="스피드 정답!" />
               <div className="space-y-1.5">
                 <div className="flex items-center justify-between text-xs font-black">
                   <div className="flex items-center gap-1 text-rose-500">

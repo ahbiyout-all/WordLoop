@@ -24,9 +24,20 @@ import { UserProfileModal } from './components/UserProfileModal';
 import { DailyQuestModal } from './components/DailyQuestModal';
 import { AddToHomeScreenModal } from './components/AddToHomeScreenModal';
 import { AudioSettingsModal } from './components/AudioSettingsModal';
+import { RecordingHistoryModal } from './components/RecordingHistoryModal';
+import { InactivityQuizToast } from './components/InactivityQuizToast';
+import { ConfettiCanvas } from './components/ConfettiCanvas';
+import {
+  checkInactivityStatus,
+  recordPromptShown,
+  sendInactivityBrowserNotification,
+  setupInactivityActivityTracker,
+} from './services/inactivityQuizService';
 import { QuickActionWidgets } from './components/QuickActionWidgets';
 import { SurpriseParentNagPopup, SurpriseNagType } from './components/SurpriseParentNagPopup';
 import { APP_VERSION } from './data/patchNotesData';
+import { calculateStudentLevel } from './services/studentGamificationService';
+import { getLocalDateString } from './utils/dateUtils';
 import { GitHubUpdateService, UpdateCheckResult } from './services/githubUpdateService';
 import { getAuthHeaders } from './services/apiClient';
 import {
@@ -302,6 +313,8 @@ export default function App() {
   const [isCheckingUpdate, setIsCheckingUpdate] = useState<boolean>(false);
   const [showDailyQuestModal, setShowDailyQuestModal] = useState<boolean>(false);
   const [showAddToHomeModal, setShowAddToHomeModal] = useState<boolean>(false);
+  const [showRecordingHistoryModal, setShowRecordingHistoryModal] = useState<boolean>(false);
+  const [recordingHistoryInitialTarget, setRecordingHistoryInitialTarget] = useState<string | undefined>(undefined);
   const [surpriseNagState, setSurpriseNagState] = useState<{
     isOpen: boolean;
     type: SurpriseNagType;
@@ -310,6 +323,63 @@ export default function App() {
     type: 'low_achievement',
   });
   const [pronunciationModalText, setPronunciationModalText] = useState<string | null>(null);
+  const [inactivityPrompt, setInactivityPrompt] = useState<{ elapsedHours: number } | null>(null);
+
+  const handleOpenRecordingHistory = useCallback((targetText?: string) => {
+    setRecordingHistoryInitialTarget(targetText);
+    setShowRecordingHistoryModal(true);
+  }, []);
+
+  const handleLaunch3MinQuiz = useCallback(() => {
+    speechService.stop();
+    setInitialQuizMode('review_quiz');
+    setActiveTab('quiz');
+    setInactivityPrompt(null);
+  }, []);
+
+  // 24-Hour Inactivity 3-Minute Quiz Notification & Activity Tracking
+  useEffect(() => {
+    const cleanupTracker = setupInactivityActivityTracker();
+
+    const performCheck = () => {
+      const status = checkInactivityStatus();
+      if (status.shouldPrompt) {
+        setInactivityPrompt({ elapsedHours: status.elapsedHours });
+        recordPromptShown();
+        sendInactivityBrowserNotification(status.elapsedHours, () => {
+          handleLaunch3MinQuiz();
+        });
+      }
+    };
+
+    // Slight delay on mount to ensure smooth initial UI hydration
+    const timer = setTimeout(() => {
+      performCheck();
+    }, 1200);
+
+    // Listen for manual simulation or tab resume events
+    const onCheckRequested = (e: any) => {
+      const elapsedHours = e.detail?.elapsedHours || 25;
+      setInactivityPrompt({ elapsedHours });
+      sendInactivityBrowserNotification(elapsedHours, () => {
+        handleLaunch3MinQuiz();
+      });
+    };
+
+    const onAppResumed = () => {
+      performCheck();
+    };
+
+    window.addEventListener('wordloop_inactivity_check_requested', onCheckRequested);
+    window.addEventListener('wordloop_app_resumed', onAppResumed);
+
+    return () => {
+      clearTimeout(timer);
+      cleanupTracker();
+      window.removeEventListener('wordloop_inactivity_check_requested', onCheckRequested);
+      window.removeEventListener('wordloop_app_resumed', onAppResumed);
+    };
+  }, [handleLaunch3MinQuiz]);
 
   // Continuous Study Time Tracker (Auto-triggers 5-min break gentle parent nag popup after 30 minutes)
   const [continuousStudySeconds, setContinuousStudySeconds] = useState<number>(0);
@@ -502,7 +572,7 @@ export default function App() {
       setTotalRepeatsCount((prev) => prev + 1);
 
       // Increment today's repeat count in history for real-time chart reflection
-      const todayStr = new Date().toISOString().split('T')[0];
+      const todayStr = getLocalDateString();
       setHistory((prevHist) => {
         const existingIdx = prevHist.findIndex((h) => h.date === todayStr);
         if (existingIdx >= 0) {
@@ -995,6 +1065,13 @@ export default function App() {
         onOpenGitHubUpdateModal={() => setShowGitHubUpdateModal(true)}
         updateData={updateData}
         userProfile={userProfile}
+        levelInfo={calculateStudentLevel({
+          totalRepeatsCount,
+          vocabList,
+          goals,
+          history,
+          streakDays: userProfile?.streakDays ?? 1,
+        })}
         onOpenProfileModal={() => setShowProfileModal(true)}
         onTriggerRandomLaunch={() => handleTriggerRandomLaunch()}
         onOpenDailyQuest={() => setShowDailyQuestModal(true)}
@@ -1009,6 +1086,7 @@ export default function App() {
           handleSetHomeViewMode('list');
         }}
         onOpenAudioSettings={() => setShowAudioSettingsModal(true)}
+        onOpenRecordingHistory={() => handleOpenRecordingHistory()}
       />
 
       {/* Crash Recovery Notification Toast */}
@@ -1093,6 +1171,15 @@ export default function App() {
             </div>
           </div>
         </aside>
+      )}
+
+      {/* 24-Hour Inactivity 3-Minute Quiz Suggestion Toast */}
+      {inactivityPrompt && (
+        <InactivityQuizToast
+          elapsedHours={inactivityPrompt.elapsedHours}
+          onStartQuiz={handleLaunch3MinQuiz}
+          onClose={() => setInactivityPrompt(null)}
+        />
       )}
 
       {/* Main Screen Quick-Action Widgets (Shown in list mode and other functional tabs) */}
@@ -1237,6 +1324,17 @@ export default function App() {
             vocabCount={vocabList.length}
             vocabList={vocabList}
             userProfile={userProfile}
+            levelInfo={calculateStudentLevel({
+              totalRepeatsCount,
+              vocabList,
+              goals,
+              history,
+              streakDays: userProfile?.streakDays ?? 1,
+            })}
+            onOpenProfileModal={() => setShowProfileModal(true)}
+            onOpenRecordingHistory={() => handleOpenRecordingHistory()}
+            onStartPronunciation={(word) => handleOpenPronunciationModal(word)}
+            onChangeMastery={handleUpdateVocabMastery}
             onStartReviewQuiz={() => {
               speechService.stop();
               setInitialQuizMode('review_quiz');
@@ -1281,6 +1379,7 @@ export default function App() {
             setPronunciationModalText(null);
             setShowProfileModal(true);
           }}
+          onOpenRecordingHistory={() => handleOpenRecordingHistory(pronunciationModalText || undefined)}
           onClose={() => setPronunciationModalText(null)}
           onSuccessEvaluation={() => {
             // Increment linked English goal
@@ -1416,6 +1515,17 @@ export default function App() {
         onClose={() => setShowAudioSettingsModal(false)}
       />
 
+      {/* AudioEngine Voice Recording History & DTW Comparison Modal */}
+      <RecordingHistoryModal
+        isOpen={showRecordingHistoryModal}
+        onClose={() => setShowRecordingHistoryModal(false)}
+        initialSelectedTarget={recordingHistoryInitialTarget}
+        onOpenPronunciationPractice={(text) => {
+          setShowRecordingHistoryModal(false);
+          handleOpenPronunciationModal(text);
+        }}
+      />
+
       {/* Curriculum Explorer Modal from App Launchpad */}
       {showCurriculumModalFromApp && (
         <CurriculumExplorerModal
@@ -1496,6 +1606,9 @@ export default function App() {
           streak={userProfile?.streakDays || 1}
         />
       )}
+
+      {/* Global Level-Up / Milestone Celebration Confetti & Banner Canvas Overlay */}
+      <ConfettiCanvas />
 
     </div>
   );

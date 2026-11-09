@@ -34,6 +34,7 @@ import {
   Target,
 } from 'lucide-react';
 import { DailyGoalHistory } from '../types';
+import { getLocalDateString } from '../utils/dateUtils';
 
 interface WeeklyRepeatsChartProps {
   history: DailyGoalHistory[];
@@ -136,7 +137,7 @@ export const WeeklyRepeatsChart: React.FC<WeeklyRepeatsChartProps> = ({
     for (let i = 6; i >= 0; i--) {
       const d = new Date(today);
       d.setDate(d.getDate() - i);
-      const dateStr = d.toISOString().split('T')[0];
+      const dateStr = getLocalDateString(d);
       const count = historyMap.has(dateStr) ? historyMap.get(dateStr)! : 0;
       tempSum += count;
     }
@@ -148,7 +149,7 @@ export const WeeklyRepeatsChart: React.FC<WeeklyRepeatsChartProps> = ({
     for (let i = 6; i >= 0; i--) {
       const d = new Date(today);
       d.setDate(d.getDate() - i);
-      const dateStr = d.toISOString().split('T')[0];
+      const dateStr = getLocalDateString(d);
       const dayIdx = d.getDay();
       const dayName = dayNames[dayIdx];
       const dateFormatted = `${String(d.getMonth() + 1).padStart(2, '0')}/${String(d.getDate()).padStart(2, '0')}`;

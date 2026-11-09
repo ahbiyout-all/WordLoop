@@ -12,6 +12,7 @@ import {
   BarChart2,
 } from 'lucide-react';
 import { DailyGoalHistory, Goal } from '../types';
+import { getLocalDateString } from '../utils/dateUtils';
 
 interface WeeklyContributionHeatmapProps {
   history: DailyGoalHistory[];
@@ -53,7 +54,7 @@ export const WeeklyContributionHeatmap: React.FC<WeeklyContributionHeatmapProps>
   // Build the 4-week grid data (28 days: Monday to Sunday for 4 consecutive weeks)
   const { gridWeeks, dayOfWeekStats, bestDay, consistencyScore, weekdayVsWeekend } = useMemo(() => {
     const today = new Date();
-    const todayStr = today.toISOString().split('T')[0];
+    const todayStr = getLocalDateString(today);
 
     // Quick map for history lookup
     const historyMap = new Map<string, DailyGoalHistory>();
@@ -100,7 +101,7 @@ export const WeeklyContributionHeatmap: React.FC<WeeklyContributionHeatmapProps>
       for (let d = 0; d < 7; d++) {
         const cellDate = new Date(startDate);
         cellDate.setDate(startDate.getDate() + w * 7 + d);
-        const dateStr = cellDate.toISOString().split('T')[0];
+        const dateStr = getLocalDateString(cellDate);
         const isToday = dateStr === todayStr;
         const isFuture = cellDate > today && !isToday;
 

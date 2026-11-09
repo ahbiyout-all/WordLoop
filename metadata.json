@@ -1,6 +1,6 @@
 {
   "name": "Self-Improvement & English Vocab",
-  "description": "WordLoop (v3.74.0): Comprehensive English vocabulary learning app featuring animated StreakFire visual components, 7 pure custom C/C++ native DLLs (AVX2 SIMD ShadowEngine, AudioEngine, FastDB, FSRS SRSNeuralEngine, MorphEngine, TrayHook, ToneSynth), Shadowing Quiz, and Android Binary AXML APK packaging.",
+  "description": "WordLoop (v3.96.0): Comprehensive English vocabulary learning app featuring Web Audio celebratory bell engine with anti-clipping master bus, leak-free timer lifecycle, Escape/backdrop modal dismiss, 50 student teen titles with EXP Boost, and gamified progress tracking.",
   "requestFramePermissions": [
     "microphone"
   ],

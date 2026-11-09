@@ -60,6 +60,9 @@ export interface DailyGoalHistory {
   completedGoalsCount: number;
   totalGoalsCount: number;
   vocabStudyCount: number;
+  totalRepeatsCount?: number;
+  repeatsCount?: number;
+  isStreakMaintained?: boolean;
 }
 
 export interface AudioSettings {
@@ -159,5 +162,7 @@ export interface UserProfile {
     unlockedAt: string;
     icon?: string;
   }[];
+  studyBuddyEnabled?: boolean; // AI 학습 동반자 마스코트 메이트 활성화 여부
+  studyBuddyMascot?: 'hoot' | 'luffy' | 'teddy' | 'bot'; // 선택한 마스코트 메이트 ('hoot' | 'luffy' | 'teddy' | 'bot')
 }
 

@@ -1,10 +1,11 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { X, Mic, MicOff, Volume2, RotateCcw, CheckCircle2, AlertCircle, Award, History, Play, Pause, Trash2, Activity, Sparkles, Zap, BarChart3, TrendingUp, HelpCircle, Laptop, Smartphone, Settings, ShieldAlert, RefreshCw, Check } from 'lucide-react';
+import { X, Mic, MicOff, Volume2, RotateCcw, CheckCircle2, AlertCircle, Award, History, Play, Pause, Trash2, Activity, Sparkles, Zap, BarChart3, TrendingUp, HelpCircle, Laptop, Smartphone, Settings, ShieldAlert, RefreshCw, Check, ChevronRight } from 'lucide-react';
 import { speechService } from '../services/speechService';
 import { PronunciationResult, VocabItem, SentenceItem, UserProfile } from '../types';
 import { AudioWaveform } from './AudioWaveform';
 import { PronunciationDeficiencyHighlighter } from './PronunciationDeficiencyHighlighter';
 import { ShadowingQuizView } from './ShadowingQuizView';
+import { ShadowAudioRecorder } from './ShadowAudioRecorder';
 import { recordPronunciationDone } from '../services/habitQuestService';
 import { getPronunciationMasterBadgeStatus } from '../services/badgeService';
 import {
@@ -127,6 +128,7 @@ interface PronunciationModalProps {
   onSuccessEvaluation?: () => void; // Option to record goal achievement
   onOpenProfileModal?: () => void;
   userProfile?: UserProfile | null;
+  onOpenRecordingHistory?: () => void;
 }
 
 export const PronunciationModal: React.FC<PronunciationModalProps> = ({
@@ -136,8 +138,9 @@ export const PronunciationModal: React.FC<PronunciationModalProps> = ({
   onSuccessEvaluation,
   onOpenProfileModal,
   userProfile,
+  onOpenRecordingHistory,
 }) => {
-  const [activeTab, setActiveTab] = useState<'practice' | 'shadowingQuiz' | 'recordings' | 'history'>('practice');
+  const [activeTab, setActiveTab] = useState<'practice' | 'shadowRecorder' | 'shadowingQuiz' | 'recordings' | 'history'>('practice');
   const [pronunciationHistory, setPronunciationHistory] = useState<PronunciationHistoryItem[]>(() => loadPronunciationHistory());
   const [pronGoal, setPronGoal] = useState(() => getPronunciationGoalFromStorage());
   const isMasterBadgeUnlocked = useMemo(() => {
@@ -1171,6 +1174,18 @@ export const PronunciationModal: React.FC<PronunciationModalProps> = ({
               <span>실시간 측정</span>
             </button>
             <button
+              onClick={() => setActiveTab('shadowRecorder')}
+              className={`flex-1 py-2 text-xs font-bold border-b-2 flex items-center justify-center gap-1.5 transition-all ${
+                activeTab === 'shadowRecorder'
+                  ? 'border-indigo-600 text-indigo-600 dark:border-indigo-400 dark:text-indigo-400 font-black'
+                  : 'border-transparent text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
+              }`}
+              title="쉐도잉 섀도우 녹음 및 베이스 파형 비교 시각 피드백"
+            >
+              <Activity className="w-3.5 h-3.5 text-emerald-500" />
+              <span>🎙️ 섀도우 녹음기</span>
+            </button>
+            <button
               onClick={() => setActiveTab('shadowingQuiz')}
               className={`flex-1 py-2 text-xs font-bold border-b-2 flex items-center justify-center gap-1.5 transition-all ${
                 activeTab === 'shadowingQuiz'
@@ -2188,6 +2203,44 @@ export const PronunciationModal: React.FC<PronunciationModalProps> = ({
                 </div>
               )}
             </>
+          ) : activeTab === 'shadowRecorder' ? (
+            /* Simple Shadow Audio Recorder & Waveform Comparison Tab */
+            <div className="space-y-3.5 animate-in fade-in duration-200">
+              <div className="p-3 rounded-2xl bg-slate-50 dark:bg-slate-800/80 border border-slate-200/80 dark:border-slate-700/80 flex flex-wrap items-center justify-between gap-2">
+                <div className="flex items-center gap-2">
+                  <span className="p-1 rounded-lg bg-emerald-500/20 text-emerald-500">
+                    <Activity className="w-4 h-4" />
+                  </span>
+                  <div>
+                    <span className="text-xs font-black text-slate-900 dark:text-white">
+                      섀도우 프랙티스 & 파형 비교 모드
+                    </span>
+                    <p className="text-[10px] text-slate-400">
+                      원어민 베이스 발음을 듣고 따라 녹음하여 진폭/타이밍 파형 일치도 시각 점수를 실시간 확인합니다.
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleListenTargetOnce}
+                  className="px-2.5 py-1 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-[11px] font-bold flex items-center gap-1 cursor-pointer transition-colors"
+                >
+                  <Volume2 className="w-3.5 h-3.5" />
+                  <span>원어민 듣기</span>
+                </button>
+              </div>
+
+              <ShadowAudioRecorder
+                targetText={currentTargetText}
+                baseAudioSnippetUrl={undefined}
+                onScoreEvaluated={(score) => {
+                  if (score >= 80 && onSuccessEvaluation) {
+                    onSuccessEvaluation();
+                  }
+                  recordPronunciationDone();
+                }}
+              />
+            </div>
           ) : activeTab === 'shadowingQuiz' ? (
             <ShadowingQuizView
               initialTargetText={currentTargetText}
@@ -2205,6 +2258,25 @@ export const PronunciationModal: React.FC<PronunciationModalProps> = ({
           ) : activeTab === 'recordings' ? (
             /* Recent Recordings Tab View */
             <div className="space-y-3 min-h-[220px] flex flex-col justify-between">
+              {onOpenRecordingHistory && (
+                <button
+                  type="button"
+                  onClick={onOpenRecordingHistory}
+                  className="w-full p-3 rounded-2xl bg-gradient-to-r from-indigo-500/10 via-blue-500/10 to-indigo-500/10 hover:from-indigo-500/20 hover:to-blue-500/20 border border-indigo-200 dark:border-indigo-800 text-indigo-700 dark:text-indigo-300 font-bold text-xs flex items-center justify-between transition-all group shadow-xs cursor-pointer"
+                >
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-8 h-8 rounded-xl bg-indigo-600 text-white flex items-center justify-center shrink-0 shadow-sm">
+                      <Sparkles className="w-4 h-4" />
+                    </div>
+                    <div className="text-left">
+                      <span className="block font-black text-slate-900 dark:text-white">🎧 AudioEngine 전체 녹음 보관함 &amp; DTW 비교</span>
+                      <span className="text-[11px] font-medium text-slate-500 dark:text-slate-400">저장된 모든 오디오 파일 조회, A/B 연속 재생 및 밀리초 발음 교정</span>
+                    </div>
+                  </div>
+                  <ChevronRight className="w-4 h-4 text-indigo-500 group-hover:translate-x-1 transition-transform shrink-0" />
+                </button>
+              )}
+
               {recentRecordings.length === 0 ? (
                 <div className="flex-1 flex flex-col items-center justify-center py-8 text-center">
                   <div className="w-11 h-11 rounded-2xl bg-indigo-50 dark:bg-indigo-950/60 text-indigo-500 flex items-center justify-center mb-2.5">
@@ -2440,6 +2512,19 @@ export const PronunciationModal: React.FC<PronunciationModalProps> = ({
               <Sparkles className="w-3.5 h-3.5 fill-current shrink-0" />
               <span>⭐ 무작위 발음 퀴즈</span>
             </button>
+
+            {/* Shadow Audio Recorder Quick Button */}
+            {activeTab !== 'shadowRecorder' && (
+              <button
+                type="button"
+                onClick={() => setActiveTab('shadowRecorder')}
+                className="px-3 py-2 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-black text-xs shadow-md transition-all active:scale-95 flex items-center gap-1.5 cursor-pointer"
+                title="원어민 베이스 파형과 내 쉐도잉 녹음 파형을 즉시 비교하고 시각 점수를 확인합니다"
+              >
+                <Activity className="w-3.5 h-3.5 shrink-0" />
+                <span>🎙️ 섀도우 녹음 & 파형 비교</span>
+              </button>
+            )}
 
             {/* Shadowing Quiz Mode Quick Button */}
             {activeTab !== 'shadowingQuiz' && (

@@ -55,6 +55,8 @@ import {
 } from '../utils/parentPhotoUtils';
 import { SurpriseParentNagPopup, SurpriseNagType } from './SurpriseParentNagPopup';
 import { getPronunciationMasterBadgeStatus } from '../services/badgeService';
+import { BadgeDisplay } from './BadgeDisplay';
+import { StudyBuddyWidget, MascotId } from './StudyBuddyWidget';
 
 interface UserProfileModalProps {
   isOpen: boolean;
@@ -98,7 +100,9 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
   const [nagLanguage, setNagLanguage] = useState<NagLanguageMode>('bilingual');
   const [momPhotoUrl, setMomPhotoUrl] = useState<string | undefined>(undefined);
   const [dadPhotoUrl, setDadPhotoUrl] = useState<string | undefined>(undefined);
-  const [activeTab, setActiveTab] = useState<'profile' | 'custom_nags' | 'device_storage' | 'backup'>('profile');
+  const [studyBuddyEnabled, setStudyBuddyEnabled] = useState<boolean>(true);
+  const [studyBuddyMascot, setStudyBuddyMascot] = useState<MascotId>('hoot');
+  const [activeTab, setActiveTab] = useState<'profile' | 'badges' | 'custom_nags' | 'device_storage' | 'backup'>('profile');
   const [showResetConfirm, setShowResetConfirm] = useState(false);
   const [saveToast, setSaveToast] = useState<string | null>(null);
   const [storageStats, setStorageStats] = useState<DeviceStorageStats>(getDeviceStorageStats());
@@ -185,6 +189,8 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
       setNagLanguage(userProfile.nagLanguage || (localStorage.getItem('wordloop_nag_lang_pref') as NagLanguageMode) || 'bilingual');
       setMomPhotoUrl(userProfile.momPhotoUrl);
       setDadPhotoUrl(userProfile.dadPhotoUrl);
+      setStudyBuddyEnabled(userProfile.studyBuddyEnabled ?? true);
+      setStudyBuddyMascot(userProfile.studyBuddyMascot || 'hoot');
     } else {
       setName('');
       setAvatar('🎓');
@@ -197,6 +203,8 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
       setNagLanguage('bilingual');
       setMomPhotoUrl(undefined);
       setDadPhotoUrl(undefined);
+      setStudyBuddyEnabled(true);
+      setStudyBuddyMascot('hoot');
     }
     setStorageStats(getDeviceStorageStats());
   }, [userProfile, isOpen]);
@@ -240,6 +248,8 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
       pronunciationMasterUnlockedAt: userProfile?.pronunciationMasterUnlockedAt,
       pronunciationMasterScore: userProfile?.pronunciationMasterScore,
       badgeDetails: userProfile?.badgeDetails,
+      studyBuddyEnabled,
+      studyBuddyMascot,
     };
 
     onSaveProfile(updatedProfile);
@@ -484,7 +494,7 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
 
         {/* Tab switch */}
         {!isOnboarding && (
-          <div className="grid grid-cols-4 gap-1 bg-slate-100 dark:bg-slate-800/80 p-1 mt-2.5 rounded-2xl border border-slate-200/80 dark:border-slate-700/80 shrink-0">
+          <div className="grid grid-cols-5 gap-1 bg-slate-100 dark:bg-slate-800/80 p-1 mt-2.5 rounded-2xl border border-slate-200/80 dark:border-slate-700/80 shrink-0">
             <button
               type="button"
               onClick={() => setActiveTab('profile')}
@@ -494,8 +504,21 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
                   : 'text-slate-500 hover:text-slate-900 dark:hover:text-slate-200'
               }`}
             >
-              <User className="w-3.5 h-3.5" />
-              <span>프로필</span>
+              <User className="w-3.5 h-3.5 shrink-0" />
+              <span className="truncate">프로필</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setActiveTab('badges')}
+              className={`py-1.5 px-1 rounded-xl text-[10px] sm:text-xs font-black transition-all flex items-center justify-center gap-1 cursor-pointer ${
+                activeTab === 'badges'
+                  ? 'bg-white dark:bg-slate-900 text-amber-600 dark:text-amber-400 shadow-sm'
+                  : 'text-slate-500 hover:text-slate-900 dark:hover:text-slate-200'
+              }`}
+            >
+              <Trophy className="w-3.5 h-3.5 shrink-0 text-amber-500" />
+              <span className="truncate">업적배지</span>
             </button>
 
             <button
@@ -507,8 +530,8 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
                   : 'text-slate-500 hover:text-slate-900 dark:hover:text-slate-200'
               }`}
             >
-              <Sparkles className="w-3.5 h-3.5" />
-              <span>대본커스텀</span>
+              <Sparkles className="w-3.5 h-3.5 shrink-0" />
+              <span className="truncate">대본커스텀</span>
             </button>
 
             <button
@@ -520,8 +543,8 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
                   : 'text-slate-500 hover:text-slate-900 dark:hover:text-slate-200'
               }`}
             >
-              <HardDrive className="w-3.5 h-3.5" />
-              <span>장치상태</span>
+              <HardDrive className="w-3.5 h-3.5 shrink-0" />
+              <span className="truncate">장치상태</span>
             </button>
 
             <button
@@ -533,14 +556,26 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
                   : 'text-slate-500 hover:text-slate-900 dark:hover:text-slate-200'
               }`}
             >
-              <ShieldCheck className="w-3.5 h-3.5" />
-              <span>백업/복원</span>
+              <ShieldCheck className="w-3.5 h-3.5 shrink-0" />
+              <span className="truncate">백업/복원</span>
             </button>
           </div>
         )}
 
         {/* Scrollable Body */}
         <div className="overflow-y-auto custom-scrollbar pr-1 mt-3 space-y-4 flex-1 min-h-0">
+          
+          {/* TAB 0: Achievement Badges Display */}
+          {activeTab === 'badges' && (
+            <BadgeDisplay
+              userProfile={userProfile}
+              vocabList={vocabList}
+              sentenceList={sentenceList}
+              goals={goals}
+              history={history}
+              totalRepeatsCount={totalRepeatsCount}
+            />
+          )}
           
           {/* TAB 1: Profile Settings */}
           {activeTab === 'profile' && (
@@ -804,6 +839,14 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
                   ))}
                 </div>
               </div>
+
+              {/* 5.5 AI Study Buddy Mascot Companion Widget */}
+              <StudyBuddyWidget
+                userProfile={userProfile}
+                vocabList={vocabList}
+                onToggleEnabled={(enabled) => setStudyBuddyEnabled(enabled)}
+                onSelectMascot={(mascotId) => setStudyBuddyMascot(mascotId)}
+              />
 
               {/* 6. Nagging Tone & Manner Preset Selection */}
               <div className="space-y-2 pt-3 border-t border-slate-100 dark:border-slate-800">

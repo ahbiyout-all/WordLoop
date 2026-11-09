@@ -13,6 +13,7 @@ import {
   TrendingUp,
 } from 'lucide-react';
 import { Goal, DailyGoalHistory } from '../types';
+import { getLocalDateString } from '../utils/dateUtils';
 
 interface DailyGoalStreakIndicatorProps {
   goals: Goal[];
@@ -52,7 +53,7 @@ export const DailyGoalStreakIndicator: React.FC<DailyGoalStreakIndicatorProps> =
     streakTier,
   } = useMemo(() => {
     const today = new Date();
-    const todayStr = today.toISOString().split('T')[0];
+    const todayStr = getLocalDateString(today);
     const dayNames = ['일', '월', '화', '수', '목', '금', '토'];
 
     // Today's goal status
@@ -79,7 +80,7 @@ export const DailyGoalStreakIndicator: React.FC<DailyGoalStreakIndicatorProps> =
     } else {
       // If today is not completed yet, check if yesterday was completed to keep the active streak alive
       checkDate.setDate(checkDate.getDate() - 1);
-      const yesterdayStr = checkDate.toISOString().split('T')[0];
+      const yesterdayStr = getLocalDateString(checkDate);
       const yHist = historyMap.get(yesterdayStr);
       if (yHist && yHist.completedGoalsCount > 0) {
         streakCount = 0; // Will be incremented in the loop below
@@ -91,7 +92,7 @@ export const DailyGoalStreakIndicator: React.FC<DailyGoalStreakIndicatorProps> =
 
     // Traverse backwards day-by-day
     while (true) {
-      const dStr = checkDate.toISOString().split('T')[0];
+      const dStr = getLocalDateString(checkDate);
       const histItem = historyMap.get(dStr);
 
       if (histItem && histItem.completedGoalsCount > 0) {
@@ -134,7 +135,7 @@ export const DailyGoalStreakIndicator: React.FC<DailyGoalStreakIndicatorProps> =
     for (let i = 6; i >= 0; i--) {
       const d = new Date(today);
       d.setDate(d.getDate() - i);
-      const dateStr = d.toISOString().split('T')[0];
+      const dateStr = getLocalDateString(d);
       const dayName = dayNames[d.getDay()];
       const shortDate = `${String(d.getMonth() + 1).padStart(2, '0')}/${String(d.getDate()).padStart(2, '0')}`;
       const isTodayItem = i === 0;

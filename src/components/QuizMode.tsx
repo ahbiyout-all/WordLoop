@@ -35,6 +35,9 @@ import { VocabItem } from '../types';
 import { speechService } from '../services/speechService';
 import { getCleanKoreanMeaning } from '../utils/meaningUtils';
 import { recordGameDone } from '../services/habitQuestService';
+import { confettiService } from '../services/confettiService';
+import { ComboFeedbackOverlay } from './ComboFeedbackOverlay';
+import { ComboStreakDisplay } from './ComboStreakDisplay';
 
 interface QuizModeProps {
   vocabList: VocabItem[];
@@ -145,8 +148,10 @@ export const QuizMode: React.FC<QuizModeProps> = ({ vocabList, onChangeMastery, 
   // Wrong Answers Track (오답노트)
   const [wrongAnswers, setWrongAnswers] = useState<VocabItem[]>([]);
 
-  // Multiple Choice Quiz state
+  // Multiple Choice Quiz state & Learning Combo Streak
   const [quizScore, setQuizScore] = useState(0);
+  const [learningCombo, setLearningCombo] = useState<number>(0);
+  const [maxLearningCombo, setMaxLearningCombo] = useState<number>(0);
   const [selectedOption, setSelectedOption] = useState<string | null>(null);
   const [isAnswered, setIsAnswered] = useState(false);
 
@@ -389,6 +394,7 @@ export const QuizMode: React.FC<QuizModeProps> = ({ vocabList, onChangeMastery, 
     setIsFlipped(false);
     setSelectedOption(null);
     setIsAnswered(false);
+    setLearningCombo(0);
     setKnownCount(0);
     setReviewCount(0);
     setIsWordRevealed(false);
@@ -417,6 +423,7 @@ export const QuizMode: React.FC<QuizModeProps> = ({ vocabList, onChangeMastery, 
     setIsFlipped(false);
     setSelectedOption(null);
     setIsAnswered(false);
+    setLearningCombo(0);
     setIsWordRevealed(false);
     setShowClozeHint(false);
     setQuizScore(0);
@@ -439,6 +446,7 @@ export const QuizMode: React.FC<QuizModeProps> = ({ vocabList, onChangeMastery, 
     setIsFlipped(false);
     setSelectedOption(null);
     setIsAnswered(false);
+    setLearningCombo(0);
     setQuizScore(0);
     setPromotedCount(0);
     setLastPromotedWord(null);
@@ -624,6 +632,11 @@ export const QuizMode: React.FC<QuizModeProps> = ({ vocabList, onChangeMastery, 
   const handleKnownClick = () => {
     if (!currentItem) return;
     setKnownCount((prev) => prev + 1);
+    setLearningCombo((prev) => {
+      const next = prev + 1;
+      if (next > maxLearningCombo) setMaxLearningCombo(next);
+      return next;
+    });
     if (onChangeMastery) {
       onChangeMastery(currentItem.id, 2);
     }
@@ -633,6 +646,7 @@ export const QuizMode: React.FC<QuizModeProps> = ({ vocabList, onChangeMastery, 
   const handleReviewClick = () => {
     if (!currentItem) return;
     setReviewCount((prev) => prev + 1);
+    setLearningCombo(0);
     if (onChangeMastery) {
       onChangeMastery(currentItem.id, 0);
     }
@@ -650,6 +664,11 @@ export const QuizMode: React.FC<QuizModeProps> = ({ vocabList, onChangeMastery, 
 
     if (isCorrect) {
       newBox = Math.min(5, currentBox + 1);
+      setLearningCombo((prev) => {
+        const next = prev + 1;
+        if (next > maxLearningCombo) setMaxLearningCombo(next);
+        return next;
+      });
       if (newBox >= 4 && onChangeMastery) {
         onChangeMastery(currentItem.id, 2);
       } else if (newBox >= 2 && onChangeMastery) {
@@ -657,6 +676,7 @@ export const QuizMode: React.FC<QuizModeProps> = ({ vocabList, onChangeMastery, 
       }
     } else {
       newBox = 1; // Drop back to Box 1 on error
+      setLearningCombo(0);
       if (onChangeMastery) onChangeMastery(currentItem.id, 0);
       if (!wrongAnswers.some((w) => w.id === currentItem.id)) {
         setWrongAnswers((prev) => [...prev, currentItem]);
@@ -681,6 +701,12 @@ export const QuizMode: React.FC<QuizModeProps> = ({ vocabList, onChangeMastery, 
       setSpeedCombo(newCombo);
       if (newCombo > speedMaxCombo) setSpeedMaxCombo(newCombo);
       updateSpeedHighScore(newScore);
+
+      // Student Gamification: Confetti explosion on combo 3, 5, 10
+      if (newCombo === 3 || newCombo === 5 || newCombo % 5 === 0) {
+        confettiService.fire({ particleCount: 40, spread: 65 });
+      }
+
       if (onChangeMastery) onChangeMastery(currentItem.id, 2);
     } else {
       setSpeedCombo(0);
@@ -707,6 +733,11 @@ export const QuizMode: React.FC<QuizModeProps> = ({ vocabList, onChangeMastery, 
 
     if (isCorrect) {
       setQuizScore((prev) => prev + 10);
+      setLearningCombo((prev) => {
+        const next = prev + 1;
+        if (next > maxLearningCombo) setMaxLearningCombo(next);
+        return next;
+      });
       const currentLvl = currentItem.masteryLevel ?? (currentItem.isLearned ? 2 : 0);
       const nextLvl = (currentLvl < 2 ? currentLvl + 1 : 2) as 0 | 1 | 2;
       if (onChangeMastery) {
@@ -721,6 +752,7 @@ export const QuizMode: React.FC<QuizModeProps> = ({ vocabList, onChangeMastery, 
         });
       }
     } else {
+      setLearningCombo(0);
       if (onChangeMastery) {
         onChangeMastery(currentItem.id, 0);
       }
@@ -1030,8 +1062,15 @@ export const QuizMode: React.FC<QuizModeProps> = ({ vocabList, onChangeMastery, 
             </div>
           )}
 
-          {/* Right: Progress & Score Badge */}
+          {/* Right: Combo Streak, Progress & Score Badge */}
           <div className="flex items-center gap-1.5 shrink-0 text-xs">
+            {/* Combo Streak Display with scaling text size */}
+            <ComboStreakDisplay
+              combo={mode === 'speed' ? speedCombo : learningCombo}
+              maxCombo={mode === 'speed' ? speedMaxCombo : maxLearningCombo}
+              variant="pill"
+            />
+
             {(mode === 'quiz' || mode === 'review_quiz') && (
               <span className="px-2 py-0.5 sm:py-1 rounded-xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 text-amber-700 dark:text-amber-300 font-black">
                 ⭐ {quizScore}점
@@ -1379,9 +1418,15 @@ export const QuizMode: React.FC<QuizModeProps> = ({ vocabList, onChangeMastery, 
                         setSelectedOption(opt.word);
                         setIsAnswered(true);
                         if (isCorrect) {
+                          setLearningCombo((prev) => {
+                            const next = prev + 1;
+                            if (next > maxLearningCombo) setMaxLearningCombo(next);
+                            return next;
+                          });
                           speechService.playItem(currentItem.id, currentItem.word, currentItem.meaning, 1);
                           if (onChangeMastery) onChangeMastery(currentItem.id, 2);
                         } else {
+                          setLearningCombo(0);
                           if (onChangeMastery) onChangeMastery(currentItem.id, 0);
                           if (!wrongAnswers.some((w) => w.id === currentItem.id)) {
                             setWrongAnswers((prev) => [...prev, currentItem]);
@@ -1417,6 +1462,7 @@ export const QuizMode: React.FC<QuizModeProps> = ({ vocabList, onChangeMastery, 
       {/* ============================================================ */}
       {mode === 'speed' && (
         <div className="space-y-5">
+          <ComboFeedbackOverlay combo={speedCombo} label="정답 콤보 행진!" />
           {/* Header Stats */}
           <div className="grid grid-cols-3 gap-3">
             <div className="p-3.5 rounded-2xl bg-rose-500/10 border border-rose-500/20 text-center">
@@ -1484,6 +1530,15 @@ export const QuizMode: React.FC<QuizModeProps> = ({ vocabList, onChangeMastery, 
                   <span className="text-xs text-amber-600 dark:text-amber-400 font-bold block">최대 콤보</span>
                   <span className="text-2xl font-black text-amber-500">{speedMaxCombo}회</span>
                 </div>
+              </div>
+
+              {/* Personal Best Combo Highlight */}
+              <div className="max-w-sm mx-auto">
+                <ComboStreakDisplay
+                  combo={speedCombo}
+                  maxCombo={speedMaxCombo}
+                  variant="card"
+                />
               </div>
 
               <div className="flex flex-wrap items-center justify-center gap-2">
@@ -1724,20 +1779,14 @@ export const QuizMode: React.FC<QuizModeProps> = ({ vocabList, onChangeMastery, 
               {/* Rating Choice */}
               <div className="grid grid-cols-2 gap-3 pt-2">
                 <button
-                  onClick={() => {
-                    if (onChangeMastery) onChangeMastery(currentItem.id, 0);
-                    handleNextItem();
-                  }}
+                  onClick={handleReviewClick}
                   className="py-3 rounded-xl bg-rose-500/10 text-rose-600 dark:text-rose-400 font-bold text-xs hover:bg-rose-500/20 transition-all border border-rose-500/30 flex items-center justify-center gap-1.5"
                 >
                   <XCircle className="w-4 h-4" />
                   <span>듣고 회상하기 어려움 (미암기)</span>
                 </button>
                 <button
-                  onClick={() => {
-                    if (onChangeMastery) onChangeMastery(currentItem.id, 2);
-                    handleNextItem();
-                  }}
+                  onClick={handleKnownClick}
                   className="py-3 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs shadow-md transition-all flex items-center justify-center gap-1.5"
                 >
                   <CheckCircle2 className="w-4 h-4" />
@@ -2034,6 +2083,15 @@ export const QuizMode: React.FC<QuizModeProps> = ({ vocabList, onChangeMastery, 
                 <span className="text-xs text-indigo-600 dark:text-indigo-400 font-bold block">최종 획득 점수</span>
                 <span className="text-3xl font-black text-indigo-600 dark:text-indigo-300">{quizScore}점</span>
               </div>
+
+              {/* Personal Best Combo Highlight */}
+              <div className="max-w-md mx-auto w-full">
+                <ComboStreakDisplay
+                  combo={learningCombo}
+                  maxCombo={maxLearningCombo}
+                  variant="card"
+                />
+              </div>
               <div className="flex flex-col sm:flex-row gap-2 pt-2">
                 <button
                   onClick={handleRestartSession}
@@ -2231,6 +2289,15 @@ export const QuizMode: React.FC<QuizModeProps> = ({ vocabList, onChangeMastery, 
                     {vocabList.filter((v) => (v.masteryLevel ?? (v.isLearned ? 2 : 0)) <= 1).length}개
                   </span>
                 </div>
+              </div>
+
+              {/* Personal Best Combo Highlight */}
+              <div className="max-w-md mx-auto w-full">
+                <ComboStreakDisplay
+                  combo={learningCombo}
+                  maxCombo={maxLearningCombo}
+                  variant="card"
+                />
               </div>
               <div className="flex flex-col sm:flex-row gap-2 pt-2 justify-center max-w-md mx-auto">
                 <button

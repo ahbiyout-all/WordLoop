@@ -1,5 +1,5 @@
-import React from 'react';
-import { BarChart3, Flame, Headphones, Target, Trophy, Clock, CheckCircle2, User, Lock, Mic, Activity, MessageSquare } from 'lucide-react';
+import React, { useState, useMemo, useEffect } from 'react';
+import { BarChart3, Flame, Headphones, Target, Trophy, Clock, CheckCircle2, User, Lock, Mic, Activity, MessageSquare, Share2, Zap } from 'lucide-react';
 import { Goal, DailyGoalHistory, UserProfile, VocabItem } from '../types';
 import { DailyGoalStreakIndicator } from './DailyGoalStreakIndicator';
 import { WeeklyRepeatsChart } from './WeeklyRepeatsChart';
@@ -9,6 +9,19 @@ import { MilestoneBadgeSystem } from './MilestoneBadgeSystem';
 import { MasteryGrowthBar } from './MasteryGrowthBar';
 import { PredictedMasteryTimeWidget } from './PredictedMasteryTimeWidget';
 import { VocabularyMasteryDistributionChart } from './VocabularyMasteryDistributionChart';
+import { StreakCalendarHeatmap } from './StreakCalendarHeatmap';
+import { ShareProgressModal } from './ShareProgressModal';
+import { PronunciationLeaderboard } from './PronunciationLeaderboard';
+import { StreakGraph } from './StreakGraph';
+import { QuickReviewModal } from './QuickReviewModal';
+import { StudentLevelProgressBar } from './StudentLevelProgressBar';
+import { LevelUpCelebrationModal } from './LevelUpCelebrationModal';
+import { StudentTitlesModal } from './StudentTitlesModal';
+import {
+  StudentLevelInfo,
+  calculateStudentLevel,
+  calculateStudentExpBreakdown,
+} from '../services/studentGamificationService';
 
 interface StatsDashboardProps {
   goals: Goal[];
@@ -17,7 +30,12 @@ interface StatsDashboardProps {
   vocabCount: number;
   vocabList?: VocabItem[];
   userProfile?: UserProfile | null;
+  levelInfo?: StudentLevelInfo;
+  onOpenProfileModal?: () => void;
   onStartReviewQuiz?: () => void;
+  onOpenRecordingHistory?: () => void;
+  onStartPronunciation?: (word: string) => void;
+  onChangeMastery?: (id: string, level: 0 | 1 | 2) => void;
 }
 
 export const StatsDashboard: React.FC<StatsDashboardProps> = ({
@@ -25,13 +43,74 @@ export const StatsDashboard: React.FC<StatsDashboardProps> = ({
   history,
   totalRepeatsCount,
   vocabCount,
-  vocabList,
+  vocabList = [],
   userProfile,
+  levelInfo,
+  onOpenProfileModal,
   onStartReviewQuiz,
+  onOpenRecordingHistory,
+  onStartPronunciation,
+  onChangeMastery,
 }) => {
+  const [showShareModal, setShowShareModal] = useState<boolean>(false);
+  const [showQuickReviewModal, setShowQuickReviewModal] = useState<boolean>(false);
+  const [showLevelUpModal, setShowLevelUpModal] = useState<boolean>(false);
+  const [showTitlesModal, setShowTitlesModal] = useState<boolean>(false);
+  const [previousLevel, setPreviousLevel] = useState<number | undefined>(undefined);
+
+  const activeLevelInfo = useMemo(() => {
+    return (
+      levelInfo ||
+      calculateStudentLevel({
+        totalRepeatsCount,
+        vocabList,
+        goals,
+        history,
+        streakDays: userProfile?.streakDays ?? 1,
+      })
+    );
+  }, [levelInfo, totalRepeatsCount, vocabList, goals, history, userProfile?.streakDays]);
+
+  const expBreakdown = useMemo(() => {
+    return calculateStudentExpBreakdown({
+      totalRepeatsCount,
+      vocabList,
+      goals,
+      history,
+      streakDays: userProfile?.streakDays ?? 1,
+    });
+  }, [totalRepeatsCount, vocabList, goals, history, userProfile?.streakDays]);
+
   const completedGoalsCount = goals.filter((g) => g.isCompleted).length;
   const totalGoals = goals.length;
   const maxStreak = goals.reduce((max, g) => Math.max(max, g.streak), 0);
+
+  const unlearnedCount = vocabList.filter(
+    (v) => (v.masteryLevel ?? (v.isLearned ? 2 : 0)) === 0
+  ).length;
+
+  // Automatically trigger Level-Up celebration when the user reaches a new level
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const storedLevelStr = localStorage.getItem('wordloop_seen_student_level');
+    const currentLevel = activeLevelInfo.level;
+    if (storedLevelStr) {
+      const storedLevel = parseInt(storedLevelStr, 10);
+      if (!isNaN(storedLevel) && currentLevel > storedLevel) {
+        setPreviousLevel(storedLevel);
+        setShowLevelUpModal(true);
+      }
+    } else {
+      localStorage.setItem('wordloop_seen_student_level', String(currentLevel));
+    }
+  }, [activeLevelInfo.level]);
+
+  const handleCloseLevelUpModal = () => {
+    setShowLevelUpModal(false);
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('wordloop_seen_student_level', String(activeLevelInfo.level));
+    }
+  };
 
   return (
     <div className="space-y-6">
@@ -65,8 +144,41 @@ export const StatsDashboard: React.FC<StatsDashboardProps> = ({
               <p className="text-sm font-extrabold text-emerald-400">{userProfile.dailyWordGoal}개 / 일</p>
             </div>
           )}
+
+          {/* Quick Review Rapid-Fire Practice Button */}
+          <button
+            type="button"
+            onClick={() => setShowQuickReviewModal(true)}
+            className="px-4 py-2.5 rounded-2xl bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-slate-950 font-black text-xs flex items-center gap-2 shadow-lg shadow-emerald-500/25 transition-all cursor-pointer group active:scale-95"
+            title="masteryLevel 0단계 미암기 취약 어휘만을 빠르게 집중 복습"
+          >
+            <Zap className="w-4 h-4 text-slate-950 fill-current shrink-0" />
+            <span>Quick Review ({unlearnedCount}개 미암기)</span>
+          </button>
+
+          {/* Share Progress Button */}
+          <button
+            type="button"
+            onClick={() => setShowShareModal(true)}
+            className="px-4 py-2.5 rounded-2xl bg-gradient-to-r from-amber-500 via-orange-500 to-indigo-600 hover:from-amber-600 hover:to-indigo-700 text-white font-black text-xs flex items-center gap-2 shadow-lg shadow-amber-500/20 hover:shadow-amber-500/30 transition-all cursor-pointer group active:scale-95"
+            title="현재 연속 스트릭과 총 반복 청취 횟수 성과 카드 이미지 생성 및 공유"
+          >
+            <Share2 className="w-4 h-4 group-hover:rotate-12 transition-transform shrink-0" />
+            <span>성과 공유 (Share Progress)</span>
+          </button>
         </div>
       </div>
+
+      {/* Student Level & Experience Progress Bar Section */}
+      <StudentLevelProgressBar
+        levelInfo={activeLevelInfo}
+        breakdown={expBreakdown}
+        onStartReviewQuiz={onStartReviewQuiz}
+        onOpenQuickReview={() => setShowQuickReviewModal(true)}
+        onOpenProfileModal={onOpenProfileModal}
+        onOpenTitlesModal={() => setShowTitlesModal(true)}
+        onTriggerCelebration={() => setShowLevelUpModal(true)}
+      />
 
       {/* Overview Stat Cards */}
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
@@ -305,8 +417,31 @@ export const StatsDashboard: React.FC<StatsDashboardProps> = ({
       {/* Daily Goal Completion Streak Indicator */}
       <DailyGoalStreakIndicator goals={goals} history={history} />
 
+      {/* Streak Calendar Heatmap (Monthly Intensity Grid with Streak Maintained Highlights) */}
+      <StreakCalendarHeatmap
+        goals={goals}
+        history={history}
+        userProfile={userProfile}
+        totalRepeatsCount={totalRepeatsCount}
+      />
+
+      {/* 30-Day Recharts Streak & Repeat Trend Graph */}
+      <StreakGraph
+        history={history}
+        totalRepeatsCount={totalRepeatsCount}
+        goals={goals}
+        userProfile={userProfile}
+      />
+
       {/* 1. Recent 7-Day Average Pronunciation Accuracy Chart (Recharts) */}
-      <WeeklyPronunciationAccuracyChart />
+      <WeeklyPronunciationAccuracyChart onOpenRecordingHistory={onOpenRecordingHistory} />
+
+      {/* Top 5 Most Frequently Practiced Words Pronunciation Leaderboard */}
+      <PronunciationLeaderboard
+        vocabList={vocabList}
+        onTriggerChallenge={onStartPronunciation}
+        onOpenAllHistory={onOpenRecordingHistory}
+      />
 
       {/* 2. Weekly Total Repeats Trend Chart (Recharts) */}
       <WeeklyRepeatsChart history={history} totalRepeatsCount={totalRepeatsCount} />
@@ -372,6 +507,49 @@ export const StatsDashboard: React.FC<StatsDashboardProps> = ({
           ))}
         </div>
       </div>
+
+      {/* Share Progress Modal */}
+      <ShareProgressModal
+        isOpen={showShareModal}
+        onClose={() => setShowShareModal(false)}
+        data={{
+          userName: userProfile?.name || 'WordLoop 학습자',
+          userAvatar: userProfile?.avatar || '🔥',
+          userMotto: userProfile?.motto,
+          currentStreak: maxStreak,
+          longestStreak: maxStreak,
+          totalRepeatsCount,
+          completedGoalsCount,
+          totalGoalsCount: totalGoals,
+          vocabCount,
+        }}
+      />
+
+      {/* Quick Review Rapid-Fire Practice Modal */}
+      <QuickReviewModal
+        isOpen={showQuickReviewModal}
+        onClose={() => setShowQuickReviewModal(false)}
+        vocabList={vocabList}
+        onChangeMastery={onChangeMastery}
+        onStartPronunciation={onStartPronunciation}
+      />
+
+      {/* Student Level-Up Celebratory Animation & Message Layer Modal */}
+      <LevelUpCelebrationModal
+        isOpen={showLevelUpModal}
+        onClose={handleCloseLevelUpModal}
+        levelInfo={activeLevelInfo}
+        previousLevel={previousLevel}
+        onShareProgress={() => setShowShareModal(true)}
+        onOpenTitlesModal={() => setShowTitlesModal(true)}
+      />
+
+      {/* 50 Unique Student Teen Titles Catalogue & EXP Boost Modal */}
+      <StudentTitlesModal
+        isOpen={showTitlesModal}
+        onClose={() => setShowTitlesModal(false)}
+        currentLevelInfo={activeLevelInfo}
+      />
 
     </div>
   );

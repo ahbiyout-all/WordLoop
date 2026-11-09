@@ -91,6 +91,15 @@
   animation: shake 0.3s ease-in-out;
 }
 
+@keyframes spinSlow {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.animate-spin-slow {
+  animation: spinSlow 8s linear infinite;
+}
+
 /* Custom Sleek Scrollbar for modals and scroll containers */
 .custom-scrollbar {
   scrollbar-width: thin;
@@ -261,4 +270,94 @@
   }
 }
 
+@keyframes streakAuraGlow {
+  0% {
+    transform: scale(1);
+    opacity: 0.4;
+  }
+  50% {
+    transform: scale(1.35);
+    opacity: 0.85;
+  }
+  100% {
+    transform: scale(1);
+    opacity: 0.4;
+  }
+}
 
+@keyframes streakSparkRise {
+  0% {
+    transform: translateY(0) scale(1);
+    opacity: 1;
+  }
+  50% {
+    transform: translateY(-7px) scale(1.2) translateX(2px);
+    opacity: 0.8;
+  }
+  100% {
+    transform: translateY(-14px) scale(0.4) translateX(-2px);
+    opacity: 0;
+  }
+}
+
+/* ComboStreakDisplay Personal Best Keyframe Animations */
+@keyframes pbPop {
+  0% { transform: scale(0.85); opacity: 0.8; }
+  50% { transform: scale(1.18); opacity: 1; }
+  100% { transform: scale(1); opacity: 1; }
+}
+
+.animate-pb-pop {
+  animation: pbPop 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+@keyframes goldenShimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+.animate-golden-shimmer {
+  background-size: 200% 100%;
+  animation: goldenShimmer 2.2s linear infinite;
+}
+
+/* Level-Up Celebration & Sparkle Keyframe Animations */
+@keyframes sparkleTwinkle {
+  0% { transform: scale(0.6) rotate(0deg); opacity: 0.3; }
+  50% { transform: scale(1.25) rotate(180deg); opacity: 1; filter: drop-shadow(0 0 8px rgba(251, 191, 36, 0.9)); }
+  100% { transform: scale(0.6) rotate(360deg); opacity: 0.3; }
+}
+
+.animate-sparkle-twinkle {
+  animation: sparkleTwinkle 2s ease-in-out infinite;
+}
+
+@keyframes goldenRayRotate {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+.animate-golden-ray {
+  animation: goldenRayRotate 20s linear infinite;
+}
+
+@keyframes levelUpBannerPop {
+  0% { transform: scale(0.9) translateY(12px); opacity: 0; }
+  60% { transform: scale(1.03) translateY(-2px); opacity: 1; }
+  100% { transform: scale(1) translateY(0); opacity: 1; }
+}
+
+.animate-levelup-pop {
+  animation: levelUpBannerPop 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+/* Sound Wave Equalizer Animations */
+@keyframes soundBarPulse {
+  0%, 100% { height: 4px; }
+  50% { height: 16px; }
+}
+
+.animate-sound-bar-1 { animation: soundBarPulse 0.4s ease-in-out infinite; }
+.animate-sound-bar-2 { animation: soundBarPulse 0.4s ease-in-out infinite 0.1s; }
+.animate-sound-bar-3 { animation: soundBarPulse 0.4s ease-in-out infinite 0.2s; }
+.animate-sound-bar-4 { animation: soundBarPulse 0.4s ease-in-out infinite 0.3s; }

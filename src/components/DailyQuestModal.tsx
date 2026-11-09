@@ -33,6 +33,7 @@ import {
   sendDailyWordNotification,
   getTodayDateString,
 } from '../services/habitQuestService';
+import { simulate24hInactivity } from '../services/inactivityQuizService';
 import { speechService } from '../services/speechService';
 
 interface DailyQuestModalProps {
@@ -581,6 +582,30 @@ export const DailyQuestModal: React.FC<DailyQuestModalProps> = ({
                   className="px-3 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-extrabold text-[11px] shadow-sm transition-all cursor-pointer whitespace-nowrap"
                 >
                   알림 테스트
+                </button>
+              </div>
+
+              {/* 24시간 미접속 3분 퀴즈 알림 시뮬레이션 버튼 */}
+              <div className="p-3 rounded-2xl bg-amber-50/60 dark:bg-amber-950/20 border border-amber-500/20 flex items-center justify-between gap-2">
+                <div className="flex items-center gap-2">
+                  <Flame className="w-4 h-4 text-amber-500 shrink-0" />
+                  <div className="text-left">
+                    <span className="text-[11px] font-bold text-slate-800 dark:text-slate-200 block">
+                      24시간 미접속 3분 퀴즈 복귀 추천
+                    </span>
+                    <span className="text-[10px] text-slate-500 dark:text-slate-400">
+                      24시간 이상 미접속 시 뜨는 추천 토스트 즉시 테스트
+                    </span>
+                  </div>
+                </div>
+                <button
+                  onClick={() => {
+                    simulate24hInactivity(26);
+                    onClose();
+                  }}
+                  className="px-3 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-slate-950 font-black text-[11px] shadow-sm transition-all cursor-pointer whitespace-nowrap"
+                >
+                  24h 알림 시뮬레이션
                 </button>
               </div>
             </div>

@@ -26,6 +26,9 @@ import { ActiveTab, UserProfile, VocabItem, SentenceItem, Goal, DailyGoalHistory
 import { speechService } from '../services/speechService';
 import { getUserGeminiKey } from '../services/apiClient';
 import { StreakFire } from './StreakFire';
+import { calculateStudentLevel } from '../services/studentGamificationService';
+import { StudentLevelCard } from './StudentLevelCard';
+import { StudyBuddyWidget } from './StudyBuddyWidget';
 
 interface MainLauncherDashboardProps {
   userProfile: UserProfile | null;
@@ -337,6 +340,25 @@ export const MainLauncherDashboard: React.FC<MainLauncherDashboardProps> = ({
           </div>
         )}
       </div>
+
+      {/* AI Mascot Study Buddy Encouragement Banner */}
+      <StudyBuddyWidget
+        compactMode={true}
+        userProfile={userProfile}
+        vocabList={vocabList}
+      />
+
+      {/* Student Gamification: EXP & Teen Leveling Card */}
+      <StudentLevelCard
+        levelInfo={calculateStudentLevel({
+          totalRepeatsCount,
+          vocabList,
+          goals,
+          history,
+          streakDays: streak,
+        })}
+        onOpenBadges={() => onNavigateTab('stats')}
+      />
 
       {/* View Switch Mode Bar: Launcher Grid vs List View */}
       <div className="flex items-center justify-between px-3 py-2 sm:p-3 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm shrink-0">

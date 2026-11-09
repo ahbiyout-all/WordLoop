@@ -19,6 +19,8 @@ import {
   Info,
 } from 'lucide-react';
 import { Goal, DailyGoalHistory, UserProfile } from '../types';
+import { confettiService } from '../services/confettiService';
+import { triggerLevelUpBanner } from './ConfettiCanvas';
 
 interface MilestoneBadgeSystemProps {
   goals: Goal[];
@@ -611,7 +613,21 @@ export const MilestoneBadgeSystem: React.FC<MilestoneBadgeSystemProps> = ({
           return (
             <div
               key={badge.id}
-              onClick={() => setActiveBadge(isSelected ? null : badge)}
+              onClick={() => {
+                if (!isSelected && badge.isUnlocked) {
+                  confettiService.fire({ particleCount: 30, spread: 60 });
+                  triggerLevelUpBanner({
+                    type: 'milestone',
+                    title: `${badge.koreanTitle} 달성!`,
+                    subtitle: badge.description,
+                    badgeEmoji: badge.tier === 'legend' || badge.tier === 'diamond' ? '👑' : badge.tier === 'gold' ? '🏆' : '🏅',
+                    unlockedTitle: badge.title,
+                    perkText: badge.requirementText,
+                    expGained: badge.targetValue * 10,
+                  });
+                }
+                setActiveBadge(isSelected ? null : badge);
+              }}
               className={`p-4 rounded-2xl border transition-all cursor-pointer relative select-none flex flex-col justify-between ${style.cardBg} ${style.glow} ${
                 isSelected ? 'ring-2 ring-amber-400 scale-[1.02]' : 'hover:scale-[1.01]'
               }`}

@@ -21,6 +21,7 @@ import {
   Info,
 } from 'lucide-react';
 import { VocabItem, DailyGoalHistory, UserProfile } from '../types';
+import { getLocalDateString } from '../utils/dateUtils';
 
 interface PredictedMasteryTimeWidgetProps {
   vocabList?: VocabItem[];
@@ -114,7 +115,7 @@ export const PredictedMasteryTimeWidget: React.FC<PredictedMasteryTimeWidgetProp
     for (let i = 0; i < 7; i++) {
       const d = new Date(today);
       d.setDate(d.getDate() - i);
-      const dateStr = d.toISOString().split('T')[0];
+      const dateStr = getLocalDateString(d);
       if (historyMap.has(dateStr)) {
         const cnt = historyMap.get(dateStr)!;
         recentSum += cnt;

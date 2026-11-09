@@ -1,4 +1,5 @@
 import { VoiceSegmentResult } from '../utils/audioWaveformUtils';
+import { getLocalDateString } from '../utils/dateUtils';
 
 export interface SavedVoiceSnapshot {
   audioBuffer?: ArrayBuffer;
@@ -328,7 +329,7 @@ export async function saveVoiceRecordingForTarget(params: {
       recordPronunciationScoreLog({
         targetText,
         score,
-        date: new Date().toISOString().split('T')[0],
+        date: getLocalDateString(),
         timestamp: Date.now(),
       });
     } catch (_) {}
@@ -387,7 +388,7 @@ export async function getRecent7DaysPronunciationStats(): Promise<Pronunciation7
   for (let i = 6; i >= 0; i--) {
     const d = new Date(today);
     d.setDate(d.getDate() - i);
-    const dateStr = d.toISOString().split('T')[0];
+    const dateStr = getLocalDateString(d);
     last7Dates.push({ dateStr, dateObj: d });
   }
 
@@ -523,5 +524,139 @@ export async function getRecent7DaysPronunciationStats(): Promise<Pronunciation7
     totalRecordingsCount: totalRecordedCount,
     bestDay: bestDayStat ? { displayDate: bestDayStat.displayDate, score: bestDayStat.avgAccuracy } : null,
   };
+}
+
+/**
+ * Fetches all saved voice recording records from IndexedDB (with fallback to memoryCache/localStorage),
+ * hydrating their Audio URLs and sorting by newest (updatedAt descending).
+ */
+export async function getAllVoiceHistoryRecords(): Promise<TargetVoiceHistoryRecord[]> {
+  const recordsMap = new Map<string, TargetVoiceHistoryRecord>();
+
+  // 1. Pull from IndexedDB
+  const db = await openVoiceDb();
+  if (db) {
+    try {
+      const dbRecords = await new Promise<TargetVoiceHistoryRecord[]>((resolve) => {
+        const tx = db.transaction(STORE_NAME, 'readonly');
+        const store = tx.objectStore(STORE_NAME);
+        const req = store.getAll();
+        req.onsuccess = () => resolve(req.result || []);
+        req.onerror = () => resolve([]);
+      });
+      db.close();
+
+      dbRecords.forEach((r) => {
+        if (r && r.key) {
+          const hydrated = hydrateRecordUrls(r);
+          recordsMap.set(r.key, hydrated);
+          memoryCache.set(r.key, hydrated);
+        }
+      });
+    } catch (e) {
+      try {
+        db.close();
+      } catch (_) {}
+    }
+  }
+
+  // 2. Supplement from memoryCache
+  memoryCache.forEach((rec, key) => {
+    if (!recordsMap.has(key)) {
+      recordsMap.set(key, hydrateRecordUrls(rec));
+    }
+  });
+
+  // 3. Fallback from localStorage
+  try {
+    const raw = localStorage.getItem(FALLBACK_LS_KEY);
+    if (raw) {
+      const lsMap = JSON.parse(raw) as Record<string, TargetVoiceHistoryRecord>;
+      Object.keys(lsMap).forEach((k) => {
+        if (!recordsMap.has(k)) {
+          recordsMap.set(k, lsMap[k]);
+        }
+      });
+    }
+  } catch (e) {}
+
+  const list = Array.from(recordsMap.values());
+  // Sort by updatedAt descending (newest first)
+  list.sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
+  return list;
+}
+
+/**
+ * Deletes a recorded voice entry by its target key
+ */
+export async function deleteVoiceHistoryRecord(key: string): Promise<boolean> {
+  const normKey = normalizeVoiceTargetKey(key);
+  if (!normKey) return false;
+
+  memoryCache.delete(normKey);
+
+  // Remove from localStorage fallback
+  try {
+    const raw = localStorage.getItem(FALLBACK_LS_KEY);
+    if (raw) {
+      const map = JSON.parse(raw) as Record<string, TargetVoiceHistoryRecord>;
+      if (map[normKey]) {
+        delete map[normKey];
+        localStorage.setItem(FALLBACK_LS_KEY, JSON.stringify(map));
+      }
+    }
+  } catch (e) {}
+
+  // Remove from IndexedDB
+  const db = await openVoiceDb();
+  if (db) {
+    try {
+      await new Promise<void>((resolve) => {
+        const tx = db.transaction(STORE_NAME, 'readwrite');
+        const store = tx.objectStore(STORE_NAME);
+        store.delete(normKey);
+        tx.oncomplete = () => resolve();
+        tx.onerror = () => resolve();
+      });
+      db.close();
+      return true;
+    } catch (e) {
+      try {
+        db.close();
+      } catch (_) {}
+    }
+  }
+
+  return true;
+}
+
+/**
+ * Clears all stored voice recording records
+ */
+export async function clearAllVoiceHistoryRecords(): Promise<boolean> {
+  memoryCache.clear();
+  try {
+    localStorage.removeItem(FALLBACK_LS_KEY);
+  } catch (e) {}
+
+  const db = await openVoiceDb();
+  if (db) {
+    try {
+      await new Promise<void>((resolve) => {
+        const tx = db.transaction(STORE_NAME, 'readwrite');
+        const store = tx.objectStore(STORE_NAME);
+        store.clear();
+        tx.oncomplete = () => resolve();
+        tx.onerror = () => resolve();
+      });
+      db.close();
+      return true;
+    } catch (e) {
+      try {
+        db.close();
+      } catch (_) {}
+    }
+  }
+  return true;
 }
 
