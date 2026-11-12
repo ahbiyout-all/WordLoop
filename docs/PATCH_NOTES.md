@@ -2,7 +2,71 @@
 
 ---
 
-## 🚀 Version 3.96.0 (최신 업데이트)
+## 🚀 Version 4.0.1 (최신 업데이트)
+
+### 🐛 온디맨드 APK 빌드 child_process ESM 임포트 교정 (`server.ts`)
+- **⚡ ES 모듈 require() 미정의 예외 해결 (`ReferenceError: require is not defined`)**:
+  - ES Modules 구성을 사용하는 `server.ts` 라우트 내부에서 동적 `require("child_process")`를 호출하던 코드를 파일 상단의 ES 표준 `import { execSync } from "child_process";` 구문으로 전환했습니다.
+  - 온디맨드 APK 다운로드 요청 시 디스크에 `.apk` 파일이 없을 때 `python3 scripts/package-apk.py` 자동 빌드 프로세스가 예외 없이 안정적으로 트리거되도록 보장했습니다.
+
+---
+
+## 🚀 Version 4.0.0
+
+### 🌱 학습 잔디 심기 월간 히트맵 캘린더 & 퀴즈 달성 불꽃 애니메이션 이펙트 (`StreakCalendarHeatmap.tsx`)
+- **🌱 GitHub 스타일 5단계 학습 잔디 심기 시각화 (Grass Planting Heatmap)**:
+  - 일별 학습 활동 지표(목표 달성 수 + 어휘 복습 횟수)를 0단계(빈 땅), 1단계(파릇 새싹), 2단계(싱그런 잔디), 3단계(짙은 숲속), 4단계(황금 잔디 마스터)의 5단계 녹색 파스텔 톤 캘린더 히트맵으로 직관적 시각화했습니다.
+- **🔥 퀴즈 & 목표 달성 시 반짝이는 불꽃 애니메이션 이펙트 (Quiz Flame Effect)**:
+  - 퀴즈를 통과하거나 학습 목표를 성공적으로 완료한 날짜의 달력 셀에 반짝이는 불꽃 링 및 아우라, 튀어오르는 불꽃 아이콘 애니메이션(`StreakFire` & `Sparkles`)을 자동 점등합니다.
+- **🧪 대화형 퀴즈 불꽃 테스트 토글 신설**:
+  - 오늘 날짜 셀에 불꽃 애니메이션 이펙트를 즉시 켜고 끌 수 있는 `🔥 퀴즈 불꽃 테스트` 토글 액션을 추가하여 사용자 인터랙션 만족도를 한 단계 높였습니다.
+- **📊 잔디 & 불꽃 KPI 종합 서머리 카드**:
+  - '이달 심은 학습 잔디', '퀴즈·목표 불꽃 달성일', '현재 연속 스트릭', '이달 최장 잔디 스트릭' 4대 핵심 지표 카드를 탑재하여 학습 성취감을 배가했습니다.
+
+---
+
+## 🚀 Version 3.99.0
+
+### 🎙️ 한글 단어 & 한국어 뜻 TTS 발음 정확도·자연스러움 고도화 (`speechService.ts`)
+- **🗣️ 한국어 전용 고품질 음성 엔진 자동격리 & 매핑 (Korean Voice Isolation)**:
+  - 기존 `resolveVoice()`에서 사용자가 선택한 영어 음성(`voiceURI`)이 한국어 TTS에도 그대로 적용되어 한국어 뜻 낭독 시 어색한 억양이 생기던 원인을 완벽 해결했습니다.
+  - 언어별 Prefix 코드(`ko` vs `en`)를 엄격 검증하여 한국어 발음 요청 시 `Google 한국어`, `Samsung Korean`, `Microsoft Sun-Hi / Natural` 등 최고 음질의 한국어 전용 음성만을 분리 할당합니다.
+- **🧹 사전 표기 특수기호 자동 정화 로직 탑재 (`cleanKoreanForSpeech`)**:
+  - `(명사)`, `(동사)`, `[형용사]`, `(보통 단수로)` 등 사전용 문법 표기와 물결표(`~`)를 TTS 발음 직전에 자동으로 정화하여 부자연스러운 기호 읽기를 원천 차단했습니다.
+- **⏱️ 슬래시(/) & 세미콜론(;) 쉼표 파즈 전환**:
+  - `사과 / 사과나무`, `달리다; 경주하다` 등 슬래시나 세미콜론으로 나열된 한국어 뜻을 자연스러운 쉼표(, ) 호흡으로 전환하여 또렷하고 매끄러운 낭독을 제공합니다.
+- **📱 모바일 Web Speech API & HTML5 Audio 이중 폴백 방어**:
+  - 삼성 인터넷, 안드로이드 크롬, iOS Safari에서 한국어 발음 재생 시 음성이 잘리거나 무음 처리되지 않도록 워치독 타이머와 Google Translate TTS 클린 텍스트 폴백 오디오 방어망을 완비했습니다.
+
+---
+
+## 🚀 Version 3.98.0
+
+### 🚀 모바일 셀프 업데이트 고도화 (Advanced Mobile Self-Updater Engine)
+- **📲 인앱 모달 실시간 APK 다운로드 프로그레스 바 신설 (`GitHubUpdateModal.tsx`)**:
+  - 'Android (.apk) 원터치 셀프 받기' 클릭 시 모달 내에서 실시간 다운로드 상태(0%~100%), 수신 용량(MB) 및 애니메이션 프로그레스 바를 시각화하고 검증 완료 후 모바일 인스톨러를 자동 호출합니다.
+- **⚡ PWA 원터치 앱 캐시 비우기 & 무중단 갱신 (`GitHubUpdateModal.tsx`)**:
+  - PWA 및 모바일 웹 환경에서 누적된 서비스 워커(`Service Worker`) 및 브라우저 캐시를 1-클릭으로 클리어하고 최신 버전으로 새로고침하는 'PWA 갱신' 전용 액션을 탑재했습니다.
+- **⚙️ 앱 구동 시 모바일 릴리스 자동 감지 설정 옵션 (`GitHubUpdateModal.tsx`, `App.tsx`)**:
+  - 앱 시작 시 GitHub Releases API 자동 조회 여부를 사용자가 직접 켜고 끌 수 있는 토글 설정(`wordloop_auto_check_updates`)을 추가했습니다.
+- **⌨️ 모달 접근성 고도화 (`GitHubUpdateModal.tsx`)**:
+  - `role="dialog"`, `aria-modal="true"`, `aria-labelledby="github-update-title"`, `ESC` 키보드 감지 및 백드롭 영역 클릭 닫기 인터랙션을 완성했습니다.
+
+---
+
+## 🚀 Version 3.97.0
+
+### 🧘‍♂️ 시스템 전방위 자아성찰 & 프로필·모달 접근성·오디오 무결성 심화 패치 (Deep Audit & Accessibility Refinement)
+- **👤 UserProfileModal 키보드 ESC 단축키 & 백드롭 클릭 닫기 탑재 (`UserProfileModal.tsx`)**:
+  - 사용자 프로필 및 장치 저장소 관리 모달에 `role="dialog"`, `aria-modal="true"`, `aria-labelledby="user-profile-title"` 접근성 속성과 `ESC` 키보드 단축키 감지 및 백드롭 클릭 이벤트를 신설하여 전 모달 라인업의 접근성을 일원화했습니다.
+- **🔊 Web Audio 신디사이저 안심 오버플로우 방지 & 싱글톤 리소스 다단계 제어 (`soundEffectService.ts`)**:
+  - `getSharedAudioContext()` 공유 싱글톤 패턴을 통해 모바일 웹 브라우저(삼성 인터넷, 안드로이드 크롬)의 오디오 컨텍스트 6개 생성 제한을 근본 차단하고, 게인 노드 버스 분리로 멀티 노드 동시 연주 시의 음향 일관성을 지속 보장합니다.
+- **🎓 50대 틴에이저 칭호 & EXP 부스트 계산 무결성 검증 (`studentGamificationService.ts`)**:
+  - 어휘 마스터리, 무한 음성 청취, 목표 달성, 스트릭 보너스 4대 EXP 획득원의 상한선 및 레벨 스케일링 곡선을 정밀 재검증하여 Lv.1~Lv.50 전 구간 승급 무결성을 확보했습니다.
+
+---
+
+## 🚀 Version 3.96.0
 
 ### 🧘‍♂️ 전방위 시스템 자아성찰 & 오디오·모달 무결성 심화 안정화 (Deep Audit & Stability Fixes)
 - **🔊 Web Audio 신디사이저 팝/클릭 노이즈 및 오디오 버스 클리핑 방지 (`soundEffectService.ts`)**:

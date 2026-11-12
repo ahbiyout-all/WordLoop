@@ -209,14 +209,17 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
     setStorageStats(getDeviceStorageStats());
   }, [userProfile, isOpen]);
 
-  // Listen to device save events
+  // Keyboard accessibility: ESC key to close modal
   useEffect(() => {
-    const handleDeviceSaved = () => {
-      setStorageStats(getDeviceStorageStats());
+    if (!isOpen) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && !isOnboarding) {
+        onClose();
+      }
     };
-    window.addEventListener('wordloop_device_saved', handleDeviceSaved);
-    return () => window.removeEventListener('wordloop_device_saved', handleDeviceSaved);
-  }, []);
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen, isOnboarding, onClose]);
 
   if (!isOpen) return null;
 
@@ -441,7 +444,17 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
   ).length;
 
   return (
-    <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-3 sm:p-4 overflow-y-auto animate-in fade-in duration-150">
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="user-profile-title"
+      onClick={(e) => {
+        if (e.target === e.currentTarget && !isOnboarding) {
+          onClose();
+        }
+      }}
+      className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-3 sm:p-4 overflow-y-auto animate-in fade-in duration-150"
+    >
       <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl max-w-xl w-full p-4 sm:p-6 shadow-2xl relative my-auto max-h-[94dvh] sm:max-h-[90vh] flex flex-col overflow-hidden">
         
         {/* Save Toast Notification Banner */}
@@ -460,7 +473,7 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
             </div>
             <div>
               <div className="flex items-center gap-2 flex-wrap">
-                <h2 className="font-black text-sm sm:text-base text-slate-900 dark:text-white">
+                <h2 id="user-profile-title" className="font-black text-sm sm:text-base text-slate-900 dark:text-white">
                   {isOnboarding ? '나만의 전용 학습 프로필 등록' : '사용자 정보 & 장치 저장 관리'}
                 </h2>
                 <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30 flex items-center gap-1">

@@ -423,6 +423,7 @@ export const StatsDashboard: React.FC<StatsDashboardProps> = ({
         history={history}
         userProfile={userProfile}
         totalRepeatsCount={totalRepeatsCount}
+        onStartReviewQuiz={onStartReviewQuiz}
       />
 
       {/* 30-Day Recharts Streak & Repeat Trend Graph */}

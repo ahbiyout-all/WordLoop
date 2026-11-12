@@ -11,19 +11,22 @@ import {
   Zap,
   Info,
   RotateCcw,
+  Sprout,
+  Play,
 } from 'lucide-react';
 import { Goal, DailyGoalHistory, UserProfile } from '../types';
 import { StreakFire } from './StreakFire';
 import { getLocalDateString } from '../utils/dateUtils';
 
-interface StreakCalendarHeatmapProps {
+export interface StreakCalendarHeatmapProps {
   goals: Goal[];
   history: DailyGoalHistory[];
   userProfile?: UserProfile | null;
   totalRepeatsCount?: number;
+  onStartReviewQuiz?: () => void;
 }
 
-interface CalendarDayItem {
+export interface CalendarDayItem {
   dateStr: string;
   dayNumber: number;
   isCurrentMonth: boolean;
@@ -35,6 +38,7 @@ interface CalendarDayItem {
   completedGoalsCount: number;
   totalGoalsCount: number;
   isStreakMaintained: boolean;
+  isQuizPassed: boolean;
 }
 
 export const StreakCalendarHeatmap: React.FC<StreakCalendarHeatmapProps> = ({
@@ -42,6 +46,7 @@ export const StreakCalendarHeatmap: React.FC<StreakCalendarHeatmapProps> = ({
   history,
   userProfile,
   totalRepeatsCount = 0,
+  onStartReviewQuiz,
 }) => {
   const today = useMemo(() => new Date(), []);
   const todayStr = useMemo(() => getLocalDateString(today), [today]);
@@ -50,6 +55,9 @@ export const StreakCalendarHeatmap: React.FC<StreakCalendarHeatmapProps> = ({
   const [viewYear, setViewYear] = useState<number>(today.getFullYear());
   const [viewMonth, setViewMonth] = useState<number>(today.getMonth()); // 0-indexed
   const [selectedDay, setSelectedDay] = useState<CalendarDayItem | null>(null);
+
+  // Toggle for flame simulation mode on today's date for interactive testing
+  const [simulatedFlameToday, setSimulatedFlameToday] = useState<boolean>(false);
 
   const DAY_NAMES = ['일', '월', '화', '수', '목', '금', '토'];
 
@@ -107,7 +115,7 @@ export const StreakCalendarHeatmap: React.FC<StreakCalendarHeatmapProps> = ({
 
     const days: CalendarDayItem[] = [];
 
-    // Helper: calculate activity intensity and streak status
+    // Helper: calculate activity intensity, quiz achievement, and streak status
     const calculateDayData = (
       date: Date,
       isCurrentMonth: boolean
@@ -139,23 +147,27 @@ export const StreakCalendarHeatmap: React.FC<StreakCalendarHeatmapProps> = ({
         ? 0
         : vocabStudyCount + completedGoalsCount * 4;
 
-      // Intensity level (0 ~ 4)
+      // Intensity level for Grass Planting (0 ~ 4)
       let intensityLevel: 0 | 1 | 2 | 3 | 4 = 0;
-      if (!isFuture && activityScore > 0) {
+      if (!isFuture && (activityScore > 0 || (isToday && simulatedFlameToday))) {
         if (activityScore >= 22 || completedGoalsCount >= 3) {
-          intensityLevel = 4; // Peak Master
+          intensityLevel = 4; // Master Golden Grass Bloom
         } else if (activityScore >= 14 || completedGoalsCount >= 2) {
-          intensityLevel = 3; // High Focus
+          intensityLevel = 3; // Lush Forest
         } else if (activityScore >= 7 || completedGoalsCount >= 1) {
-          intensityLevel = 2; // Moderate Activity
+          intensityLevel = 2; // Meadow Grass
         } else {
-          intensityLevel = 1; // Light Activity
+          intensityLevel = 1; // Young Sprout
         }
       }
 
       // Streak is maintained when goals were completed or strong activity occurred on that day
       const isStreakMaintained =
-        !isFuture && (completedGoalsCount >= 1 || vocabStudyCount >= 6);
+        !isFuture && (completedGoalsCount >= 1 || vocabStudyCount >= 6 || (isToday && simulatedFlameToday));
+
+      // Quiz & Goal Achievement Flag: triggers flame animation effect
+      const isQuizPassed =
+        !isFuture && (completedGoalsCount >= 1 || vocabStudyCount >= 5 || (isToday && simulatedFlameToday));
 
       return {
         dateStr,
@@ -169,6 +181,7 @@ export const StreakCalendarHeatmap: React.FC<StreakCalendarHeatmapProps> = ({
         completedGoalsCount,
         totalGoalsCount,
         isStreakMaintained,
+        isQuizPassed,
       };
     };
 
@@ -196,6 +209,7 @@ export const StreakCalendarHeatmap: React.FC<StreakCalendarHeatmapProps> = ({
     // Compute Month Summary Metrics for current month days only
     const currMonthDays = days.filter((d) => d.isCurrentMonth && !d.isFuture);
     const activeDaysCount = currMonthDays.filter((d) => d.intensityLevel > 0).length;
+    const flameDaysCount = currMonthDays.filter((d) => d.isQuizPassed).length;
     const streakMaintainedCount = currMonthDays.filter((d) => d.isStreakMaintained).length;
     const totalMonthGoalsDone = currMonthDays.reduce((acc, d) => acc + d.completedGoalsCount, 0);
 
@@ -215,16 +229,17 @@ export const StreakCalendarHeatmap: React.FC<StreakCalendarHeatmapProps> = ({
       calendarDays: days,
       monthMetrics: {
         activeDaysCount,
+        flameDaysCount,
         streakMaintainedCount,
         totalMonthGoalsDone,
         maxMonthStreak,
         daysInMonth: daysInCurrentMonth,
       },
     };
-  }, [viewYear, viewMonth, todayStr, todayCompletedGoals, totalGoalsSet, historyMap, totalRepeatsCount]);
+  }, [viewYear, viewMonth, todayStr, todayCompletedGoals, totalGoalsSet, historyMap, totalRepeatsCount, simulatedFlameToday]);
 
   // Current active streak from userProfile or fallback
-  const currentStreak = userProfile?.streakDays || (todayCompletedGoals > 0 ? 1 : 0);
+  const currentStreak = userProfile?.streakDays || (todayCompletedGoals > 0 || simulatedFlameToday ? 1 : 0);
 
   // Active inspected day (defaults to selectedDay or today if in current view)
   const inspectedDay = selectedDay || calendarDays.find((d) => d.isToday) || calendarDays[0];
@@ -234,27 +249,42 @@ export const StreakCalendarHeatmap: React.FC<StreakCalendarHeatmapProps> = ({
       {/* Header & Controls */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-slate-100 dark:border-slate-800">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-emerald-500 to-teal-500 text-slate-950 flex items-center justify-center font-black shadow-md shadow-emerald-500/20 shrink-0">
-            <CalendarIcon className="w-5 h-5 text-slate-950" />
+          <div className="w-11 h-11 rounded-2xl bg-gradient-to-tr from-emerald-500 via-teal-500 to-amber-500 text-slate-950 flex items-center justify-center font-black shadow-lg shadow-emerald-500/20 shrink-0">
+            <Sprout className="w-6 h-6 text-slate-950" />
           </div>
           <div>
             <div className="flex items-center gap-2 flex-wrap">
               <h3 className="font-extrabold text-base text-slate-900 dark:text-white flex items-center gap-2">
-                <span>스트릭 캘린더 (Streak Calendar) 히트맵</span>
+                <span>🌱 학습 잔디 심기 월간 히트맵 캘린더</span>
               </h3>
-              <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30 flex items-center gap-1">
-                <Flame className="w-3 h-3 text-amber-500 fill-amber-500" />
-                스트릭 유지일 강조
+              <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-500/30 flex items-center gap-1">
+                <Flame className="w-3 h-3 text-amber-500 fill-amber-500 animate-pulse" />
+                퀴즈 달성 불꽃 이펙트
               </span>
             </div>
             <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-              일별 활동 강도를 5단계 녹색으로 시각화하고 목표 연속 스트릭이 유지된 날을 불꽃 링으로 집중 하이라이트합니다.
+              GitHub 스타일의 5단계 녹색 잔디 심기로 학습 연속성(Streak)을 시각화하며, 퀴즈 및 목표 달성 날짜엔 반짝이는 불꽃 애니메이션 이펙트가 점등됩니다.
             </p>
           </div>
         </div>
 
-        {/* Month Selector Buttons */}
-        <div className="flex items-center gap-1.5 self-start sm:self-auto shrink-0">
+        {/* Month Selector & Controls */}
+        <div className="flex items-center gap-1.5 self-start sm:self-auto shrink-0 flex-wrap">
+          {/* Flame Simulation Trigger Button */}
+          <button
+            type="button"
+            onClick={() => setSimulatedFlameToday((prev) => !prev)}
+            className={`px-3 py-1.5 rounded-xl text-xs font-black transition-all cursor-pointer flex items-center gap-1.5 shadow-sm active:scale-95 ${
+              simulatedFlameToday
+                ? 'bg-gradient-to-r from-amber-500 to-rose-500 text-white shadow-amber-500/30 ring-2 ring-amber-400'
+                : 'bg-amber-500/10 hover:bg-amber-500/20 text-amber-600 dark:text-amber-400 border border-amber-500/30'
+            }`}
+            title="오늘 날짜에 퀴즈 달성 불꽃 애니메이션 시각효과 온/오프 테스트"
+          >
+            <Flame className={`w-3.5 h-3.5 fill-current ${simulatedFlameToday ? 'animate-bounce' : ''}`} />
+            <span>{simulatedFlameToday ? '🔥 불꽃 연출 중' : '🔥 퀴즈 불꽃 테스트'}</span>
+          </button>
+
           <button
             type="button"
             onClick={handleGoToToday}
@@ -291,16 +321,50 @@ export const StreakCalendarHeatmap: React.FC<StreakCalendarHeatmapProps> = ({
         </div>
       </div>
 
-      {/* Monthly Streak KPI Bar */}
+      {/* Monthly Grass Planting & Streak KPI Cards */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
-        {/* Metric 1: Current Streak */}
-        <div className="p-3 rounded-2xl bg-gradient-to-br from-amber-500/10 via-orange-500/10 to-rose-500/10 border border-amber-500/30 flex items-center justify-between">
+        {/* Metric 1: Grass Planting Active Days */}
+        <div className="p-3 rounded-2xl bg-gradient-to-br from-emerald-500/15 to-teal-500/10 border border-emerald-500/30 flex items-center justify-between">
+          <div>
+            <span className="text-[10px] font-bold text-emerald-700 dark:text-emerald-300 block">
+              🌱 이달 심은 학습 잔디
+            </span>
+            <div className="flex items-baseline gap-1 mt-0.5">
+              <span className="text-xl font-black text-emerald-600 dark:text-emerald-400 font-mono">
+                {monthMetrics.activeDaysCount}
+              </span>
+              <span className="text-xs font-bold text-slate-500">
+                / {monthMetrics.daysInMonth}일
+              </span>
+            </div>
+          </div>
+          <Sprout className="w-6 h-6 text-emerald-500 opacity-80 shrink-0" />
+        </div>
+
+        {/* Metric 2: Quiz & Goal Flame Achievement Days */}
+        <div className="p-3 rounded-2xl bg-gradient-to-br from-amber-500/15 via-orange-500/10 to-rose-500/15 border border-amber-500/30 flex items-center justify-between">
           <div>
             <span className="text-[10px] font-bold text-amber-700 dark:text-amber-300 block">
-              현재 연속 스트릭
+              🔥 퀴즈·목표 불꽃 달성일
             </span>
             <div className="flex items-baseline gap-1 mt-0.5">
               <span className="text-xl font-black text-amber-600 dark:text-amber-400 font-mono">
+                {monthMetrics.flameDaysCount}
+              </span>
+              <span className="text-xs font-bold text-slate-500">일 점등</span>
+            </div>
+          </div>
+          <Flame className="w-6 h-6 text-amber-500 fill-amber-500 animate-pulse shrink-0" />
+        </div>
+
+        {/* Metric 3: Current Global Streak */}
+        <div className="p-3 rounded-2xl bg-gradient-to-br from-indigo-500/10 to-purple-500/10 border border-indigo-500/30 flex items-center justify-between">
+          <div>
+            <span className="text-[10px] font-bold text-indigo-700 dark:text-indigo-300 block">
+              🔥 현재 연속 스트릭
+            </span>
+            <div className="flex items-baseline gap-1 mt-0.5">
+              <span className="text-xl font-black text-indigo-600 dark:text-indigo-400 font-mono">
                 {currentStreak}
               </span>
               <span className="text-xs font-bold text-slate-500">일 연속</span>
@@ -311,45 +375,20 @@ export const StreakCalendarHeatmap: React.FC<StreakCalendarHeatmapProps> = ({
           )}
         </div>
 
-        {/* Metric 2: Month Streak Maintained Days */}
-        <div className="p-3 rounded-2xl bg-emerald-500/10 border border-emerald-500/30">
-          <span className="text-[10px] font-bold text-emerald-700 dark:text-emerald-300 block">
-            이달의 스트릭 유지일
-          </span>
-          <div className="flex items-baseline gap-1 mt-0.5">
-            <span className="text-xl font-black text-emerald-600 dark:text-emerald-400 font-mono">
-              {monthMetrics.streakMaintainedCount}
+        {/* Metric 4: Longest Grass Sequence in Month */}
+        <div className="p-3 rounded-2xl bg-gradient-to-br from-teal-500/10 to-emerald-500/10 border border-teal-500/30 flex items-center justify-between">
+          <div>
+            <span className="text-[10px] font-bold text-teal-700 dark:text-teal-300 block">
+              🏆 이달 최장 잔디 스트릭
             </span>
-            <span className="text-xs font-bold text-slate-500">
-              / {monthMetrics.daysInMonth}일
-            </span>
+            <div className="flex items-baseline gap-1 mt-0.5">
+              <span className="text-xl font-black text-teal-600 dark:text-teal-400 font-mono">
+                {monthMetrics.maxMonthStreak}
+              </span>
+              <span className="text-xs font-bold text-slate-500">일 최장</span>
+            </div>
           </div>
-        </div>
-
-        {/* Metric 3: Active Study Days */}
-        <div className="p-3 rounded-2xl bg-teal-500/10 border border-teal-500/30">
-          <span className="text-[10px] font-bold text-teal-700 dark:text-teal-300 block">
-            학습 활동 실천일
-          </span>
-          <div className="flex items-baseline gap-1 mt-0.5">
-            <span className="text-xl font-black text-teal-600 dark:text-teal-400 font-mono">
-              {monthMetrics.activeDaysCount}
-            </span>
-            <span className="text-xs font-bold text-slate-500">일 참여</span>
-          </div>
-        </div>
-
-        {/* Metric 4: Longest Sequence in Month */}
-        <div className="p-3 rounded-2xl bg-indigo-500/10 border border-indigo-500/30">
-          <span className="text-[10px] font-bold text-indigo-700 dark:text-indigo-300 block">
-            이달 최장 연속 기록
-          </span>
-          <div className="flex items-baseline gap-1 mt-0.5">
-            <span className="text-xl font-black text-indigo-600 dark:text-indigo-400 font-mono">
-              {monthMetrics.maxMonthStreak}
-            </span>
-            <span className="text-xs font-bold text-slate-500">일 최장</span>
-          </div>
+          <Trophy className="w-6 h-6 text-teal-500 opacity-80 shrink-0" />
         </div>
       </div>
 
@@ -378,18 +417,18 @@ export const StreakCalendarHeatmap: React.FC<StreakCalendarHeatmapProps> = ({
           {calendarDays.map((day) => {
             const isSelected = inspectedDay?.dateStr === day.dateStr;
 
-            // Green Intensity Theme classes
-            const intensityBg = {
-              0: 'bg-slate-100/80 dark:bg-slate-800/60 text-slate-400 dark:text-slate-500 hover:bg-slate-200 dark:hover:bg-slate-700/80',
-              1: 'bg-emerald-100 dark:bg-emerald-950/80 text-emerald-800 dark:text-emerald-300 border border-emerald-300/80 dark:border-emerald-800/80 hover:bg-emerald-200 dark:hover:bg-emerald-900',
-              2: 'bg-emerald-300 dark:bg-emerald-800 text-emerald-950 dark:text-emerald-100 border border-emerald-400 dark:border-emerald-700 hover:bg-emerald-400 dark:hover:bg-emerald-700',
-              3: 'bg-emerald-500 dark:bg-emerald-600 text-white border border-emerald-500 hover:bg-emerald-600 dark:hover:bg-emerald-500 shadow-xs',
-              4: 'bg-emerald-600 dark:bg-emerald-500 text-white border border-emerald-400 dark:border-emerald-300 font-black shadow-sm hover:brightness-110',
+            // 5-Level Grass Intensity Palette
+            const grassBg = {
+              0: 'bg-slate-100/90 dark:bg-slate-800/60 text-slate-400 dark:text-slate-500 hover:bg-slate-200 dark:hover:bg-slate-700/80',
+              1: 'bg-emerald-100 dark:bg-emerald-950/80 text-emerald-900 dark:text-emerald-300 border border-emerald-300/80 dark:border-emerald-800/80 hover:bg-emerald-200 dark:hover:bg-emerald-900 shadow-2xs',
+              2: 'bg-emerald-300 dark:bg-emerald-800 text-emerald-950 dark:text-emerald-100 border border-emerald-400 dark:border-emerald-700 hover:bg-emerald-400 dark:hover:bg-emerald-700 shadow-xs',
+              3: 'bg-emerald-500 dark:bg-emerald-600 text-white border border-emerald-500 hover:bg-emerald-600 dark:hover:bg-emerald-500 shadow-sm font-semibold',
+              4: 'bg-gradient-to-br from-emerald-500 via-teal-500 to-amber-400 dark:from-emerald-500 dark:via-teal-600 dark:to-amber-500 text-slate-950 font-black border border-amber-300 dark:border-amber-400 shadow-md hover:brightness-110',
             }[day.intensityLevel];
 
-            // Streak Highlight styling
-            const streakRing = day.isStreakMaintained
-              ? 'ring-2 ring-amber-400 dark:ring-amber-500 ring-offset-1 dark:ring-offset-slate-900 shadow-md shadow-amber-500/25'
+            // Flame Ring Animation effect on Quiz/Goal achievement date
+            const flameEffectRing = day.isQuizPassed
+              ? 'ring-2 ring-amber-400 dark:ring-amber-500 ring-offset-1 dark:ring-offset-slate-900 shadow-lg shadow-amber-500/30'
               : '';
 
             return (
@@ -398,42 +437,55 @@ export const StreakCalendarHeatmap: React.FC<StreakCalendarHeatmapProps> = ({
                 type="button"
                 onClick={() => setSelectedDay(day)}
                 disabled={day.isFuture}
-                className={`relative aspect-square rounded-xl p-1 sm:p-1.5 transition-all flex flex-col justify-between cursor-pointer select-none ${
+                className={`relative aspect-square rounded-xl p-1 sm:p-1.5 transition-all flex flex-col justify-between cursor-pointer select-none overflow-hidden ${
                   !day.isCurrentMonth ? 'opacity-30' : 'opacity-100'
                 } ${day.isFuture ? 'opacity-25 cursor-not-allowed' : ''} ${
-                  isSelected ? 'scale-105 z-10 ring-2 ring-indigo-500 shadow-lg' : ''
-                } ${intensityBg} ${streakRing}`}
+                  isSelected ? 'scale-105 z-10 ring-2 ring-indigo-500 shadow-xl' : ''
+                } ${grassBg} ${flameEffectRing}`}
                 title={`${day.dateStr}: ${
-                  day.isStreakMaintained ? '🔥 스트릭 유지일! ' : ''
-                }활동 강도 Lv.${day.intensityLevel} (완료 목표 ${day.completedGoalsCount}개, 학습 ${day.vocabStudyCount}회)`}
+                  day.isQuizPassed ? '🔥 퀴즈 달성 불꽃 점등! ' : ''
+                }학습 잔디 강도 Lv.${day.intensityLevel} (완료 목표 ${day.completedGoalsCount}개, 학습 ${day.vocabStudyCount}회)`}
               >
-                {/* Top Row: Day Number & Streak Flame Badge */}
-                <div className="flex items-center justify-between w-full">
+                {/* Flame Background Glow Aura on Quiz Passed Day */}
+                {day.isQuizPassed && (
+                  <span
+                    className="absolute inset-0 bg-gradient-to-t from-amber-500/30 via-orange-500/15 to-transparent pointer-events-none animate-pulse"
+                    aria-hidden="true"
+                  />
+                )}
+
+                {/* Top Row: Day Number & Animated Flame Icon */}
+                <div className="flex items-center justify-between w-full relative z-10">
                   <span
                     className={`text-[11px] sm:text-xs font-mono font-bold leading-none ${
-                      day.isToday ? 'underline decoration-2 decoration-amber-400' : ''
+                      day.isToday ? 'underline decoration-2 decoration-amber-400 font-black' : ''
                     }`}
                   >
                     {day.dayNumber}
                   </span>
 
-                  {/* Flame Icon on Streak Maintained Day */}
-                  {day.isStreakMaintained && (
-                    <span className="text-[10px] sm:text-xs leading-none drop-shadow-xs animate-pulse">
-                      🔥
+                  {/* Sparkling Animated Flame Icon when Quiz or Goals Achieved */}
+                  {day.isQuizPassed ? (
+                    <span className="relative flex items-center justify-center shrink-0">
+                      <Flame className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-amber-400 fill-amber-400 animate-bounce drop-shadow-md" />
+                      <Sparkles className="w-2.5 h-2.5 text-amber-200 absolute -top-1 -right-1 animate-ping opacity-75" />
                     </span>
-                  )}
+                  ) : day.intensityLevel > 0 ? (
+                    <span className="text-[10px] leading-none opacity-80" title="학습 잔디 심기 완료">
+                      🌱
+                    </span>
+                  ) : null}
                 </div>
 
-                {/* Bottom Row: Today indicator or activity indicator */}
-                <div className="w-full flex items-center justify-between mt-auto">
+                {/* Bottom Row: Today tag or Grass Level Badge */}
+                <div className="w-full flex items-center justify-between mt-auto relative z-10">
                   {day.isToday && (
                     <span className="text-[8px] font-black uppercase px-1 py-0.2 rounded bg-amber-400 text-slate-950 leading-tight">
                       오늘
                     </span>
                   )}
                   {day.intensityLevel > 0 && !day.isToday && (
-                    <span className="text-[8px] font-mono opacity-80 ml-auto leading-tight">
+                    <span className="text-[8px] font-mono opacity-90 ml-auto leading-tight font-bold">
                       Lv.{day.intensityLevel}
                     </span>
                   )}
@@ -444,62 +496,80 @@ export const StreakCalendarHeatmap: React.FC<StreakCalendarHeatmapProps> = ({
         </div>
       </div>
 
-      {/* Legend & Day Details Card */}
-      <div className="pt-2 border-t border-slate-100 dark:border-slate-800 flex flex-col md:flex-row md:items-center justify-between gap-4">
-        {/* 5-Level Green Heatmap Legend */}
+      {/* Legend & Inspected Day Details Bubble Card */}
+      <div className="pt-3 border-t border-slate-100 dark:border-slate-800 flex flex-col md:flex-row md:items-center justify-between gap-4">
+        {/* 5-Level Grass Heatmap Legend */}
         <div className="flex items-center gap-2 text-xs flex-wrap">
-          <span className="text-slate-400 font-bold text-[11px]">활동 강도:</span>
+          <span className="text-slate-500 dark:text-slate-400 font-extrabold text-[11px] flex items-center gap-1">
+            <Sprout className="w-3.5 h-3.5 text-emerald-500" />
+            잔디 심기 단계:
+          </span>
           <div className="flex items-center gap-1.5">
-            <span className="text-[10px] text-slate-400">없음</span>
-            <div className="w-3.5 h-3.5 rounded-md bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700" title="Lv.0 없음" />
-            <div className="w-3.5 h-3.5 rounded-md bg-emerald-100 dark:bg-emerald-950 border border-emerald-300 dark:border-emerald-800" title="Lv.1 가벼운 학습" />
-            <div className="w-3.5 h-3.5 rounded-md bg-emerald-300 dark:bg-emerald-800 border border-emerald-400 dark:border-emerald-700" title="Lv.2 보통 학습" />
-            <div className="w-3.5 h-3.5 rounded-md bg-emerald-500 dark:bg-emerald-600" title="Lv.3 집중 학습" />
-            <div className="w-3.5 h-3.5 rounded-md bg-emerald-600 dark:bg-emerald-500 shadow-sm" title="Lv.4 마스터 몰입" />
-            <span className="text-[10px] text-slate-400">매우 높음</span>
+            <span className="text-[10px] text-slate-400">Lv.0</span>
+            <div className="w-3.5 h-3.5 rounded-md bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700" title="Lv.0 미학습 (빈 땅)" />
+            <div className="w-3.5 h-3.5 rounded-md bg-emerald-100 dark:bg-emerald-950 border border-emerald-300 dark:border-emerald-800" title="Lv.1 어린 새싹" />
+            <div className="w-3.5 h-3.5 rounded-md bg-emerald-300 dark:bg-emerald-800 border border-emerald-400 dark:border-emerald-700" title="Lv.2 싱그런 잔디" />
+            <div className="w-3.5 h-3.5 rounded-md bg-emerald-500 dark:bg-emerald-600" title="Lv.3 짙은 숲속" />
+            <div className="w-3.5 h-3.5 rounded-md bg-gradient-to-br from-emerald-500 to-amber-400 border border-amber-300 shadow-xs" title="Lv.4 황금꽃 마스터" />
+            <span className="text-[10px] text-slate-400">Lv.4</span>
           </div>
 
           {/* Highlight Badge Indicator Legend */}
-          <div className="flex items-center gap-1 ml-2 pl-2 border-l border-slate-200 dark:border-slate-700">
-            <div className="w-3.5 h-3.5 rounded-md bg-emerald-500 ring-2 ring-amber-400 flex items-center justify-center text-[8px]">
-              🔥
+          <div className="flex items-center gap-1.5 ml-2 pl-2 border-l border-slate-200 dark:border-slate-700">
+            <div className="w-4 h-4 rounded-md bg-amber-500/20 border border-amber-400 flex items-center justify-center text-[9px] shadow-xs">
+              <Flame className="w-3 h-3 text-amber-500 fill-amber-500 animate-pulse" />
             </div>
-            <span className="text-[10px] font-bold text-amber-600 dark:text-amber-400">
-              연속 스트릭 유지일
+            <span className="text-[11px] font-extrabold text-amber-600 dark:text-amber-400">
+              퀴즈 달성 불꽃 점등
             </span>
           </div>
         </div>
 
         {/* Inspected Day Detail Bubble */}
         {inspectedDay && (
-          <div className="p-2.5 rounded-2xl bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 text-xs flex items-center gap-3">
-            <div className="flex items-center gap-1.5 font-mono font-black text-slate-900 dark:text-white">
-              <span>📅 {inspectedDay.dateStr}</span>
-              {inspectedDay.isToday && (
-                <span className="text-[9px] bg-amber-400 text-slate-950 px-1 rounded font-sans">
-                  오늘
-                </span>
-              )}
-            </div>
-
-            <div className="h-3 w-px bg-slate-200 dark:bg-slate-700" />
-
+          <div className="p-3 rounded-2xl bg-slate-50 dark:bg-slate-800/90 border border-slate-200 dark:border-slate-700 text-xs flex flex-wrap items-center justify-between gap-3 shadow-xs">
             <div className="flex items-center gap-2">
-              <span className="text-[11px] text-slate-500 dark:text-slate-400">
-                목표 완료: <strong className="text-emerald-600 dark:text-emerald-400">{inspectedDay.completedGoalsCount}개</strong>
-              </span>
-              <span className="text-slate-300 dark:text-slate-600">·</span>
-              <span className="text-[11px] text-slate-500 dark:text-slate-400">
-                학습 활동: <strong className="text-slate-700 dark:text-slate-300">{inspectedDay.vocabStudyCount}회</strong>
-              </span>
-              {inspectedDay.isStreakMaintained ? (
-                <span className="text-[10px] font-extrabold text-amber-500 bg-amber-500/10 px-1.5 py-0.2 rounded border border-amber-500/20 flex items-center gap-0.5">
-                  🔥 스트릭 유지
+              <div className="flex items-center gap-1.5 font-mono font-black text-slate-900 dark:text-white text-xs">
+                <span>📅 {inspectedDay.dateStr}</span>
+                {inspectedDay.isToday && (
+                  <span className="text-[9px] font-black bg-amber-400 text-slate-950 px-1.5 py-0.2 rounded">
+                    오늘
+                  </span>
+                )}
+              </div>
+
+              <div className="h-3 w-px bg-slate-200 dark:bg-slate-700" />
+
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="text-[11px] text-slate-600 dark:text-slate-300">
+                  목표 달성: <strong className="text-emerald-600 dark:text-emerald-400 font-mono">{inspectedDay.completedGoalsCount}개</strong>
                 </span>
-              ) : (
-                <span className="text-[10px] text-slate-400">휴식</span>
-              )}
+                <span className="text-slate-300 dark:text-slate-600">·</span>
+                <span className="text-[11px] text-slate-600 dark:text-slate-300">
+                  어휘 활동: <strong className="text-slate-800 dark:text-slate-200 font-mono">{inspectedDay.vocabStudyCount}회</strong>
+                </span>
+                {inspectedDay.isQuizPassed ? (
+                  <span className="text-[10px] font-extrabold text-amber-600 dark:text-amber-300 bg-amber-500/15 px-2 py-0.5 rounded-full border border-amber-500/30 flex items-center gap-1">
+                    <Flame className="w-3 h-3 text-amber-500 fill-amber-500 animate-bounce" />
+                    <span>퀴즈·목표 달성 불꽃!</span>
+                  </span>
+                ) : (
+                  <span className="text-[10px] text-slate-400">잔디 조용함</span>
+                )}
+              </div>
             </div>
+
+            {/* If today & quiz action available */}
+            {inspectedDay.isToday && onStartReviewQuiz && (
+              <button
+                type="button"
+                onClick={onStartReviewQuiz}
+                className="px-3 py-1 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-slate-950 font-black text-[11px] flex items-center gap-1 shadow-sm transition-all cursor-pointer active:scale-95"
+              >
+                <Play className="w-3 h-3 fill-slate-950" />
+                <span>오늘 복습 퀴즈 도전</span>
+              </button>
+            )}
           </div>
         )}
       </div>

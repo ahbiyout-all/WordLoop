@@ -144,6 +144,30 @@ if (typeof window !== 'undefined') {
   }, { capture: true, passive: true });
 }
 
+/**
+ * Cleans dictionary annotations, grammatical tags, parenthetical notes, and symbols
+ * from Korean text to ensure accurate, clear, and natural Korean TTS pronunciation.
+ */
+export function cleanKoreanForSpeech(text: string): string {
+  if (!text) return '';
+  let cleaned = text;
+
+  // Remove dictionary part-of-speech annotations e.g. (명사), (동사), (형용사), [명사], [동사], etc.
+  cleaned = cleaned.replace(/\s*[\(\[\{](?:명사|동사|형용사|부사|전치사|접속사|감탄사|숙어|약어|명|동|형|부|전|접|int|n|v|adj|adv|prep|conj)[\)\]\}]\s*/gi, ' ');
+  // Remove parenthetical notes e.g. (보통 단수로), (격식), (구어)
+  cleaned = cleaned.replace(/\s*\([^)]*\)/g, ' ');
+  // Remove bracketed notes e.g. [무표정]
+  cleaned = cleaned.replace(/\s*\[[^\]]*\]/g, ' ');
+  // Remove tildes e.g. "~하다" -> "하다"
+  cleaned = cleaned.replace(/~/g, '');
+  // Replace slashes or semicolons with comma pauses for natural cadence
+  cleaned = cleaned.replace(/[\/;\\]/g, ', ');
+  // Clean up extra spaces and normalize spaces around commas
+  cleaned = cleaned.replace(/\s*,\s*/g, ', ').replace(/\s+/g, ' ').trim();
+
+  return cleaned;
+}
+
 class SpeechService {
   private activeItemId: string | null = null;
   private activeText: string | null = null;
@@ -201,7 +225,8 @@ class SpeechService {
 
   /**
    * Resilient voice resolution: matches user's preferred voiceURI, but safely
-   * falls back to the best available voice on the current mobile device (e.g. Samsung English).
+   * verifies language compatibility and falls back to top-ranked native voices
+   * for Korean or English on mobile devices (e.g. Google 한국어, Samsung Korean, Sun-Hi).
    */
   public resolveVoice(lang: string): SpeechSynthesisVoice | null {
     if (typeof window === 'undefined' || !('speechSynthesis' in window)) return null;
@@ -209,35 +234,55 @@ class SpeechService {
     if (voices.length === 0) return null;
 
     const normalizedLang = lang.toLowerCase().replace('_', '-');
+    const targetPrefix = normalizedLang.split('-')[0]; // 'en' or 'ko'
 
-    // 1. If user previously chose a voiceURI and it exists on this device
+    // 1. If user previously chose a voiceURI, ONLY return it if its language matches targetPrefix!
+    // This prevents English voices from being erroneously assigned to Korean TTS.
     if (this.settings.voiceURI) {
       const matched = voices.find(v => v.voiceURI === this.settings.voiceURI);
-      if (matched) return matched;
+      if (matched) {
+        const matchedPrefix = matched.lang.toLowerCase().replace('_', '-').split('-')[0];
+        if (matchedPrefix === targetPrefix) {
+          return matched;
+        }
+      }
     }
 
-    // 2. Language-specific matching
-    if (normalizedLang.startsWith('en')) {
+    // 2. Language-specific matching with prioritized voice ranking
+    if (targetPrefix === 'en') {
       const enVoices = voices.filter(v => v.lang.toLowerCase().replace('_', '-').startsWith('en'));
       if (enVoices.length > 0) {
         const preferred = enVoices.find(v => 
           v.name.includes('Samsung') ||
           v.name.includes('Google') ||
           v.name.includes('Natural') ||
+          v.name.includes('Microsoft') ||
           v.lang.toLowerCase().includes('us') ||
           v.lang.toLowerCase().includes('gb')
         );
         return preferred || enVoices[0];
       }
-    } else if (normalizedLang.startsWith('ko')) {
+    } else if (targetPrefix === 'ko') {
       const koVoices = voices.filter(v => v.lang.toLowerCase().replace('_', '-').startsWith('ko'));
       if (koVoices.length > 0) {
-        const preferred = koVoices.find(v => v.name.includes('Samsung') || v.name.includes('Google'));
+        // Ranking order: Natural/Online high-fidelity voices > Google 한국어 > Samsung Korean > Microsoft Sun-Hi/Yuna/Heami/Sora
+        const preferred = koVoices.find(v => 
+          v.name.includes('Natural') ||
+          v.name.includes('Online') ||
+          v.name.includes('Google') ||
+          v.name.includes('Samsung') ||
+          v.name.includes('Sun-Hi') ||
+          v.name.includes('Yuna') ||
+          v.name.includes('Heami') ||
+          v.name.includes('Sora')
+        );
         return preferred || koVoices[0];
       }
     }
 
-    return null;
+    // 3. Fallback: match any voice with targetPrefix
+    const fallbackVoice = voices.find(v => v.lang.toLowerCase().replace('_', '-').startsWith(targetPrefix));
+    return fallbackVoice || null;
   }
 
   public subscribe(listener: SpeechStateListener) {
@@ -313,7 +358,8 @@ class SpeechService {
         this.fallbackAudio = null;
       }
 
-      const cleanText = text.slice(0, 200).replace(/["'\r\n]/g, ' ').trim();
+      const textToUse = lang === 'ko' ? cleanKoreanForSpeech(text) : text;
+      const cleanText = textToUse.slice(0, 200).replace(/["'\r\n]/g, ' ').trim();
       if (!cleanText) {
         onComplete?.();
         return;
@@ -508,10 +554,16 @@ class SpeechService {
       return;
     }
 
+    const cleanText = cleanKoreanForSpeech(this.activeKoreanText);
+    if (!cleanText) {
+      onComplete();
+      return;
+    }
+
     const hasSpeechSynthesis = typeof window !== 'undefined' && 'speechSynthesis' in window && window.speechSynthesis;
 
     if (!hasSpeechSynthesis) {
-      this.playFallbackAudio(this.activeKoreanText, 'ko', onComplete);
+      this.playFallbackAudio(cleanText, 'ko', onComplete);
       return;
     }
 
@@ -521,7 +573,7 @@ class SpeechService {
       }
     } catch {}
 
-    const korUtterance = new SpeechSynthesisUtterance(this.activeKoreanText);
+    const korUtterance = new SpeechSynthesisUtterance(cleanText);
     korUtterance.rate = this.settings.speed;
     korUtterance.pitch = this.settings.pitch;
     korUtterance.lang = 'ko-KR';
@@ -536,7 +588,7 @@ class SpeechService {
       if (!hasStarted && this.isPlaying) {
         console.warn('Samsung Galaxy TTS silent stall detected on Korean utterance. Switching to fallback audio stream...');
         try { window.speechSynthesis.cancel(); } catch {}
-        this.playFallbackAudio(this.activeKoreanText!, 'ko', onComplete);
+        this.playFallbackAudio(cleanText, 'ko', onComplete);
       }
     }, 850);
 
@@ -562,14 +614,18 @@ class SpeechService {
         korWatchdog = null;
       }
       console.warn('Korean SpeechSynthesis error, falling back to audio:', e);
-      this.playFallbackAudio(this.activeKoreanText!, 'ko', onComplete);
+      if (e.error !== 'interrupted' && e.error !== 'canceled') {
+        this.playFallbackAudio(cleanText, 'ko', onComplete);
+      } else {
+        onComplete();
+      }
     };
 
     try {
       window.speechSynthesis.speak(korUtterance);
     } catch {
       if (korWatchdog) clearTimeout(korWatchdog);
-      this.playFallbackAudio(this.activeKoreanText, 'ko', onComplete);
+      this.playFallbackAudio(cleanText, 'ko', onComplete);
     }
   }
 
@@ -681,9 +737,13 @@ class SpeechService {
   public speakOnce(text: string, lang: string = 'en-US', customRate?: number) {
     if (typeof window === 'undefined' || !text) return;
 
+    const isKorean = lang.toLowerCase().startsWith('ko');
+    const processedText = isKorean ? cleanKoreanForSpeech(text) : text;
+    if (!processedText) return;
+
     const hasSpeechSynthesis = 'speechSynthesis' in window && window.speechSynthesis;
     if (!hasSpeechSynthesis) {
-      this.playFallbackAudio(text, lang.startsWith('ko') ? 'ko' : 'en');
+      this.playFallbackAudio(processedText, isKorean ? 'ko' : 'en');
       return;
     }
 
@@ -702,7 +762,7 @@ class SpeechService {
           window.speechSynthesis.resume();
         }
 
-        const utterance = new SpeechSynthesisUtterance(text);
+        const utterance = new SpeechSynthesisUtterance(processedText);
         utterance.rate = customRate ?? this.settings.speed ?? 1.0;
         utterance.pitch = this.settings.pitch || 1.0;
         utterance.lang = lang;
@@ -716,7 +776,7 @@ class SpeechService {
         const watchdog = setTimeout(() => {
           if (!hasStarted) {
             try { window.speechSynthesis.cancel(); } catch {}
-            this.playFallbackAudio(text, lang.startsWith('ko') ? 'ko' : 'en');
+            this.playFallbackAudio(processedText, isKorean ? 'ko' : 'en');
           }
         }, 800);
 
@@ -730,14 +790,14 @@ class SpeechService {
         utterance.onerror = (e) => {
           clearTimeout(watchdog);
           if (e.error !== 'interrupted' && e.error !== 'canceled') {
-            this.playFallbackAudio(text, lang.startsWith('ko') ? 'ko' : 'en');
+            this.playFallbackAudio(processedText, isKorean ? 'ko' : 'en');
           }
         };
 
         window.speechSynthesis.speak(utterance);
       } catch (err) {
         console.warn('Speech synthesis speak error:', err);
-        this.playFallbackAudio(text, lang.startsWith('ko') ? 'ko' : 'en');
+        this.playFallbackAudio(processedText, isKorean ? 'ko' : 'en');
       }
     }, 25);
   }
@@ -762,10 +822,17 @@ class SpeechService {
       return;
     }
 
+    const isKorean = options?.lang?.toLowerCase().startsWith('ko');
+    const processedText = isKorean ? cleanKoreanForSpeech(text) : text;
+    if (!processedText) {
+      options?.onEnd?.();
+      return;
+    }
+
     const hasSpeechSynthesis = 'speechSynthesis' in window && window.speechSynthesis;
     if (!hasSpeechSynthesis) {
       options?.onStart?.();
-      this.playFallbackAudio(text, options?.lang?.startsWith('ko') ? 'ko' : 'en', () => {
+      this.playFallbackAudio(processedText, isKorean ? 'ko' : 'en', () => {
         options?.onEnd?.();
       });
       return;
@@ -783,7 +850,7 @@ class SpeechService {
           window.speechSynthesis.resume();
         }
 
-        const utterance = new SpeechSynthesisUtterance(text);
+        const utterance = new SpeechSynthesisUtterance(processedText);
         utterance.rate = options?.rate || this.settings.speed || 1.0;
         utterance.pitch = options?.pitch || this.settings.pitch || 1.0;
         utterance.lang = options?.lang || 'en-US';
@@ -799,7 +866,7 @@ class SpeechService {
             console.warn('Samsung TTS silent stall in speakWithCallbacks. Switching to audio fallback.');
             try { window.speechSynthesis.cancel(); } catch {}
             options?.onStart?.();
-            this.playFallbackAudio(text, options?.lang?.startsWith('ko') ? 'ko' : 'en', () => {
+            this.playFallbackAudio(processedText, isKorean ? 'ko' : 'en', () => {
               options?.onEnd?.();
             });
           }

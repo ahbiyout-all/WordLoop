@@ -1,6 +1,7 @@
 import express from "express";
 import path from "path";
 import fs from "fs";
+import { execSync } from "child_process";
 import { createServer as createViteServer } from "vite";
 import { GoogleGenAI, Type } from "@google/genai";
 import dotenv from "dotenv";
@@ -402,7 +403,6 @@ app.get(["/api/download/apk", "/download/apk", "/WordLoop.apk"], (_req, res) => 
   // If APK file is missing, attempt on-demand trigger of python packager
   if (!apkPath) {
     try {
-      const { execSync } = require("child_process");
       console.log("🔨 [APK Server] APK missing on disk, triggering on-demand packaging...");
       execSync("python3 scripts/package-apk.py", { cwd: process.cwd(), timeout: 15000 });
       apkPath = findApkPath();

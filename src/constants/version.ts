@@ -3,8 +3,8 @@
  * Centralizes version number, build codes, package names, and release URLs across the application.
  */
 
-export const APP_VERSION = '3.96.0';
-export const APP_VERSION_CODE = 39600;
+export const APP_VERSION = '4.0.1';
+export const APP_VERSION_CODE = 40001;
 export const APP_NAME = 'WordLoop';
 export const APP_PACKAGE_NAME = 'com.wordloop.app';
 export const APP_APK_FILENAME = `WordLoop-v${APP_VERSION}.apk`;

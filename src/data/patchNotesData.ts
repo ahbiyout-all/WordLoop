@@ -14,9 +14,91 @@ export { APP_VERSION };
 
 export const PATCH_NOTES_DATA: PatchNoteVersion[] = [
   {
-    version: '3.96.0',
+    version: '4.0.1',
     date: '2026-11',
     isLatest: true,
+    tagline: '온디맨드 안드로이드 APK 패키징 child_process ESM 모듈 오류 교정 핫픽스',
+    highlights: [
+      {
+        category: '🐛 온디맨드 APK 패키징 ESM 모듈 오류 수정',
+        items: [
+          '⚡ [child_process execSync ESM 최상위 임포트 전환]: ES 모듈 기반 server.ts 내에서 동적 require("child_process") 호출로 인해 발생하던 ReferenceError: require is not defined 예외를 최상위 import { execSync } from "child_process" 구문으로 완전 교정했습니다.',
+          '📲 [온디맨드 APK 빌드 가동성 보장]: 디스크 상 APK 파일 미존재 시 자동 빌드(package-apk.py) 트리거가 오류 없이 100% 정상 작동하도록 무결성을 확보했습니다.',
+        ],
+      },
+    ],
+  },
+  {
+    version: '4.0.0',
+    date: '2026-11',
+    isLatest: false,
+    tagline: '학습 잔디 심기 월간 히트맵 캘린더 & 퀴즈 달성 불꽃 애니메이션 이펙트 메이저 대패치',
+    highlights: [
+      {
+        category: '🌱 학습 잔디 심기 월간 히트맵 캘린더 (Streak Grass Planting)',
+        items: [
+          '🌱 [GitHub 스타일 5단계 잔디 심기 시각화]: 일별 어휘 공부 및 목표 달성 활동량에 따라 0단계(빈 잔디밭)부터 4단계(황금 잔디 마스터)까지 정갈한 녹색 파스텔 컬러 맵으로 월간 잔디 현황을 한눈에 감상할 수 있습니다.',
+          '🔥 [퀴즈 & 목표 달성 시 반짝이는 불꽃 애니메이션 이펙트]: 퀴즈를 통과하거나 일일 목표를 완성한 날짜의 셀에 반짝이는 불꽃 링과 불꽃 파티클 애니메이션(StreakFire)이 자동 점등됩니다.',
+          '📊 [월간 잔디 KPI 요약 바]: 이달 심은 잔디일, 불꽃 달성일, 현재 연속 스트릭, 이달 최장 잔디 기록을 실시간 추적 시각화합니다.',
+          '🧪 [오늘의 불꽃 연출 시뮬레이션 버튼]: 클릭 한 번으로 오늘 잔디 셀에 불꽃 애니메이션을 즉시 점등하고 테스트할 수 있는 대화형 액션을 제공합니다.',
+        ],
+      },
+    ],
+  },
+  {
+    version: '3.99.0',
+    date: '2026-11',
+    isLatest: false,
+    tagline: '한글 단어 및 한국어 뜻 TTS 발음 정확도·자연스러움 혁신 고도화 패치',
+    highlights: [
+      {
+        category: '🎙️ 한글 단어 & 뜻 한국어 음성 정확성 고도화 Engine',
+        items: [
+          '🗣️ [한국어 전용 고품질 음성 엔진 언어 매핑 (Korean Voice Isolation)]: 기존에 설정된 영어 voiceURI가 한국어 읽기(resolveVoice)에 오적용되어 엉뚱한 외국어 억양이 섞이던 문제를 완벽 교정하여 Google 한국어 / Samsung Korean / Microsoft Natural 한국어 전용 음성 엔진을 강제 분리 할당합니다.',
+          '🧹 [사전 표기 특수기호 자동 텍스트 정화 (cleanKoreanForSpeech)]: 사전용 품사 표기 (명사), (동사), [형용사], 물결표(~), 슬래시(/) 등 부자연스러운 기호를 발음 직전 자동으로 정화하여 괄호나 기호를 읽지 않고 자연스럽게 낭독합니다.',
+          '⏱️ [슬래시 & 세미콜론 쉼표 호흡 조절]: 여러 한국어 뜻이 슬래시(/)나 세미콜론(;)으로 연결되어 있을 경우 쉼표(, ) 파즈로 전환하여 자연스러운 발음 휴지기를 부여합니다.',
+          '📱 [모바일 Web Speech API & HTML5 Audio 2단계 폴백 방어]: 삼성 인터넷, 안드로이드 크롬, Safari iOS 등 모바일 브라우저에서 한국어 음성이 끊기거나 무음 처리되지 않도록 워치독 타이머와 Google Translate TTS 클린 텍스트 폴백 오디오를 이중 보장합니다.',
+        ],
+      },
+    ],
+  },
+  {
+    version: '3.98.0',
+    date: '2026-11',
+    isLatest: false,
+    tagline: '모바일 셀프 업데이트 고도화 - 인앱 APK 다운로드 프로그레스 바 & PWA 원터치 캐시 갱신 탑재',
+    highlights: [
+      {
+        category: '🚀 모바일 셀프 업데이트 고도화 엔진',
+        items: [
+          '📲 [인앱 APK 다운로드 프로그레스 바]: 모달 내에서 바이너리 APK 수신 진행률(0%~100%), 용량(MB) 및 애니메이션 프로그레스 바를 실시간으로 시각화합니다.',
+          '⚡ [PWA 1-클릭 앱 캐시 갱신]: 서비스 워커 및 브라우저 캐시를 일괄 비우고 1초 만에 최신 빌드로 갱신하는 전용 PWA 업데이트 액션을 탑재했습니다.',
+          '⚙️ [앱 구동 시 자동 감지 온/오프]: GitHub Releases 자동 조회 여부를 사용자가 직접 제어할 수 있는 설정 토글을 추가했습니다.',
+          '⌨️ [모달 접근성 및 백드롭 닫기]: ESC 키 및 백드롭 터치 닫기를 보강하여 모바일 UX를 개선했습니다.',
+        ],
+      },
+    ],
+  },
+  {
+    version: '3.97.0',
+    date: '2026-11',
+    isLatest: false,
+    tagline: '시스템 전방위 자아성찰 & 프로필·모달 접근성 및 오디오 무결성 심화 패치',
+    highlights: [
+      {
+        category: '🧘‍♂️ 프로필·모달 접근성 & 오디오 무결성 심화',
+        items: [
+          '👤 [UserProfileModal 접근성 보강]: role="dialog", aria-modal="true", ESC 키보드 단축키 감지 및 백드롭 영역 클릭 닫기를 구현하여 전 모달 접근성을 완전 통일했습니다.',
+          '🔊 [Web Audio 모바일 한도 안전 방어]: getSharedAudioContext() 공유 싱글톤 오디오 컨텍스트 및 마스터 버스 게인 구조로 오버플로우와 파형 왜곡을 완전 차단했습니다.',
+          '🎓 [50대 칭호 & EXP 부스트 곡선 무결성]: 어휘 마스터리, 무한 음성 청취, 목표 달성, 연속 스트릭 4대 EXP 획득원의 상한선과 스케일링 무결성을 최종 확정했습니다.',
+        ],
+      },
+    ],
+  },
+  {
+    version: '3.96.0',
+    date: '2026-11',
+    isLatest: false,
     tagline: '전방위 오디오 신디사이저·모달 생명주기 및 접근성 자아성찰 무결성 패치',
     highlights: [
       {

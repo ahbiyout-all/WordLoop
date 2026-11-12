@@ -1,6 +1,6 @@
 {
   "name": "Self-Improvement & English Vocab",
-  "description": "WordLoop (v3.96.0): Comprehensive English vocabulary learning app featuring Web Audio celebratory bell engine with anti-clipping master bus, leak-free timer lifecycle, Escape/backdrop modal dismiss, 50 student teen titles with EXP Boost, and gamified progress tracking.",
+  "description": "WordLoop (v4.0.1): ESM child_process execSync fix for on-demand APK build, Grass Planting Monthly Heatmap Calendar with Quiz Flame Animations, High-Accuracy Korean TTS Voice Isolation, and Mobile Self-Updater.",
   "requestFramePermissions": [
     "microphone"
   ],
