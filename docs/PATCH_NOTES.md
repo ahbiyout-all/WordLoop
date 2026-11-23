@@ -2,7 +2,58 @@
 
 ---
 
-## 🚀 Version 4.0.1 (최신 업데이트)
+## 🚀 Version 4.2.0 (최신 업데이트)
+
+### 📚 전 학년 맞춤형 3,210개 단어 예문 전면 교체 · 상용구 템플릿 완전 제거
+- **✨ 획일적 상용구 예문 3,021개 전면 개편 (`officialCurriculum3000Data.json`)**:
+  - 기존 `'대한민국 교육부 개정 교과서 및 수능 필수 어휘입니다.'` 및 `'is an essential vocabulary item in the English curriculum'` 기계식 상용구를 전면 삭제하고, 각 어휘의 실제 의미가 자연스럽게 드러나는 **3,021개의 신규 맞춤형 영어 예문 및 한국어 번역**으로 교체했습니다.
+  - **학년별 수준 최적화 (초등 · 중학 · 고등/수능)**:
+    - `elementary` (초등): 일상·학교·가족 중심의 짧고 친근한 단문 및 해요체 번역
+    - `middle` (중학): 학교생활·취미·사회 상황을 반영한 자연스러운 복문 예문
+    - `high_sat` (고등·수능): 인문·과학·사회·문학 맥락의 학술/독해형 문장 및 격식체 번역
+- **🔄 기존 사용자 `localStorage` 자동 무손실 업그레이드 (`App.tsx`, `meaningUtils.ts`, `defaultVocab.ts`)**:
+  - 기존 기기 캐시(`wordloop_vocab`, `wordloop_sentences`)에 옛 상용구 예문이 남아 있는 경우, 학습 진행도(`masteryLevel`, `isLearned`, `isBookmarked`, SM-2 `srs`)를 100% 보존하면서 최신 맞춤형 예문·번역으로 자동 업그레이드합니다.
+  - `wordloop_sentences` 기본 예문 목록은 학년별 균형 샘플링(각 70개)을 유지해 `localStorage` 5MB 용량 효율을 함께 지켰습니다.
+
+---
+
+## 🚀 Version 4.1.0
+
+### ⚡ Phase 1: 번들 코드 분할 · 다크모드 토큰 · 타이포그래피 최적화
+- **🚀 라우트 · 모달 · 미니게임 `React.lazy` + `Suspense` 동적 분할 (`App.tsx`, `StatsDashboard.tsx`, `StudentWordGame.tsx`, `vite.config.ts`)**:
+  - 초기 진입 시 `TodayHub`와 핵심 오디오 루프만 즉시 로드하고, Recharts 그래프·12종 미니게임·AI 롤플레이·사전·프로필/백업 모달을 클릭 시점 온디맨드 청크로 분리했습니다.
+  - `APP_VERSION` 단일 상수(`src/constants/version.ts`) 분리를 통해 218KB 규모의 패치노트 데이터가 메인 엔트리 번들에 포함되던 병목을 제거하고, Rollup `manualChunks`로 벤더 및 대용량 커리큘럼 청크 캐시 효율을 극대화했습니다.
+- **🎨 Tailwind v4 `@custom-variant dark` & 의미론적 디자인 토큰 (`index.html`, `src/index.css`)**:
+  - `Plus Jakarta Sans` + `DM Sans` + `JetBrains Mono`(`tabular-nums`) 타이포그래피와 60-30-10 Calm UI 토큰을 도입해 학습 지표·타이머 가독성을 정돈했습니다.
+
+### 🧭 Phase 2: 초심자 미니멀 학습 동선(TodayHub) · 3탭 통계 · SM-2 간격 반복(SRS)
+- **🌱 초심자 맞춤형 `TodayHub` & 3단계 집중 루틴 플레이어 (`TodayHub.tsx`, `FocusRoutinePlayer.tsx`, `Navbar.tsx`)**:
+  - 복잡한 25개+ 위젯 화면을 단일 '오늘의 3분 루틴 시작' CTA와 5단어 우선순위 스트립 중심으로 정돈하고, `듣고 뜻 확인 → 4지선다 회상 → 발음/자가 평가` 3단계 무방해 루틴 플레이어를 탑재했습니다.
+  - 데스크톱 3-Zone 상단 바 + 모바일 4탭 하단 바 및 슬라이드업 바텀 시트(Bottom Sheet) 구조로 엄지 닿는 범위 조작성과 시선 여유를 확보했습니다.
+- **🧠 클라이언트 SM-2 간격 반복(SRS) 엔진 (`srsEngineService.ts`)**:
+  - 기존 `masteryLevel`과 100% 호환되는 무손실 마이그레이션 기반 SM-2 복습 스케줄링(`Again/Hard/Good/Easy`)을 구현해 오늘 복습 필요 단어와 다음 복습 예정일을 자동 계산합니다.
+- **📊 3탭 평면 `StatsDashboard` (`StatsDashboard.tsx`)**:
+  - 4대 KPI + `[요약 · 잔디 달력 / SRS 복습 · 취약 어휘 / 발음 · 상세 차트]` 3개 탭 구조로 재편하고 모든 차트와 모달에 지연 로딩을 적용했습니다.
+
+### 💾 Phase 3: localStorage 5MB 용량 가드 & Schema v2 JSON 스마트 병합
+- **📦 5MB 용량 게이지 · 키별 분석 · 안전 캐시 정리 (`deviceStorageService.ts`, `JsonBackupModal.tsx`)**:
+  - 브라우저 `localStorage` 5MB 한도 대비 실시간 사용률(%), 키별 용량 분해표, 중복 백업/임시 스냅샷 안전 정리 기능을 제공합니다.
+- **🛡️ Schema v2 무결성 체크섬 & 스마트 병합 (`JsonBackupModal.tsx`, `UserProfileModal.tsx`)**:
+  - 내보내기 JSON 파일에 Schema v2 메타데이터와 무결성 체크섬을 내장하고, 가져오기 전 추가/업그레이드/병합 일수를 사전 비교(Diff Preview)한 뒤 자동 롤백 스냅샷과 함께 스마트 병합(Smart Merge) 또는 전체 덮어쓰기를 선택할 수 있습니다.
+
+---
+
+## 🚀 Version 4.0.2
+
+### 🐛 FlashcardRecallGame & DailyQuestModal React 렌더링 충돌 교정 (`FlashcardRecallGame.tsx`, `habitQuestService.ts`)
+- **🔧 `Cannot update a component (DailyQuestModal) while rendering a different component (FlashcardRecallGame)` 오류 완전 해결**:
+  - `FlashcardRecallGame`에서 `setScore((prev) => ...)` 상태 업데이터 함수 내부에서 상위 `onUpdateHighScore()` → `recordGameDone()`(`wordloop_quest_updated` 이벤트)을 동기 호출하면서 `DailyQuestModal`의 상태를 렌더링 도중 갱신하던 React 생명주기 위반을 교정했습니다.
+  - `onUpdateHighScore(score)` 호출을 `useEffect` 커밋 단계로 이동하고, `handleNextCard` 참조 순서 및 언마운트 시 `autoNextTimerRef` 타이머 정리를 보강했습니다.
+  - `getDailyQuestProgress()` 초기 데이터 생성 시에도 렌더링 중 동기 이벤트가 발생하지 않도록 `localStorage` 직접 초기화 방식으로 안전화했습니다.
+
+---
+
+## 🚀 Version 4.0.1
 
 ### 🐛 온디맨드 APK 빌드 child_process ESM 임포트 교정 (`server.ts`)
 - **⚡ ES 모듈 require() 미정의 예외 해결 (`ReferenceError: require is not defined`)**:

@@ -71,39 +71,41 @@ function buildMasterSentenceList(): SentenceItem[] {
     }
   }
 
-  // 3. Tertiary: Non-generic sentences from official 3000 database
-  const officialNonGeneric = OFFICIAL_CURRICULUM_3000_LIST
-    .filter(
-      (item) =>
-        item.sentence &&
-        item.sentence.trim().length > 0 &&
-        !item.sentence.includes('is an essential vocabulary item in the English curriculum')
-    )
-    .map((item, idx) => ({
+  // 3. Tertiary: Balanced sample of grade-appropriate sentences from official 3000 database
+  // Capped per tier to keep wordloop_sentences lightweight inside the 5MB localStorage quota
+  const tierCaps: Record<string, number> = { elementary: 70, middle: 70, high_sat: 70 };
+  const tierCounts: Record<string, number> = { elementary: 0, middle: 0, high_sat: 0 };
+
+  for (let idx = 0; idx < OFFICIAL_CURRICULUM_3000_LIST.length; idx++) {
+    const item = OFFICIAL_CURRICULUM_3000_LIST[idx];
+    const cat = item.categoryId || 'middle';
+    if ((tierCounts[cat] ?? 0) >= (tierCaps[cat] ?? 70)) continue;
+    if (!item.sentence || item.sentence.trim().length === 0) continue;
+    if (item.sentence.includes('is an essential vocabulary item in the English curriculum')) continue;
+
+    const norm = item.sentence.trim().toLowerCase();
+    if (seenTexts.has(norm)) continue;
+
+    seenTexts.add(norm);
+    tierCounts[cat] = (tierCounts[cat] ?? 0) + 1;
+    result.push({
       id: `edu3000-s-custom-${idx + 1}`,
       text: item.sentence,
       meaning: item.sentenceMeaning || item.meaning,
       context:
-        item.categoryId === 'elementary'
-          ? '2026 교육부 초등 필수 예문'
-          : item.categoryId === 'middle'
-          ? '2026 교육부 중학 필수 예문'
-          : '2026 교육부 고등·수능 필수 예문',
-      categoryId: item.categoryId,
+        cat === 'elementary'
+          ? '초등 실생활 회화 예문'
+          : cat === 'middle'
+          ? '중학 교과·생활 예문'
+          : '고등·수능 독해 예문',
+      categoryId: cat,
       wordBreakdown: [
         {
           word: item.word,
           meaning: item.meaning,
         },
       ],
-    }));
-
-  for (const s of officialNonGeneric) {
-    const norm = s.text.trim().toLowerCase();
-    if (!seenTexts.has(norm)) {
-      seenTexts.add(norm);
-      result.push(s);
-    }
+    });
   }
 
   return result;

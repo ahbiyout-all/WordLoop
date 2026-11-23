@@ -184,7 +184,42 @@ export const FlashcardRecallGame: React.FC<FlashcardRecallGameProps> = ({
     }
   }, [currentItem, generateChoices, isGameOver, autoPlayAudio]);
 
-  // 3. Handle Choice Selection
+  // Sync high score safely after render/commit phase (never inside setScore updater!)
+  const prevScoreRef = useRef(0);
+  useEffect(() => {
+    if (score > 0 && score !== prevScoreRef.current) {
+      prevScoreRef.current = score;
+      onUpdateHighScore(score);
+    } else if (score === 0) {
+      prevScoreRef.current = 0;
+    }
+  }, [score, onUpdateHighScore]);
+
+  // Cleanup auto-advance timer on unmount
+  useEffect(() => {
+    return () => {
+      if (autoNextTimerRef.current) {
+        clearTimeout(autoNextTimerRef.current);
+        autoNextTimerRef.current = null;
+      }
+    };
+  }, []);
+
+  // 3. Advance to Next Card or Finish Round
+  const handleNextCard = useCallback(() => {
+    if (autoNextTimerRef.current) {
+      clearTimeout(autoNextTimerRef.current);
+      autoNextTimerRef.current = null;
+    }
+
+    if (currentIndex + 1 < roundPool.length) {
+      setCurrentIndex((prev) => prev + 1);
+    } else {
+      setIsGameOver(true);
+    }
+  }, [currentIndex, roundPool.length]);
+
+  // 4. Handle Choice Selection
   const handleSelectChoice = useCallback(
     (choiceIdx: number) => {
       if (isAnswerRevealed || !currentItem) return;
@@ -207,11 +242,7 @@ export const FlashcardRecallGame: React.FC<FlashcardRecallGameProps> = ({
 
         const comboBonus = Math.min(newCombo * 5, 50);
         const pts = 20 + comboBonus;
-        setScore((prev) => {
-          const next = prev + pts;
-          onUpdateHighScore(next);
-          return next;
-        });
+        setScore((prev) => prev + pts);
 
         // Mastery Promotion
         if (currentMastery === 0) {
@@ -257,22 +288,8 @@ export const FlashcardRecallGame: React.FC<FlashcardRecallGameProps> = ({
         handleNextCard();
       }, 1400);
     },
-    [isAnswerRevealed, currentItem, choices, combo, maxCombo, onUpdateHighScore, onChangeMastery]
+    [isAnswerRevealed, currentItem, choices, combo, maxCombo, onChangeMastery, handleNextCard]
   );
-
-  // 4. Advance to Next Card or Finish Round
-  const handleNextCard = useCallback(() => {
-    if (autoNextTimerRef.current) {
-      clearTimeout(autoNextTimerRef.current);
-      autoNextTimerRef.current = null;
-    }
-
-    if (currentIndex + 1 < roundPool.length) {
-      setCurrentIndex((prev) => prev + 1);
-    } else {
-      setIsGameOver(true);
-    }
-  }, [currentIndex, roundPool.length]);
 
   // Keyboard Shortcuts (1, 2, 3, 4, Space for audio)
   useEffect(() => {

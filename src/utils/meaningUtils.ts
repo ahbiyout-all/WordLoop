@@ -3,12 +3,17 @@ import { EMBEDDED_DICTIONARY } from '../data/embeddedDictionary';
 import { COMMON_ENGLISH_DEFINITIONS } from '../data/englishDefinitions';
 import officialCurriculumData from '../data/officialCurriculum3000Data.json';
 
-// Authoritative index of all 3200+ curriculum words to guaranteed Korean meanings
+// Authoritative index of all 3200+ curriculum words to guaranteed Korean meanings & example translations
 const CURRICULUM_3000_LOOKUP: Record<string, string> = {};
+const CURRICULUM_3000_SENTENCE_MEANING_LOOKUP: Record<string, string> = {};
 if (Array.isArray(officialCurriculumData)) {
-  for (const it of (officialCurriculumData as Array<{ word: string; meaning: string }>)) {
+  for (const it of (officialCurriculumData as Array<{ word: string; meaning: string; sentenceMeaning?: string }>)) {
     if (it.word && it.meaning) {
-      CURRICULUM_3000_LOOKUP[it.word.trim().toLowerCase()] = it.meaning.trim();
+      const key = it.word.trim().toLowerCase();
+      CURRICULUM_3000_LOOKUP[key] = it.meaning.trim();
+      if (it.sentenceMeaning) {
+        CURRICULUM_3000_SENTENCE_MEANING_LOOKUP[key] = it.sentenceMeaning.trim();
+      }
     }
   }
 }
@@ -250,23 +255,30 @@ export function formatEduSentenceMeaning(
 
   const trimmed = sentenceMeaning.trim();
 
-  // If this is a legacy template like '"word"(은)는 "root"에서 확장된 교육부 지정 파생 어휘입니다.'
+  // Upgrade any cached legacy template strings using live curriculum sentence translations
   const legacyMatch = trimmed.match(/["“]([a-zA-Z\s\-]+)["”](?:[\(\)은는]+)\s*["“]([a-zA-Z\s\-]+)["”]에서\s*확장된\s*교육부\s*지정\s*파생\s*어휘/i);
   if (legacyMatch && legacyMatch[1]) {
     const wordKey = legacyMatch[1].trim().toLowerCase();
+    const realSentenceMeaning = CURRICULUM_3000_SENTENCE_MEANING_LOOKUP[wordKey];
+    if (realSentenceMeaning && !realSentenceMeaning.includes('대한민국 교육부') && !realSentenceMeaning.includes('파생 어휘')) {
+      return realSentenceMeaning;
+    }
     const koreanDef = CURRICULUM_3000_LOOKUP[wordKey];
     if (koreanDef) {
-      return `"${koreanDef}"에 관련된 유용한 실용 예문입니다.`;
+      return `"${koreanDef}" 의미를 담은 활용 예문입니다.`;
     }
   }
 
-  // If this is a legacy template like '"word (교육부 필수 어휘)"(은)는 대한민국 교육부 개정 교과서 및 수능 필수 어휘입니다.'
   const essentialMatch = trimmed.match(/["“]([a-zA-Z\s\-]+)(?:\s*\(교육부\s*필수\s*어휘\))?["”](?:[\(\)은는]+)\s*대한민국\s*교육부/i);
   if (essentialMatch && essentialMatch[1]) {
     const wordKey = essentialMatch[1].trim().toLowerCase();
+    const realSentenceMeaning = CURRICULUM_3000_SENTENCE_MEANING_LOOKUP[wordKey];
+    if (realSentenceMeaning && !realSentenceMeaning.includes('대한민국 교육부')) {
+      return realSentenceMeaning;
+    }
     const koreanDef = CURRICULUM_3000_LOOKUP[wordKey];
     if (koreanDef) {
-      return `"${koreanDef}"에 관련된 교육부 핵심 예문입니다.`;
+      return `"${koreanDef}" 의미를 담은 활용 예문입니다.`;
     }
   }
 

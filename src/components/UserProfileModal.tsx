@@ -72,6 +72,7 @@ interface UserProfileModalProps {
   onExportAllData?: () => void;
   onImportAllData?: (file: File) => void;
   onResetAllData?: () => void;
+  onOpenJsonBackup?: () => void;
 }
 
 export const UserProfileModal: React.FC<UserProfileModalProps> = ({
@@ -88,6 +89,7 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
   onExportAllData,
   onImportAllData,
   onResetAllData,
+  onOpenJsonBackup,
 }) => {
   const [name, setName] = useState('');
   const [avatar, setAvatar] = useState('🎓');
@@ -1509,9 +1511,22 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
                     <HardDrive className="w-4 h-4 text-indigo-500" />
                     <span>이 장치(기기) 로컬 저장소 상태</span>
                   </span>
-                  <span className="text-[11px] font-black text-indigo-600 dark:text-indigo-400 bg-indigo-500/15 px-2 py-0.5 rounded-md font-mono">
-                    {storageStats.totalFormattedSize} 사용 중
+                  <span className="text-[11px] font-black text-indigo-600 dark:text-indigo-400 bg-indigo-500/15 px-2 py-0.5 rounded-md font-mono tabular-nums">
+                    {storageStats.totalFormattedSize} / 5.0 MB ({storageStats.usagePercent}%)
                   </span>
+                </div>
+
+                <div className="h-2 rounded-full bg-slate-200 dark:bg-slate-700 overflow-hidden">
+                  <div
+                    className={`h-full transition-all ${
+                      storageStats.statusLevel === 'critical'
+                        ? 'bg-rose-500'
+                        : storageStats.statusLevel === 'warning'
+                        ? 'bg-amber-500'
+                        : 'bg-indigo-600'
+                    }`}
+                    style={{ width: `${storageStats.usagePercent}%` }}
+                  />
                 </div>
 
                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 text-xs">
@@ -1628,14 +1643,29 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
                   accept=".json"
                   className="hidden"
                 />
-                <button
-                  type="button"
-                  onClick={() => allDataFileInputRef.current?.click()}
-                  className="mt-3 w-full py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-black text-xs shadow-md shadow-indigo-500/20 transition-all flex items-center justify-center gap-2 cursor-pointer"
-                >
-                  <Upload className="w-4 h-4" />
-                  <span>JSON 백업 파일 선택 및 복원하기</span>
-                </button>
+                <div className="flex flex-col sm:flex-row gap-2 mt-3">
+                  <button
+                    type="button"
+                    onClick={() => allDataFileInputRef.current?.click()}
+                    className="flex-1 py-2.5 px-3 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-black text-xs shadow-md shadow-indigo-500/20 transition-all flex items-center justify-center gap-2 cursor-pointer"
+                  >
+                    <Upload className="w-4 h-4" />
+                    <span>JSON 백업 파일 빠른 복원</span>
+                  </button>
+                  {onOpenJsonBackup && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        onClose();
+                        onOpenJsonBackup();
+                      }}
+                      className="flex-1 py-2.5 px-3 rounded-xl border border-indigo-300 dark:border-indigo-700 bg-white dark:bg-slate-900 text-indigo-600 dark:text-indigo-300 font-black text-xs transition-all flex items-center justify-center gap-2 cursor-pointer"
+                    >
+                      <FileJson className="w-4 h-4" />
+                      <span>충돌 미리보기 · 스마트 병합</span>
+                    </button>
+                  )}
+                </div>
               </div>
 
               {/* Data Reset Section */}

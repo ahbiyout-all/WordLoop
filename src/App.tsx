@@ -1,41 +1,23 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef, Suspense } from 'react';
 import { ActiveTab, VocabItem, SentenceItem, Goal, DailyGoalHistory, UserProfile } from './types';
 import { DEFAULT_VOCAB, DEFAULT_SENTENCES } from './data/defaultVocab';
 import { DEFAULT_GOALS, generateSampleHistory } from './data/defaultGoals';
 import { speechService, initMobileAudioUnlock, playBreakStartChime, playBreakEndChime } from './services/speechService';
 import { Navbar } from './components/Navbar';
-import { VocabList } from './components/VocabList';
-import { GoalTracker } from './components/GoalTracker';
-import { AIGenerator } from './components/AIGenerator';
-import { AIRoleplayView } from './components/AIRoleplayView';
 import { MainLauncherDashboard } from './components/MainLauncherDashboard';
-import { CurriculumExplorerModal } from './components/CurriculumExplorerModal';
-import { QuizMode } from './components/QuizMode';
-import { StudentWordGame } from './components/StudentWordGame';
-import { StatsDashboard } from './components/StatsDashboard';
-import { CommercialDictionarySearch } from './components/CommercialDictionarySearch';
 import { AudioPlayerBar } from './components/AudioPlayerBar';
-import { PronunciationModal } from './components/PronunciationModal';
-import { ApiKeyModal } from './components/ApiKeyModal';
-import { PatchNotesModal } from './components/PatchNotesModal';
-import { NativeDllDocsModal } from './components/NativeDllDocsModal';
-import { GitHubUpdateModal } from './components/GitHubUpdateModal';
-import { UserProfileModal } from './components/UserProfileModal';
-import { DailyQuestModal } from './components/DailyQuestModal';
-import { AddToHomeScreenModal } from './components/AddToHomeScreenModal';
-import { AudioSettingsModal } from './components/AudioSettingsModal';
-import { RecordingHistoryModal } from './components/RecordingHistoryModal';
 import { InactivityQuizToast } from './components/InactivityQuizToast';
 import { ConfettiCanvas } from './components/ConfettiCanvas';
+import { LazyLoadingFallback } from './components/LazyLoadingFallback';
+import { ErrorBoundary } from './components/ErrorBoundary';
 import {
   checkInactivityStatus,
   recordPromptShown,
   sendInactivityBrowserNotification,
   setupInactivityActivityTracker,
 } from './services/inactivityQuizService';
-import { QuickActionWidgets } from './components/QuickActionWidgets';
-import { SurpriseParentNagPopup, SurpriseNagType } from './components/SurpriseParentNagPopup';
-import { APP_VERSION } from './data/patchNotesData';
+import type { SurpriseNagType } from './components/SurpriseParentNagPopup';
+import { APP_VERSION } from './constants/version';
 import { calculateStudentLevel } from './services/studentGamificationService';
 import { getLocalDateString } from './utils/dateUtils';
 import { GitHubUpdateService, UpdateCheckResult } from './services/githubUpdateService';
@@ -43,9 +25,10 @@ import { getAuthHeaders } from './services/apiClient';
 import {
   saveUserProfileToDevice,
   loadUserProfileFromDevice,
-  safeJsonParse,
   sanitizeCsvCell,
-  sanitizeDeepObject,
+  exportVersionedAllDataToFile,
+  parseAndPreviewJsonBackup,
+  applyBackupImport,
 } from './services/deviceStorageService';
 import {
   setupAppTerminationSafeguards,
@@ -58,8 +41,69 @@ import {
   RandomActivity,
   RandomScope,
 } from './services/randomLaunchService';
-import { Sparkles, X, Maximize2, Minimize2, Smartphone, Shuffle, ArrowRight, Check, ShieldCheck } from 'lucide-react';
+import {
+  calculateNextSrsState,
+  buildTodayRoutineQueue,
+  SrsRating,
+} from './services/srsEngineService';
+import { Sparkles, X, Shuffle, ShieldCheck, Coffee } from 'lucide-react';
 import { InAppBrowserBanner } from './components/InAppBrowserBanner';
+
+// Route-level & Modal-level Code Splitting (Reduces initial entry bundle dramatically)
+const VocabList = React.lazy(() => import('./components/VocabList').then((m) => ({ default: m.VocabList })));
+const GoalTracker = React.lazy(() => import('./components/GoalTracker').then((m) => ({ default: m.GoalTracker })));
+const AIGenerator = React.lazy(() => import('./components/AIGenerator').then((m) => ({ default: m.AIGenerator })));
+const AIRoleplayView = React.lazy(() => import('./components/AIRoleplayView').then((m) => ({ default: m.AIRoleplayView })));
+const CommercialDictionarySearch = React.lazy(() =>
+  import('./components/CommercialDictionarySearch').then((m) => ({ default: m.CommercialDictionarySearch }))
+);
+const QuizMode = React.lazy(() => import('./components/QuizMode').then((m) => ({ default: m.QuizMode })));
+const StudentWordGame = React.lazy(() =>
+  import('./components/StudentWordGame').then((m) => ({ default: m.StudentWordGame }))
+);
+const StatsDashboard = React.lazy(() =>
+  import('./components/StatsDashboard').then((m) => ({ default: m.StatsDashboard }))
+);
+const CurriculumExplorerModal = React.lazy(() =>
+  import('./components/CurriculumExplorerModal').then((m) => ({ default: m.CurriculumExplorerModal }))
+);
+const PronunciationModal = React.lazy(() =>
+  import('./components/PronunciationModal').then((m) => ({ default: m.PronunciationModal }))
+);
+const ApiKeyModal = React.lazy(() => import('./components/ApiKeyModal').then((m) => ({ default: m.ApiKeyModal })));
+const PatchNotesModal = React.lazy(() =>
+  import('./components/PatchNotesModal').then((m) => ({ default: m.PatchNotesModal }))
+);
+const NativeDllDocsModal = React.lazy(() =>
+  import('./components/NativeDllDocsModal').then((m) => ({ default: m.NativeDllDocsModal }))
+);
+const GitHubUpdateModal = React.lazy(() =>
+  import('./components/GitHubUpdateModal').then((m) => ({ default: m.GitHubUpdateModal }))
+);
+const UserProfileModal = React.lazy(() =>
+  import('./components/UserProfileModal').then((m) => ({ default: m.UserProfileModal }))
+);
+const DailyQuestModal = React.lazy(() =>
+  import('./components/DailyQuestModal').then((m) => ({ default: m.DailyQuestModal }))
+);
+const AddToHomeScreenModal = React.lazy(() =>
+  import('./components/AddToHomeScreenModal').then((m) => ({ default: m.AddToHomeScreenModal }))
+);
+const AudioSettingsModal = React.lazy(() =>
+  import('./components/AudioSettingsModal').then((m) => ({ default: m.AudioSettingsModal }))
+);
+const RecordingHistoryModal = React.lazy(() =>
+  import('./components/RecordingHistoryModal').then((m) => ({ default: m.RecordingHistoryModal }))
+);
+const SurpriseParentNagPopup = React.lazy(() =>
+  import('./components/SurpriseParentNagPopup').then((m) => ({ default: m.SurpriseParentNagPopup }))
+);
+const FocusRoutinePlayer = React.lazy(() =>
+  import('./components/FocusRoutinePlayer').then((m) => ({ default: m.FocusRoutinePlayer }))
+);
+const JsonBackupModal = React.lazy(() =>
+  import('./components/JsonBackupModal').then((m) => ({ default: m.JsonBackupModal }))
+);
 
 export default function App() {
   // Navigation State
@@ -204,21 +248,34 @@ export default function App() {
     if (!saved) return DEFAULT_VOCAB;
     try {
       const parsed: VocabItem[] = JSON.parse(saved);
-      // Auto-repair any items where meaning contains English or legacy templates
+      // Auto-repair any items where meaning or example sentences use legacy templates
       const repaired: VocabItem[] = parsed.map((item) => {
         const canonical = defaultVocabMap.get(item.word.toLowerCase());
         const rawMeaning = item.meaning || '';
-        const needsRepair =
+        const rawSentence = item.sentence || '';
+        const rawSentenceMeaning = item.sentenceMeaning || '';
+
+        const needsMeaningRepair =
           !/[\u3131-\u318E\uAC00-\uD7A3]/.test(rawMeaning) ||
           rawMeaning.includes('관련 어휘') ||
           rawMeaning.includes('파생 어휘') ||
           rawMeaning.toLowerCase() === item.word.toLowerCase() ||
           (/[a-zA-Z]/.test(rawMeaning) && !item.isCustom);
 
-        if (needsRepair && canonical) {
+        const needsExampleRepair =
+          !item.isCustom &&
+          (rawSentence.includes('essential vocabulary item') ||
+            rawSentence.includes('in formal English sentences') ||
+            rawSentenceMeaning.includes('대한민국 교육부') ||
+            rawSentenceMeaning.includes('수능 필수 어휘') ||
+            rawSentenceMeaning.includes('교육부 핵심 예문') ||
+            rawSentenceMeaning.includes('유용한 실용 예문') ||
+            rawSentenceMeaning.includes('파생 어휘'));
+
+        if ((needsMeaningRepair || needsExampleRepair) && canonical) {
           return {
             ...item,
-            meaning: canonical.meaning,
+            meaning: needsMeaningRepair ? canonical.meaning : item.meaning,
             sentence: canonical.sentence || item.sentence,
             sentenceMeaning: canonical.sentenceMeaning || item.sentenceMeaning,
             ipa: canonical.ipa || item.ipa,
@@ -252,6 +309,9 @@ export default function App() {
           !item.text.includes('in formal English sentences') &&
           !item.text.includes('alongside') &&
           item.meaning &&
+          !item.meaning.includes('대한민국 교육부') &&
+          !item.meaning.includes('교육부 핵심 예문') &&
+          !item.meaning.includes('유용한 실용 예문') &&
           !item.meaning.includes('파생 어휘') &&
           !item.meaning.includes('필수 어휘') &&
           /[\u3131-\u318E\uAC00-\uD7A3]/.test(item.meaning)
@@ -314,6 +374,8 @@ export default function App() {
   const [showDailyQuestModal, setShowDailyQuestModal] = useState<boolean>(false);
   const [showAddToHomeModal, setShowAddToHomeModal] = useState<boolean>(false);
   const [showRecordingHistoryModal, setShowRecordingHistoryModal] = useState<boolean>(false);
+  const [showFocusRoutine, setShowFocusRoutine] = useState<boolean>(false);
+  const [showJsonBackupModal, setShowJsonBackupModal] = useState<boolean>(false);
   const [recordingHistoryInitialTarget, setRecordingHistoryInitialTarget] = useState<string | undefined>(undefined);
   const [surpriseNagState, setSurpriseNagState] = useState<{
     isOpen: boolean;
@@ -629,14 +691,64 @@ export default function App() {
     );
   }, []);
 
-  // Mastery Level Handlers
+  // Mastery Level Handlers (Syncs SM-2 SRS metadata smoothly)
   const handleUpdateVocabMastery = useCallback((id: string, level: 0 | 1 | 2) => {
     setVocabList((prev) =>
-      prev.map((item) =>
-        item.id === id ? { ...item, masteryLevel: level, isLearned: level === 2 } : item
-      )
+      prev.map((item) => {
+        if (item.id !== id) return item;
+        const rating: SrsRating = level === 2 ? 'good' : level === 1 ? 'hard' : 'again';
+        const { srs } = calculateNextSrsState(item.srs, rating, item.masteryLevel ?? 0);
+        return { ...item, masteryLevel: level, isLearned: level === 2, srs };
+      })
     );
   }, []);
+
+  const handleUpdateVocabSrs = useCallback((id: string, rating: SrsRating) => {
+    setVocabList((prev) =>
+      prev.map((item) => {
+        if (item.id !== id) return item;
+        const fallback = item.masteryLevel ?? (item.isLearned ? 2 : 0);
+        const { srs, masteryLevel } = calculateNextSrsState(item.srs, rating, fallback);
+        return {
+          ...item,
+          srs,
+          masteryLevel,
+          isLearned: masteryLevel === 2,
+          repeatCount: (item.repeatCount || 0) + 1,
+        };
+      })
+    );
+  }, []);
+
+  const handleRoutineComplete = useCallback((reviewedCount: number) => {
+    const todayStr = getLocalDateString();
+    setTotalRepeatsCount((prev) => prev + reviewedCount);
+    setHistory((prevHist) => {
+      const idx = prevHist.findIndex((h) => h.date === todayStr);
+      if (idx >= 0) {
+        const next = [...prevHist];
+        next[idx] = {
+          ...next[idx],
+          vocabStudyCount: (next[idx].vocabStudyCount || 0) + reviewedCount,
+          completedGoalsCount: Math.max(1, next[idx].completedGoalsCount || 0),
+          isStreakMaintained: true,
+        };
+        return next;
+      }
+      return [
+        {
+          date: todayStr,
+          completedGoalsCount: 1,
+          totalGoalsCount: goals.length || 4,
+          vocabStudyCount: reviewedCount,
+          isStreakMaintained: true,
+        },
+        ...prevHist,
+      ];
+    });
+    setRecoveryToast(`오늘의 3분 루틴(${reviewedCount}개 단어)이 완료되어 잔디에 기록되었습니다.`);
+    setTimeout(() => setRecoveryToast(null), 4000);
+  }, [goals.length]);
 
   const handleUpdateSentenceMastery = useCallback((id: string, level: 0 | 1 | 2) => {
     setSentenceList((prev) =>
@@ -646,67 +758,65 @@ export default function App() {
     );
   }, []);
 
-  // Export Entire 1-User Learning Data (JSON)
+  // Export Entire 1-User Learning Data (Schema v2 JSON with Integrity Checksum)
   const handleExportAllData = useCallback(() => {
-    const exportObject = {
-      app: 'WordLoop',
-      version: APP_VERSION,
-      exportedAt: new Date().toISOString(),
+    exportVersionedAllDataToFile({
       userProfile,
       vocabList,
       sentenceList,
       goals,
       history,
       totalRepeatsCount,
-    };
-    const blob = new Blob([JSON.stringify(exportObject, null, 2)], {
-      type: 'application/json',
     });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `wordloop_single_user_backup_${userProfile?.name || 'user'}_${new Date().toISOString().slice(0, 10)}.json`;
-    a.click();
-    URL.revokeObjectURL(url);
+    setRecoveryToast(`v${APP_VERSION} 무결성 JSON 백업 파일이 저장되었습니다.`);
+    setTimeout(() => setRecoveryToast(null), 3500);
   }, [userProfile, vocabList, sentenceList, goals, history, totalRepeatsCount]);
 
-  // Import Entire 1-User Learning Data (JSON) with size limit, deep sanitization & Prototype Pollution protection
-  const handleImportAllData = useCallback(async (file: File) => {
-    try {
-      if (file.size > 5 * 1024 * 1024) {
-        setRecoveryToast('백업 파일 복원 실패: 파일 크기가 허용 한도(5MB)를 초과했습니다.');
-        return;
-      }
-      const text = await file.text();
-      const rawParsed = safeJsonParse<any>(text);
-      if (!rawParsed || typeof rawParsed !== 'object') {
-        throw new Error('유효하지 않은 백업 데이터 형식입니다.');
-      }
-      const parsed = sanitizeDeepObject(rawParsed);
+  // Apply Imported / Merged State cleanly
+  const handleApplyImportedState = useCallback(
+    (nextState: {
+      userProfile: UserProfile | null;
+      vocabList: VocabItem[];
+      sentenceList: SentenceItem[];
+      goals: Goal[];
+      history: DailyGoalHistory[];
+      totalRepeatsCount: number;
+    }) => {
+      if (nextState.userProfile) setUserProfile(nextState.userProfile);
+      if (nextState.vocabList) setVocabList(nextState.vocabList);
+      if (nextState.sentenceList) setSentenceList(nextState.sentenceList);
+      if (nextState.goals) setGoals(nextState.goals);
+      if (nextState.history) setHistory(nextState.history);
+      if (typeof nextState.totalRepeatsCount === 'number') setTotalRepeatsCount(nextState.totalRepeatsCount);
+      setRecoveryToast('✅ JSON 백업 데이터 적용 및 병합이 안전하게 완료되었습니다!');
+      setTimeout(() => setRecoveryToast(null), 4000);
+    },
+    []
+  );
 
-      if (parsed.userProfile && typeof parsed.userProfile === 'object' && typeof parsed.userProfile.name === 'string') {
-        setUserProfile(parsed.userProfile);
+  // Import Entire 1-User Learning Data (JSON) with size limit, Schema v1/v2 support & smart merge
+  const handleImportAllData = useCallback(
+    async (file: File) => {
+      try {
+        const preview = await parseAndPreviewJsonBackup(file, {
+          vocabList,
+          sentenceList,
+          goals,
+          history,
+          totalRepeatsCount,
+        });
+        const nextState = applyBackupImport(
+          { userProfile, vocabList, sentenceList, goals, history, totalRepeatsCount },
+          preview,
+          'merge'
+        );
+        handleApplyImportedState(nextState);
+      } catch (e: any) {
+        setRecoveryToast('백업 파일 복원 실패: ' + (e?.message || '올바른 JSON 파일인지 확인해주세요.'));
       }
-      if (Array.isArray(parsed.vocabList)) {
-        setVocabList(parsed.vocabList.slice(0, 5000));
-      }
-      if (Array.isArray(parsed.sentenceList)) {
-        setSentenceList(parsed.sentenceList.slice(0, 5000));
-      }
-      if (Array.isArray(parsed.goals)) {
-        setGoals(parsed.goals.slice(0, 200));
-      }
-      if (Array.isArray(parsed.history)) {
-        setHistory(parsed.history.slice(0, 1000));
-      }
-      if (typeof parsed.totalRepeatsCount === 'number' && Number.isFinite(parsed.totalRepeatsCount) && parsed.totalRepeatsCount >= 0) {
-        setTotalRepeatsCount(Math.floor(parsed.totalRepeatsCount));
-      }
-      setRecoveryToast('✅ 1인 전용 데이터 전체 복원이 안전하게 완료되었습니다!');
-    } catch (e: any) {
-      setRecoveryToast('백업 파일 복원 실패: ' + (e?.message || '올바른 JSON 파일인지 확인해주세요.'));
-    }
-  }, []);
+    },
+    [userProfile, vocabList, sentenceList, goals, history, totalRepeatsCount, handleApplyImportedState]
+  );
 
   // Reset All Data
   const handleResetAllData = useCallback(() => {
@@ -1046,11 +1156,11 @@ export default function App() {
   }, []);
 
   return (
-    <div className="min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 font-sans transition-colors pb-28">
+    <div className="min-h-screen bg-[#fafafa] dark:bg-slate-950 text-slate-900 dark:text-slate-100 font-sans transition-colors pb-24 md:pb-12">
       {/* In-App Browser (KakaoTalk/WebView) Guidance Banner */}
       <InAppBrowserBanner />
 
-      {/* Header Navigation */}
+      {/* Header Navigation (3-Zone Top Bar + Mobile Thumb Bar) */}
       <Navbar
         activeTab={activeTab}
         setActiveTab={setActiveTab}
@@ -1087,6 +1197,7 @@ export default function App() {
         }}
         onOpenAudioSettings={() => setShowAudioSettingsModal(true)}
         onOpenRecordingHistory={() => handleOpenRecordingHistory()}
+        onOpenJsonBackup={() => setShowJsonBackupModal(true)}
       />
 
       {/* Crash Recovery Notification Toast */}
@@ -1182,24 +1293,10 @@ export default function App() {
         />
       )}
 
-      {/* Main Screen Quick-Action Widgets (Shown in list mode and other functional tabs) */}
-      {!(activeTab === 'vocab' && homeViewMode === 'launcher') && (
-        <QuickActionWidgets
-          vocabList={vocabList}
-          onNavigateTab={(tab) => {
-            setActiveTab(tab);
-            if (tab === 'vocab') handleSetHomeViewMode('list');
-          }}
-          onStartPronunciation={(text) => handleOpenPronunciationModal(text)}
-          onOpenDailyQuest={() => setShowDailyQuestModal(true)}
-          onTriggerRandomLaunch={() => handleTriggerRandomLaunch()}
-        />
-      )}
-
       {/* Main Content Viewport (Fluid Top/Bottom/Left/Right Auto-Spacing) */}
       <main className={`max-w-6xl mx-auto fluid-viewport-main transition-all ${activeLoopItemId ? '!pb-28 sm:!pb-24' : ''}`}>
         
-        {/* Main Landing: Launcher Dashboard (Large Icon Hub) */}
+        {/* Main Landing: Minimalist Beginner Today Hub */}
         {activeTab === 'vocab' && homeViewMode === 'launcher' && (
           <MainLauncherDashboard
             userProfile={userProfile}
@@ -1223,173 +1320,238 @@ export default function App() {
             onOpenCurriculumModal={() => setShowCurriculumModalFromApp(true)}
             onSwitchToListMode={() => handleSetHomeViewMode('list')}
             onOpenProfileModal={() => setShowProfileModal(true)}
-          />
-        )}
-
-        {/* Traditional 3,000 Vocab & 500 Sentence List Mode */}
-        {activeTab === 'vocab' && homeViewMode === 'list' && (
-          <VocabList
-            vocabList={vocabList}
-            sentenceList={sentenceList}
-            activeLoopItemId={activeLoopItemId}
-            isPlaying={isPlaying}
-            repeatCount={repeatCount}
-            userProfile={userProfile}
-            onToggleBookmarkVocab={handleToggleBookmarkVocab}
-            onToggleBookmarkSentence={handleToggleBookmarkSentence}
-            onChangeMasteryVocab={handleUpdateVocabMastery}
-            onChangeMasterySentence={handleUpdateSentenceMastery}
-            onExportData={handleExportData}
-            onImportData={handleImportData}
-            onAddCustomVocab={handleAddCustomVocab}
-            onAddBatchVocab={handleAddAIItems}
-            onAddCustomSentence={handleAddCustomSentence}
-            onOpenPronunciationModal={handleOpenPronunciationModal}
-            onOpenAIExplain={handleOpenAIExplain}
-            initialSubTab={initialVocabSubTab}
-            initialOpenCurriculum={initialOpenCurriculum}
-            onTriggerRandomLaunch={handleTriggerRandomLaunch}
-            onSwitchToLauncherMode={() => handleSetHomeViewMode('launcher')}
-          />
-        )}
-
-        {activeTab === 'goals' && (
-          <GoalTracker
-            goals={goals}
-            history={history}
-            onToggleGoalComplete={handleToggleGoalComplete}
-            onIncrementGoal={handleIncrementGoal}
-            onUpdateGoalTarget={handleUpdateGoalTarget}
-            onAddGoal={handleAddGoal}
-            onDeleteGoal={handleDeleteGoal}
-            onOpenAIGoalRecommend={() => setActiveTab('ai-gen')}
-            onOpenPronunciationPractice={() => handleOpenPronunciationModal('Hello, nice to meet you!')}
-          />
-        )}
-
-        {activeTab === 'ai-gen' && (
-          <AIGenerator
-            onAddGeneratedItems={handleAddAIItems}
-            onAddRecommendedGoal={handleAddGoal}
-          />
-        )}
-
-        {activeTab === 'roleplay' && (
-          <AIRoleplayView
-            onAddBookmarkVocab={handleAddAIItems}
-            onAddBookmarkSentence={(sentences) => {
-              setSentenceList((prev) => [...sentences, ...prev]);
-            }}
-            onIncrementGoal={() => handleIncrementGoal('1')}
-            onOpenApiKeyModal={() => setShowApiKeyModal(true)}
-          />
-        )}
-
-        {activeTab === 'dictionary' && (
-          <CommercialDictionarySearch
-            onAddVocab={handleAddCustomVocab}
-          />
-        )}
-
-        {activeTab === 'quiz' && (
-          <QuizMode
-            vocabList={vocabList}
+            onStartFocusRoutine={() => setShowFocusRoutine(true)}
+            onOpenJsonBackup={() => setShowJsonBackupModal(true)}
             onChangeMastery={handleUpdateVocabMastery}
-            onSelectMode={handleSubSelection}
-            initialMode={initialQuizMode}
           />
         )}
 
-        {activeTab === 'game' && (
-          <StudentWordGame
-            vocabList={vocabList}
-            sentenceList={sentenceList}
-            onChangeMastery={handleUpdateVocabMastery}
-            onSelectGame={handleSubSelection}
-            initialGame={initialGame}
-            userProfile={userProfile}
-            onOpenProfileModal={() => setShowProfileModal(true)}
-            onSaveProfile={(updatedProfile) => {
-              setUserProfile(updatedProfile);
-              saveUserProfileToDevice(updatedProfile);
-            }}
-          />
-        )}
+        <ErrorBoundary key={`${activeTab}-${homeViewMode}`}>
+        <Suspense fallback={<LazyLoadingFallback />}>
+          {/* Traditional 3,000 Vocab & 500 Sentence List Mode */}
+          {activeTab === 'vocab' && homeViewMode === 'list' && (
+            <VocabList
+              vocabList={vocabList}
+              sentenceList={sentenceList}
+              activeLoopItemId={activeLoopItemId}
+              isPlaying={isPlaying}
+              repeatCount={repeatCount}
+              userProfile={userProfile}
+              onToggleBookmarkVocab={handleToggleBookmarkVocab}
+              onToggleBookmarkSentence={handleToggleBookmarkSentence}
+              onChangeMasteryVocab={handleUpdateVocabMastery}
+              onChangeMasterySentence={handleUpdateSentenceMastery}
+              onExportData={handleExportData}
+              onImportData={handleImportData}
+              onAddCustomVocab={handleAddCustomVocab}
+              onAddBatchVocab={handleAddAIItems}
+              onAddCustomSentence={handleAddCustomSentence}
+              onOpenPronunciationModal={handleOpenPronunciationModal}
+              onOpenAIExplain={handleOpenAIExplain}
+              initialSubTab={initialVocabSubTab}
+              initialOpenCurriculum={initialOpenCurriculum}
+              onTriggerRandomLaunch={handleTriggerRandomLaunch}
+              onSwitchToLauncherMode={() => handleSetHomeViewMode('launcher')}
+            />
+          )}
 
-        {activeTab === 'stats' && (
-          <StatsDashboard
-            goals={goals}
-            history={history}
-            totalRepeatsCount={totalRepeatsCount}
-            vocabCount={vocabList.length}
-            vocabList={vocabList}
-            userProfile={userProfile}
-            levelInfo={calculateStudentLevel({
-              totalRepeatsCount,
-              vocabList,
-              goals,
-              history,
-              streakDays: userProfile?.streakDays ?? 1,
-            })}
-            onOpenProfileModal={() => setShowProfileModal(true)}
-            onOpenRecordingHistory={() => handleOpenRecordingHistory()}
-            onStartPronunciation={(word) => handleOpenPronunciationModal(word)}
-            onChangeMastery={handleUpdateVocabMastery}
-            onStartReviewQuiz={() => {
-              speechService.stop();
-              setInitialQuizMode('review_quiz');
-              setActiveTab('quiz');
-            }}
-          />
-        )}
+          {activeTab === 'goals' && (
+            <GoalTracker
+              goals={goals}
+              history={history}
+              onToggleGoalComplete={handleToggleGoalComplete}
+              onIncrementGoal={handleIncrementGoal}
+              onUpdateGoalTarget={handleUpdateGoalTarget}
+              onAddGoal={handleAddGoal}
+              onDeleteGoal={handleDeleteGoal}
+              onOpenAIGoalRecommend={() => setActiveTab('ai-gen')}
+              onOpenPronunciationPractice={() => handleOpenPronunciationModal('Hello, nice to meet you!')}
+            />
+          )}
+
+          {activeTab === 'ai-gen' && (
+            <AIGenerator
+              onAddGeneratedItems={handleAddAIItems}
+              onAddRecommendedGoal={handleAddGoal}
+            />
+          )}
+
+          {activeTab === 'roleplay' && (
+            <AIRoleplayView
+              onAddBookmarkVocab={handleAddAIItems}
+              onAddBookmarkSentence={(sentences) => {
+                setSentenceList((prev) => [...sentences, ...prev]);
+              }}
+              onIncrementGoal={() => handleIncrementGoal('1')}
+              onOpenApiKeyModal={() => setShowApiKeyModal(true)}
+            />
+          )}
+
+          {activeTab === 'dictionary' && (
+            <CommercialDictionarySearch
+              onAddVocab={handleAddCustomVocab}
+            />
+          )}
+
+          {activeTab === 'quiz' && (
+            <QuizMode
+              vocabList={vocabList}
+              onChangeMastery={handleUpdateVocabMastery}
+              onSelectMode={handleSubSelection}
+              initialMode={initialQuizMode}
+            />
+          )}
+
+          {activeTab === 'game' && (
+            <StudentWordGame
+              vocabList={vocabList}
+              sentenceList={sentenceList}
+              onChangeMastery={handleUpdateVocabMastery}
+              onSelectGame={handleSubSelection}
+              initialGame={initialGame}
+              userProfile={userProfile}
+              onOpenProfileModal={() => setShowProfileModal(true)}
+              onSaveProfile={(updatedProfile) => {
+                setUserProfile(updatedProfile);
+                saveUserProfileToDevice(updatedProfile);
+              }}
+            />
+          )}
+
+          {activeTab === 'stats' && (
+            <StatsDashboard
+              goals={goals}
+              history={history}
+              totalRepeatsCount={totalRepeatsCount}
+              vocabCount={vocabList.length}
+              vocabList={vocabList}
+              userProfile={userProfile}
+              levelInfo={calculateStudentLevel({
+                totalRepeatsCount,
+                vocabList,
+                goals,
+                history,
+                streakDays: userProfile?.streakDays ?? 1,
+              })}
+              onOpenProfileModal={() => setShowProfileModal(true)}
+              onOpenRecordingHistory={() => handleOpenRecordingHistory()}
+              onStartPronunciation={(word) => handleOpenPronunciationModal(word)}
+              onChangeMastery={handleUpdateVocabMastery}
+              onStartReviewQuiz={() => {
+                speechService.stop();
+                setInitialQuizMode('review_quiz');
+                setActiveTab('quiz');
+              }}
+            />
+          )}
+        </Suspense>
+        </ErrorBoundary>
 
       </main>
+
+      {/* 5-Minute Healing Rest Countdown Floating Banner */}
+      {breakCountdownSeconds !== null && (
+        <aside
+          role="status"
+          aria-live="polite"
+          className="fixed bottom-20 md:bottom-24 right-4 z-40 max-w-xs w-[calc(100%-2rem)] sm:w-auto rounded-2xl bg-emerald-950/95 dark:bg-slate-900/95 text-white border border-emerald-500/40 shadow-xl backdrop-blur-md p-3.5 flex items-center justify-between gap-3"
+        >
+          <div className="flex items-center gap-2.5">
+            <div className="w-9 h-9 rounded-xl bg-emerald-500/20 border border-emerald-400/40 text-emerald-300 flex items-center justify-center shrink-0">
+              <Coffee className="w-4 h-4" />
+            </div>
+            <div>
+              <p className="text-[11px] font-bold text-emerald-300">5분 휴식 타이머 가동 중</p>
+              <p className="text-sm font-black font-mono-tabular tabular-nums text-white">
+                {String(Math.floor(breakCountdownSeconds / 60)).padStart(2, '0')}:
+                {String(breakCountdownSeconds % 60).padStart(2, '0')}
+              </p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => setBreakCountdownSeconds(null)}
+            className="px-2.5 py-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-[11px] font-bold text-emerald-200 transition-colors cursor-pointer"
+          >
+            종료
+          </button>
+        </aside>
+      )}
 
       {/* Persistent Sticky Audio Player Bar */}
       <AudioPlayerBar
         onOpenPronunciationModal={(text) => setPronunciationModalText(text)}
       />
 
-      {/* 1-User Profile & Onboarding Modal */}
-      <UserProfileModal
-        isOpen={showProfileModal}
-        isOnboarding={!userProfile}
-        userProfile={userProfile}
-        vocabList={vocabList}
-        sentenceList={sentenceList}
-        goals={goals}
-        history={history}
-        totalRepeatsCount={totalRepeatsCount}
-        onSaveProfile={(updatedProfile) => {
-          setUserProfile(updatedProfile);
-        }}
-        onClose={() => setShowProfileModal(false)}
-        onExportAllData={handleExportAllData}
-        onImportAllData={handleImportAllData}
-        onResetAllData={handleResetAllData}
-      />
+      {/* Lazy Modals: Fetched only when opened */}
+      <Suspense fallback={null}>
+        {showFocusRoutine && (
+          <FocusRoutinePlayer
+            isOpen={showFocusRoutine}
+            queue={buildTodayRoutineQueue(vocabList, 5, 3)}
+            allVocab={vocabList}
+            onClose={() => setShowFocusRoutine(false)}
+            onUpdateVocabSrs={handleUpdateVocabSrs}
+            onOpenPronunciation={handleOpenPronunciationModal}
+            onRoutineComplete={(reviewedCount) => handleRoutineComplete(reviewedCount)}
+          />
+        )}
 
-      {/* Pronunciation Shadowing Practice Modal */}
-      {pronunciationModalText && (
-        <PronunciationModal
-          isOpen={Boolean(pronunciationModalText)}
-          targetText={pronunciationModalText}
-          userProfile={userProfile}
-          onOpenProfileModal={() => {
-            setPronunciationModalText(null);
-            setShowProfileModal(true);
-          }}
-          onOpenRecordingHistory={() => handleOpenRecordingHistory(pronunciationModalText || undefined)}
-          onClose={() => setPronunciationModalText(null)}
-          onSuccessEvaluation={() => {
-            // Increment linked English goal
-            const englishGoal = goals.find((g) => g.category === 'english');
-            if (englishGoal) {
-              handleIncrementGoal(englishGoal.id, 1);
-            }
-          }}
-        />
-      )}
+        {showJsonBackupModal && (
+          <JsonBackupModal
+            isOpen={showJsonBackupModal}
+            onClose={() => setShowJsonBackupModal(false)}
+            userProfile={userProfile}
+            vocabList={vocabList}
+            sentenceList={sentenceList}
+            goals={goals}
+            history={history}
+            totalRepeatsCount={totalRepeatsCount}
+            onApplyImportedState={handleApplyImportedState}
+          />
+        )}
+
+        {showProfileModal && (
+          <UserProfileModal
+            isOpen={showProfileModal}
+            isOnboarding={!userProfile}
+            userProfile={userProfile}
+            vocabList={vocabList}
+            sentenceList={sentenceList}
+            goals={goals}
+            history={history}
+            totalRepeatsCount={totalRepeatsCount}
+            onSaveProfile={(updatedProfile) => {
+              setUserProfile(updatedProfile);
+            }}
+            onClose={() => setShowProfileModal(false)}
+            onExportAllData={handleExportAllData}
+            onImportAllData={handleImportAllData}
+            onResetAllData={handleResetAllData}
+            onOpenJsonBackup={() => setShowJsonBackupModal(true)}
+          />
+        )}
+
+        {pronunciationModalText && (
+          <PronunciationModal
+            isOpen={Boolean(pronunciationModalText)}
+            targetText={pronunciationModalText}
+            userProfile={userProfile}
+            onOpenProfileModal={() => {
+              setPronunciationModalText(null);
+              setShowProfileModal(true);
+            }}
+            onOpenRecordingHistory={() => handleOpenRecordingHistory(pronunciationModalText || undefined)}
+            onClose={() => setPronunciationModalText(null)}
+            onSuccessEvaluation={() => {
+              const englishGoal = goals.find((g) => g.category === 'english');
+              if (englishGoal) {
+                handleIncrementGoal(englishGoal.id, 1);
+              }
+            }}
+          />
+        )}
+      </Suspense>
 
       {/* AI Nuance Explanation Modal */}
       {aiExplanationText && (
@@ -1438,174 +1600,141 @@ export default function App() {
         </div>
       )}
 
-      {/* BYOK API Key Modal */}
-      <ApiKeyModal
-        isOpen={showApiKeyModal}
-        onClose={() => setShowApiKeyModal(false)}
-      />
+      <Suspense fallback={null}>
+        {showApiKeyModal && (
+          <ApiKeyModal
+            isOpen={showApiKeyModal}
+            onClose={() => setShowApiKeyModal(false)}
+          />
+        )}
 
-      {/* Patch Notes Modal */}
-      <PatchNotesModal
-        isOpen={showPatchNotesModal}
-        onClose={() => setShowPatchNotesModal(false)}
-        onOpenGitHubUpdateModal={() => {
-          setShowPatchNotesModal(false);
-          setShowGitHubUpdateModal(true);
-        }}
-      />
+        {showPatchNotesModal && (
+          <PatchNotesModal
+            isOpen={showPatchNotesModal}
+            onClose={() => setShowPatchNotesModal(false)}
+            onOpenGitHubUpdateModal={() => {
+              setShowPatchNotesModal(false);
+              setShowGitHubUpdateModal(true);
+            }}
+          />
+        )}
 
-      {/* Pure Proprietary Native DLL Technical Architecture Modal */}
-      <NativeDllDocsModal
-        isOpen={showNativeDllModal}
-        onClose={() => setShowNativeDllModal(false)}
-      />
+        {showNativeDllModal && (
+          <NativeDllDocsModal
+            isOpen={showNativeDllModal}
+            onClose={() => setShowNativeDllModal(false)}
+          />
+        )}
 
-      {/* GitHub Releases Real-Time Auto-Update Modal */}
-      <GitHubUpdateModal
-        isOpen={showGitHubUpdateModal}
-        onClose={() => setShowGitHubUpdateModal(false)}
-        updateData={updateData}
-        onRefreshCheck={handleRefreshUpdateCheck}
-        isChecking={isCheckingUpdate}
-      />
+        {showGitHubUpdateModal && (
+          <GitHubUpdateModal
+            isOpen={showGitHubUpdateModal}
+            onClose={() => setShowGitHubUpdateModal(false)}
+            updateData={updateData}
+            onRefreshCheck={handleRefreshUpdateCheck}
+            isChecking={isCheckingUpdate}
+          />
+        )}
 
-      {/* Daily 3-Minute Quest & Habit Loop Modal */}
-      <DailyQuestModal
-        isOpen={showDailyQuestModal}
-        onClose={() => setShowDailyQuestModal(false)}
-        vocabList={vocabList}
-        onNavigateTab={(tab) => {
-          setActiveTab(tab);
-          setShowDailyQuestModal(false);
-        }}
-        onOpenPronunciation={(text) => {
-          setShowDailyQuestModal(false);
-          handleOpenPronunciationModal(text);
-        }}
-        onStartPronunciation={() => {
-          setShowDailyQuestModal(false);
-          const sample = vocabList[Math.floor(Math.random() * vocabList.length)] || DEFAULT_VOCAB[0];
-          if (sample) {
-            setPronunciationModalText(sample.word);
-          }
-        }}
-        onStartGame={() => {
-          setShowDailyQuestModal(false);
-          setActiveTab('game');
-        }}
-        onTriggerRandomLaunch={() => {
-          setShowDailyQuestModal(false);
-          handleTriggerRandomLaunch();
-        }}
-        onOpenAddToHomeGuide={() => {
-          setShowDailyQuestModal(false);
-          setShowAddToHomeModal(true);
-        }}
-      />
+        {showDailyQuestModal && (
+          <DailyQuestModal
+            isOpen={showDailyQuestModal}
+            onClose={() => setShowDailyQuestModal(false)}
+            vocabList={vocabList}
+            onNavigateTab={(tab) => {
+              setActiveTab(tab);
+              setShowDailyQuestModal(false);
+            }}
+            onOpenPronunciation={(text) => {
+              setShowDailyQuestModal(false);
+              handleOpenPronunciationModal(text);
+            }}
+            onStartPronunciation={() => {
+              setShowDailyQuestModal(false);
+              const sample = vocabList[Math.floor(Math.random() * vocabList.length)] || DEFAULT_VOCAB[0];
+              if (sample) {
+                setPronunciationModalText(sample.word);
+              }
+            }}
+            onStartGame={() => {
+              setShowDailyQuestModal(false);
+              setActiveTab('game');
+            }}
+            onTriggerRandomLaunch={() => {
+              setShowDailyQuestModal(false);
+              handleTriggerRandomLaunch();
+            }}
+            onOpenAddToHomeGuide={() => {
+              setShowDailyQuestModal(false);
+              setShowAddToHomeModal(true);
+            }}
+          />
+        )}
 
-      {/* Add To Home Screen Visual Step-by-Step Guide Modal */}
-      <AddToHomeScreenModal
-        isOpen={showAddToHomeModal}
-        onClose={() => setShowAddToHomeModal(false)}
-      />
+        {showAddToHomeModal && (
+          <AddToHomeScreenModal
+            isOpen={showAddToHomeModal}
+            onClose={() => setShowAddToHomeModal(false)}
+          />
+        )}
 
-      {/* Global Pronunciation & Audio Settings Modal */}
-      <AudioSettingsModal
-        isOpen={showAudioSettingsModal}
-        onClose={() => setShowAudioSettingsModal(false)}
-      />
+        {showAudioSettingsModal && (
+          <AudioSettingsModal
+            isOpen={showAudioSettingsModal}
+            onClose={() => setShowAudioSettingsModal(false)}
+          />
+        )}
 
-      {/* AudioEngine Voice Recording History & DTW Comparison Modal */}
-      <RecordingHistoryModal
-        isOpen={showRecordingHistoryModal}
-        onClose={() => setShowRecordingHistoryModal(false)}
-        initialSelectedTarget={recordingHistoryInitialTarget}
-        onOpenPronunciationPractice={(text) => {
-          setShowRecordingHistoryModal(false);
-          handleOpenPronunciationModal(text);
-        }}
-      />
+        {showRecordingHistoryModal && (
+          <RecordingHistoryModal
+            isOpen={showRecordingHistoryModal}
+            onClose={() => setShowRecordingHistoryModal(false)}
+            initialSelectedTarget={recordingHistoryInitialTarget}
+            onOpenPronunciationPractice={(text) => {
+              setShowRecordingHistoryModal(false);
+              handleOpenPronunciationModal(text);
+            }}
+          />
+        )}
 
-      {/* Curriculum Explorer Modal from App Launchpad */}
-      {showCurriculumModalFromApp && (
-        <CurriculumExplorerModal
-          isOpen={showCurriculumModalFromApp}
-          onClose={() => setShowCurriculumModalFromApp(false)}
-          onAddVocabItems={handleAddAIItems}
-          existingVocabList={vocabList}
-          showEduTag={true}
-        />
-      )}
+        {showCurriculumModalFromApp && (
+          <CurriculumExplorerModal
+            isOpen={showCurriculumModalFromApp}
+            onClose={() => setShowCurriculumModalFromApp(false)}
+            onAddVocabItems={handleAddAIItems}
+            existingVocabList={vocabList}
+            showEduTag={true}
+          />
+        )}
 
-      {/* Active 5-Minute Healing Rest Floating Banner */}
-      {breakCountdownSeconds !== null && (
-        <aside
-          role="status"
-          className="fixed bottom-20 md:bottom-6 left-1/2 -translate-x-1/2 z-40 w-[92%] max-w-lg animate-in fade-in slide-in-from-bottom-4 duration-300 pointer-events-auto select-none"
-        >
-          <div className="p-3.5 rounded-2xl bg-gradient-to-r from-emerald-950/95 via-teal-950/95 to-slate-900/95 text-white border border-emerald-400/50 shadow-2xl backdrop-blur-md flex items-center justify-between gap-3">
-            <div className="flex items-center gap-2.5 overflow-hidden">
-              <div className="w-9 h-9 rounded-xl bg-emerald-500 text-slate-950 flex items-center justify-center font-black shrink-0 shadow-md animate-pulse">
-                ☕
-              </div>
-              <div className="truncate">
-                <div className="flex items-center gap-1.5">
-                  <span className="text-[10px] font-black uppercase px-1.5 py-0.5 rounded bg-emerald-500/30 text-emerald-300 border border-emerald-400/40">
-                    5분 힐링 휴식 중
-                  </span>
-                  <span className="text-xs font-mono font-black text-amber-300">
-                    {Math.floor(breakCountdownSeconds / 60)}분 {String(breakCountdownSeconds % 60).padStart(2, '0')}초 남음
-                  </span>
-                </div>
-                <p className="text-[11px] font-bold text-emerald-100 truncate mt-0.5">
-                  먼 산이나 창밖을 보며 눈을 쉬어주세요 (장기 기억 정착 Up)
-                </p>
-              </div>
-            </div>
-
-            <button
-              type="button"
-              onClick={() => {
-                setBreakCountdownSeconds(null);
-                playBreakEndChime();
-                setRecoveryToast('휴식을 마치고 다시 활기차게 학습을 재개합니다!');
-              }}
-              className="px-2.5 py-1.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-[11px] shrink-0 transition-transform active:scale-95 cursor-pointer shadow-md"
-            >
-              학습 재개
-            </button>
-          </div>
-        </aside>
-      )}
-
-      {/* Global Screen-Center Surprise Pop-out Nag Modal (Low vs High Achievement vs 30-Min Continuous Study Break) */}
-      {surpriseNagState.isOpen && (
-        <SurpriseParentNagPopup
-          isOpen={surpriseNagState.isOpen}
-          type={surpriseNagState.type}
-          onClose={() => setSurpriseNagState((prev) => ({ ...prev, isOpen: false }))}
-          onStartBreak={() => {
-            setSurpriseNagState((prev) => ({ ...prev, isOpen: false }));
-            setBreakCountdownSeconds(300);
-            setContinuousStudySeconds(0);
-            playBreakStartChime();
-          }}
-          onOpenPhotoSettings={() => setShowProfileModal(true)}
-          onStartStudy={() => {
-            setSurpriseNagState((prev) => ({ ...prev, isOpen: false }));
-            setInitialVocabSubTab('words');
-            setActiveTab('vocab');
-            setHomeViewMode('list');
-          }}
-          userProfile={userProfile}
-          completedGoalsCount={goals.filter((g) => g.isCompleted).length}
-          totalGoalsCount={goals.length}
-          weakCount={vocabList.filter((v) => (v.masteryLevel ?? (v.isLearned ? 2 : 0)) < 2).length}
-          masteredCount={vocabList.filter((v) => (v.masteryLevel || 0) >= 2).length}
-          todayStudiedCount={vocabList.filter((v) => v.isLearned || (v.masteryLevel || 0) > 0).length}
-          streak={userProfile?.streakDays || 1}
-        />
-      )}
+        {surpriseNagState.isOpen && (
+          <SurpriseParentNagPopup
+            isOpen={surpriseNagState.isOpen}
+            type={surpriseNagState.type}
+            onClose={() => setSurpriseNagState((prev) => ({ ...prev, isOpen: false }))}
+            onStartBreak={() => {
+              setSurpriseNagState((prev) => ({ ...prev, isOpen: false }));
+              setBreakCountdownSeconds(300);
+              setContinuousStudySeconds(0);
+              playBreakStartChime();
+            }}
+            onOpenPhotoSettings={() => setShowProfileModal(true)}
+            onStartStudy={() => {
+              setSurpriseNagState((prev) => ({ ...prev, isOpen: false }));
+              setInitialVocabSubTab('words');
+              setActiveTab('vocab');
+              setHomeViewMode('list');
+            }}
+            userProfile={userProfile}
+            completedGoalsCount={goals.filter((g) => g.isCompleted).length}
+            totalGoalsCount={goals.length}
+            weakCount={vocabList.filter((v) => (v.masteryLevel ?? (v.isLearned ? 2 : 0)) < 2).length}
+            masteredCount={vocabList.filter((v) => (v.masteryLevel || 0) >= 2).length}
+            todayStudiedCount={vocabList.filter((v) => v.isLearned || (v.masteryLevel || 0) > 0).length}
+            streak={userProfile?.streakDays || 1}
+          />
+        )}
+      </Suspense>
 
       {/* Global Level-Up / Milestone Celebration Confetti & Banner Canvas Overlay */}
       <ConfettiCanvas />

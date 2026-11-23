@@ -14,9 +14,72 @@ export { APP_VERSION };
 
 export const PATCH_NOTES_DATA: PatchNoteVersion[] = [
   {
-    version: '4.0.1',
+    version: '4.2.0',
     date: '2026-11',
     isLatest: true,
+    tagline: '전 학년(초등·중학·고등/수능) 맞춤형 3,021개 신규 단어 예문 전면 교체 및 기존 캐시 자동 업그레이드',
+    highlights: [
+      {
+        category: '📚 전 학년 수준별 신규 단어 예문 3,021개 전면 생성 및 교체',
+        items: [
+          '✨ [획일적 상용구 예문 100% 제거]: 기존 "대한민국 교육부 개정 교과서 및 수능 필수 어휘입니다." 기계식 안내 문구를 완전히 제거하고, 3,210개 전체 커리큘럼 어휘가 고유한 실사용 예문과 자연스러운 한국어 번역을 갖추도록 교체했습니다.',
+          '🎯 [학년별 문체·어휘 난이도 맞춤 설계]: 초등(일상/학교 단문), 중학(생활·사회 복문), 고등·수능(학술·독해 문장) 등급별 눈높이에 맞춘 문맥 예문을 제공합니다.',
+          '🔄 [기종 캐시 무손실 자동 마이그레이션]: 기존 사용자의 localStorage에 저장된 학습 진도(masteryLevel, 북마크, SM-2 복습 스케줄)는 그대로 유지한 채, 구버전 상용구 예문만 신규 예문으로 자동 교체합니다.',
+          '💾 [5MB 저장 공간 최적화]: 문장 연습 기본 목록(DEFAULT_SENTENCES)은 학년별 균형 추출을 적용해 브라우저 저장소 용량 증가를 방지했습니다.',
+        ],
+      },
+    ],
+  },
+  {
+    version: '4.1.0',
+    date: '2026-11',
+    isLatest: false,
+    tagline: '번들 코드 분할 · 미니멀 TodayHub 3분 루틴 · SM-2 간격 반복(SRS) · 3탭 대시보드 · JSON 스마트 병합 통합 고도화',
+    highlights: [
+      {
+        category: '⚡ Phase 1: 번들 경량화 & 디자인 토큰 최적화',
+        items: [
+          '🚀 [라우트 · 모달 · 12종 미니게임 React.lazy 분할]: 초기 화면(TodayHub)만 즉시 로드하고 통계 차트, 미니게임, 사전, AI 롤플레이 및 14개 모달을 지연 로딩 청크로 분리해 초기 번들 부하를 대폭 줄였습니다.',
+          '📦 [Rollup manualChunks & 상수 분리]: APP_VERSION 단일 상수 분리를 통해 대용량 패치노트/커리큘럼 데이터와 벤더 라이브러리를 독립 캐시 청크로 분리했습니다.',
+          '🎨 [Tailwind v4 다크모드 변형 & 타이포그래피]: @custom-variant dark와 Plus Jakarta Sans / DM Sans / JetBrains Mono(tabular-nums) 토큰을 적용해 가독성을 끌어올렸습니다.',
+        ],
+      },
+      {
+        category: '🧭 Phase 2: 미니멀 학습 동선(TodayHub) · SM-2 SRS 엔진 · 3탭 통계',
+        items: [
+          '🌱 [TodayHub & 3단계 집중 루틴 플레이어]: 초심자용 단일 CTA("오늘의 3분 루틴 시작")와 [듣기·뜻 확인 → 4지선다 회상 → 발음/SM-2 난이도 평가] 3단계 무방해 루틴 플레이어를 도입했습니다.',
+          '🧠 [SM-2 간격 반복(SRS) 알고리즘]: 기존 masteryLevel과 무손실 호환되는 Again/Hard/Good/Easy 망각 곡선 스케줄러로 오늘 복습할 우선 단어를 자동 추출합니다.',
+          '📱 [3-Zone 내비게이션 & 3탭 StatsDashboard]: 데스크톱 상단 바, 모바일 4탭 하단 바 + 슬라이드업 바텀 시트, 그리고 3개 핵심 탭으로 정돈된 통계 대시보드를 구축했습니다.',
+        ],
+      },
+      {
+        category: '💾 Phase 3: localStorage 5MB 용량 가드 & Schema v2 JSON 스마트 병합',
+        items: [
+          '📊 [5MB 용량 게이지 & 키별 사용량 분석]: localStorage 한도 대비 실시간 점유율, 키별 바이트 분석, 임시 캐시 1-클릭 정리 기능을 탑재했습니다.',
+          '🛡️ [Schema v2 체크섬 & 스마트 병합(Smart Merge)]: 내보내기 JSON에 무결성 체크섬을 포함하고, 가져오기 시 변경 차이 미리보기(Diff Preview)와 롤백 스냅샷 기반 스마트 병합을 지원합니다.',
+        ],
+      },
+    ],
+  },
+  {
+    version: '4.0.2',
+    date: '2026-11',
+    isLatest: false,
+    tagline: 'FlashcardRecallGame 점수·데일리 퀘스트 상태 동기화 React 렌더링 오류 수정 핫픽스',
+    highlights: [
+      {
+        category: '🐛 React 렌더링 생명주기 충돌(setState-in-render) 수정',
+        items: [
+          '🔧 [FlashcardRecallGame 점수 업데이터 분리]: setScore((prev) => ...) 상태 계산 함수 내부에서 상위 onUpdateHighScore -> recordGameDone()을 동기 호출해 DailyQuestModal 상태를 동시에 갱신하던 React 렌더링 충돌 오류를 useEffect 커밋 이후 비동기 동기화로 분리 교정했습니다.',
+          '🧹 [자동 다음 카드 타이머 정리 & 초기화 이벤트 격리]: 언마운트 시 autoNextTimerRef 타이머를 정리하고, getDailyQuestProgress() 초기 생성 시 렌더링 중 불필요한 커스텀 이벤트 발송이 일어나지 않도록 격리했습니다.',
+        ],
+      },
+    ],
+  },
+  {
+    version: '4.0.1',
+    date: '2026-11',
+    isLatest: false,
     tagline: '온디맨드 안드로이드 APK 패키징 child_process ESM 모듈 오류 교정 핫픽스',
     highlights: [
       {

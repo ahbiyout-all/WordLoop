@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useMemo, useCallback, Suspense } from 'react';
 import {
   Gamepad2,
   Trophy,
@@ -44,18 +44,20 @@ import { confettiService } from '../services/confettiService';
 import { ComboFeedbackOverlay } from './ComboFeedbackOverlay';
 import { getCleanKoreanMeaning, getEnglishDefinition, QA_MODES_CONFIG } from '../utils/meaningUtils';
 import { QAModeSelector } from './QAModeSelector';
-import { WordMatchGame } from './WordMatchGame';
-import { CrosswordGame } from './CrosswordGame';
-import { WordBlockGame } from './WordBlockGame';
-import { SwipeMatchGame } from './SwipeMatchGame';
-import { BubblePopGame } from './BubblePopGame';
-import { RhythmWordGame } from './RhythmWordGame';
-import { SentenceScrambleGame } from './SentenceGames/SentenceScrambleGame';
-import { SentenceListeningFillGame } from './SentenceGames/SentenceListeningFillGame';
-import { SentenceSpeedRushGame } from './SentenceGames/SentenceSpeedRushGame';
-import { SentenceTrueFalseGame } from './SentenceGames/SentenceTrueFalseGame';
-import { SentenceShadowingGame } from './SentenceGames/SentenceShadowingGame';
-import { FlashcardRecallGame } from './FlashcardRecallGame';
+import { LazyLoadingFallback } from './LazyLoadingFallback';
+
+const WordMatchGame = React.lazy(() => import('./WordMatchGame').then((m) => ({ default: m.WordMatchGame })));
+const CrosswordGame = React.lazy(() => import('./CrosswordGame').then((m) => ({ default: m.CrosswordGame })));
+const WordBlockGame = React.lazy(() => import('./WordBlockGame').then((m) => ({ default: m.WordBlockGame })));
+const SwipeMatchGame = React.lazy(() => import('./SwipeMatchGame').then((m) => ({ default: m.SwipeMatchGame })));
+const BubblePopGame = React.lazy(() => import('./BubblePopGame').then((m) => ({ default: m.BubblePopGame })));
+const RhythmWordGame = React.lazy(() => import('./RhythmWordGame').then((m) => ({ default: m.RhythmWordGame })));
+const SentenceScrambleGame = React.lazy(() => import('./SentenceGames/SentenceScrambleGame').then((m) => ({ default: m.SentenceScrambleGame })));
+const SentenceListeningFillGame = React.lazy(() => import('./SentenceGames/SentenceListeningFillGame').then((m) => ({ default: m.SentenceListeningFillGame })));
+const SentenceSpeedRushGame = React.lazy(() => import('./SentenceGames/SentenceSpeedRushGame').then((m) => ({ default: m.SentenceSpeedRushGame })));
+const SentenceTrueFalseGame = React.lazy(() => import('./SentenceGames/SentenceTrueFalseGame').then((m) => ({ default: m.SentenceTrueFalseGame })));
+const SentenceShadowingGame = React.lazy(() => import('./SentenceGames/SentenceShadowingGame').then((m) => ({ default: m.SentenceShadowingGame })));
+const FlashcardRecallGame = React.lazy(() => import('./FlashcardRecallGame').then((m) => ({ default: m.FlashcardRecallGame })));
 import {
   DEFAULT_MOM_PHOTO,
   DEFAULT_DAD_PHOTO,
@@ -1058,6 +1060,7 @@ export const StudentWordGame: React.FC<StudentWordGameProps> = ({
       </div>
 
       <div className="flex-1 min-h-0 max-w-4xl w-full mx-auto flex flex-col justify-start overflow-y-auto">
+      <Suspense fallback={<LazyLoadingFallback label="미니게임을 불러오는 중입니다..." />}>
 
       {/* ==================================================== */}
       {/* GAME 0 UI: FLASHCARD RECALL (4지선다 리콜 & 암기 승급) */}
@@ -1671,6 +1674,7 @@ export const StudentWordGame: React.FC<StudentWordGameProps> = ({
           onQuit={handleCloseGame}
         />
       )}
+      </Suspense>
       </div>
 
       {/* ==================================================== */}

@@ -45,7 +45,11 @@ export function getDailyQuestProgress(): DailyQuestProgress {
     gameCompleted: false,
     isClaimed: false,
   };
-  saveDailyQuestProgress(initial);
+  try {
+    localStorage.setItem(QUEST_STORAGE_KEY, JSON.stringify(initial));
+  } catch {
+    // ignore
+  }
   return initial;
 }
 

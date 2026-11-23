@@ -1,3 +1,13 @@
+export interface VocabSrsState {
+  intervalDays: number;
+  easeFactor: number;
+  repetitionCount: number;
+  nextReviewAt: string; // ISO timestamp
+  lastReviewedAt?: string;
+  lastRating?: 'again' | 'hard' | 'good' | 'easy';
+  lapseCount?: number;
+}
+
 export interface VocabItem {
   id: string;
   word: string;
@@ -13,6 +23,7 @@ export interface VocabItem {
   isBookmarked?: boolean;
   tip?: string;
   repeatCount?: number;
+  srs?: VocabSrsState;
 }
 
 export interface SentenceItem {

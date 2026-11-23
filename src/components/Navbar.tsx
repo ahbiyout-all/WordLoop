@@ -1,39 +1,35 @@
 import React, { useState, useRef, useEffect } from 'react';
 import {
-  Target,
+  LayoutGrid,
   BookOpen,
-  Sparkles,
-  Trophy,
+  Compass,
   BarChart3,
-  RotateCcw,
-  Volume2,
+  Gamepad2,
+  Trophy,
+  MessageSquare,
+  Sparkles,
+  Search,
+  Target,
+  HardDrive,
   Moon,
   Sun,
-  Search,
-  Key,
-  Gamepad2,
-  History,
-  User,
-  Flame,
-  Smartphone,
-  MessageSquare,
-  LayoutGrid,
-  Download,
-  ChevronDown,
-  Menu,
-  X,
   SlidersHorizontal,
-  ExternalLink,
-  CheckCircle2,
-  Settings,
+  Download,
+  History,
+  Key,
+  Smartphone,
+  Volume2,
   Cpu,
+  Flame,
+  Shuffle,
+  X,
+  ChevronDown,
 } from 'lucide-react';
 import { ActiveTab, UserProfile } from '../types';
 import { getUserGeminiKey } from '../services/apiClient';
 import { UpdateCheckResult } from '../services/githubUpdateService';
 import { RealtimeAudioSpeedWidget } from './RealtimeAudioSpeedWidget';
-import { LevelExperienceBar } from './LevelExperienceBar';
-import { StudentLevelInfo, calculateStudentLevel } from '../services/studentGamificationService';
+import { StudentLevelInfo } from '../services/studentGamificationService';
 import { APP_VERSION } from '../constants/version';
 
 interface NavbarProps {
@@ -60,6 +56,7 @@ interface NavbarProps {
   onOpenAudioSettings?: () => void;
   onOpenNativeDllModal?: () => void;
   onOpenRecordingHistory?: () => void;
+  onOpenJsonBackup?: () => void;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
@@ -75,7 +72,6 @@ export const Navbar: React.FC<NavbarProps> = ({
   onOpenGitHubUpdateModal,
   updateData,
   userProfile,
-  levelInfo,
   onOpenProfileModal,
   onTriggerRandomLaunch,
   onOpenDailyQuest,
@@ -86,22 +82,16 @@ export const Navbar: React.FC<NavbarProps> = ({
   onOpenAudioSettings,
   onOpenNativeDllModal,
   onOpenRecordingHistory,
+  onOpenJsonBackup,
 }) => {
   const [hasCustomKey, setHasCustomKey] = useState<boolean>(() => Boolean(getUserGeminiKey()));
-  const [isMoreMenuOpen, setIsMoreMenuOpen] = useState<boolean>(false);
+  const [isExploreMenuOpen, setIsExploreMenuOpen] = useState<boolean>(false);
   const [isToolsMenuOpen, setIsToolsMenuOpen] = useState<boolean>(false);
-  const [isMobileDrawerOpen, setIsMobileDrawerOpen] = useState<boolean>(false);
+  const [isMobileSheetOpen, setIsMobileSheetOpen] = useState<boolean>(false);
 
-  const moreMenuRef = useRef<HTMLDivElement>(null);
+  const exploreMenuRef = useRef<HTMLDivElement>(null);
   const toolsMenuRef = useRef<HTMLDivElement>(null);
 
-  // Compute student level info for experience bar tracking
-  const computedLevelInfo = levelInfo || calculateStudentLevel({
-    totalRepeatsCount: repeatCount,
-    streakDays: userProfile?.streakDays ?? 1,
-  });
-
-  // Sync API Key state
   useEffect(() => {
     const syncKey = () => setHasCustomKey(Boolean(getUserGeminiKey()));
     window.addEventListener('wordloop_api_key_changed', syncKey);
@@ -112,12 +102,11 @@ export const Navbar: React.FC<NavbarProps> = ({
     };
   }, []);
 
-  // Handle outside click to close popovers
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
       const target = e.target as Node;
-      if (moreMenuRef.current && !moreMenuRef.current.contains(target)) {
-        setIsMoreMenuOpen(false);
+      if (exploreMenuRef.current && !exploreMenuRef.current.contains(target)) {
+        setIsExploreMenuOpen(false);
       }
       if (toolsMenuRef.current && !toolsMenuRef.current.contains(target)) {
         setIsToolsMenuOpen(false);
@@ -127,815 +116,589 @@ export const Navbar: React.FC<NavbarProps> = ({
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  // Check if current tab is one of the secondary "More" tabs
-  const isMoreTabActive = ['dictionary', 'goals', 'ai-gen', 'stats'].includes(activeTab);
+  const isTodayActive = activeTab === 'vocab' && homeViewMode === 'launcher';
+  const isVocabListActive = (activeTab === 'vocab' && homeViewMode === 'list') || activeTab === 'sentences';
+  const isStatsActive = activeTab === 'stats';
+  const isExploreTabActive = ['quiz', 'game', 'roleplay', 'ai-gen', 'dictionary', 'goals'].includes(activeTab);
 
-  // Get display name for active tab in "More"
-  const getMoreActiveLabel = () => {
+  const exploreLabel = (() => {
     switch (activeTab) {
+      case 'quiz':
+        return '퀴즈';
+      case 'game':
+        return '아케이드 게임';
+      case 'roleplay':
+        return 'AI 롤플레잉';
+      case 'ai-gen':
+        return 'AI 단어생성';
       case 'dictionary':
         return '오픈사전';
       case 'goals':
-        return '자기계발';
-      case 'ai-gen':
-        return 'AI 맞춤';
-      case 'stats':
-        return '학습통계';
+        return '목표 루틴';
       default:
-        return '더보기';
+        return '탐색 · 게임';
+    }
+  })();
+
+  const exploreDestinations: Array<{
+    id: ActiveTab;
+    label: string;
+    sub: string;
+    icon: React.ComponentType<{ className?: string }>;
+  }> = [
+    { id: 'quiz', label: '8종 실전 퀴즈', sub: '취약 복습 · 망각곡선', icon: Trophy },
+    { id: 'game', label: '14종 아케이드 게임', sub: '플래시카드 · 버블팝', icon: Gamepad2 },
+    { id: 'roleplay', label: 'AI 원어민 롤플레잉', sub: '상황별 실전 회화', icon: MessageSquare },
+    { id: 'ai-gen', label: 'AI 맞춤 단어 생성', sub: '주제별 단어장 빌드', icon: Sparkles },
+    { id: 'dictionary', label: '글로벌 상용 사전', sub: '어원 · 파생어 검색', icon: Search },
+    { id: 'goals', label: '자기계발 목표 루틴', sub: '습관 추적 & 달성률', icon: Target },
+  ];
+
+  const handleGoToday = () => {
+    if (onGoToLauncher) {
+      onGoToLauncher();
+    } else {
+      setActiveTab('vocab');
+    }
+  };
+
+  const handleGoList = () => {
+    if (onSwitchToListMode) {
+      onSwitchToListMode();
+    } else {
+      setActiveTab('vocab');
     }
   };
 
   return (
-    <header className="sticky top-0 z-30 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border-b border-slate-200/80 dark:border-slate-800/80 transition-colors shadow-xs">
-      <div className="max-w-7xl mx-auto px-2 sm:px-4 h-13 sm:h-14 md:h-15 flex items-center justify-between gap-1.5 sm:gap-2">
-        
-        {/* ========================================================= */}
-        {/* 1. Left Brand / Logo Button */}
-        {/* ========================================================= */}
+    <>
+      {/* ========================================================= */}
+      {/* 3-Zone Clean Sticky Top Bar (Desktop 56px / Mobile 52px)   */}
+      {/* ========================================================= */}
+      <header className="sticky top-0 z-30 bg-white/90 dark:bg-slate-900/90 backdrop-blur-md border-b border-slate-200 dark:border-slate-800 transition-colors">
+        <div className="max-w-6xl mx-auto px-3 sm:px-5 h-13 md:h-14 flex items-center justify-between gap-2">
+          {/* ZONE 1: Left Brand + Version */}
+          <div className="flex items-center gap-2 shrink-0">
+            <button
+              type="button"
+              onClick={handleGoToday}
+              className="min-h-[44px] px-1 flex items-center gap-2 text-left cursor-pointer"
+              title="WordLoop 오늘 학습 허브로 이동"
+            >
+              <span className="w-7 h-7 rounded-lg bg-indigo-600 text-white font-display font-extrabold text-sm flex items-center justify-center">
+                W
+              </span>
+              <span className="font-display text-base font-extrabold tracking-tight text-slate-900 dark:text-white">
+                WordLoop
+              </span>
+            </button>
+            {onOpenPatchNotesModal && (
+              <button
+                type="button"
+                onClick={onOpenPatchNotesModal}
+                className="hidden sm:inline-flex items-center px-1.5 py-1 text-xs font-mono-tabular text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors cursor-pointer"
+                title="패치노트 & 버전 기록 보기"
+              >
+                v{APP_VERSION}
+              </button>
+            )}
+          </div>
+
+          {/* ZONE 2: Center 4 Primary Destinations (Desktop/Tablet) */}
+          <nav className="hidden md:flex items-center gap-1" aria-label="주 내비게이션">
+            <button
+              type="button"
+              onClick={handleGoToday}
+              className={`min-h-[40px] px-3.5 rounded-xl text-xs font-semibold transition-colors flex items-center gap-1.5 cursor-pointer ${
+                isTodayActive
+                  ? 'bg-slate-900 dark:bg-white text-white dark:text-slate-950'
+                  : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'
+              }`}
+            >
+              <LayoutGrid className="w-3.5 h-3.5" />
+              <span>오늘 학습</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={handleGoList}
+              className={`min-h-[40px] px-3.5 rounded-xl text-xs font-semibold transition-colors flex items-center gap-1.5 cursor-pointer ${
+                isVocabListActive
+                  ? 'bg-slate-900 dark:bg-white text-white dark:text-slate-950'
+                  : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'
+              }`}
+            >
+              <BookOpen className="w-3.5 h-3.5" />
+              <span>단어장</span>
+            </button>
+
+            {/* Explore Popover */}
+            <div className="relative" ref={exploreMenuRef}>
+              <button
+                type="button"
+                onClick={() => setIsExploreMenuOpen((prev) => !prev)}
+                className={`min-h-[40px] px-3.5 rounded-xl text-xs font-semibold transition-colors flex items-center gap-1.5 cursor-pointer ${
+                  isExploreTabActive
+                    ? 'bg-slate-900 dark:bg-white text-white dark:text-slate-950'
+                    : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'
+                }`}
+              >
+                <Compass className="w-3.5 h-3.5" />
+                <span>{exploreLabel}</span>
+                <ChevronDown className={`w-3.5 h-3.5 transition-transform ${isExploreMenuOpen ? 'rotate-180' : ''}`} />
+              </button>
+
+              {isExploreMenuOpen && (
+                <div className="absolute left-0 mt-2 w-64 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-xl p-1.5 z-50">
+                  {exploreDestinations.map((dest) => {
+                    const Icon = dest.icon;
+                    const active = activeTab === dest.id;
+                    return (
+                      <button
+                        key={dest.id}
+                        type="button"
+                        onClick={() => {
+                          setActiveTab(dest.id);
+                          setIsExploreMenuOpen(false);
+                        }}
+                        className={`w-full min-h-[44px] px-3 py-2 rounded-xl text-left flex items-center gap-2.5 transition-colors cursor-pointer ${
+                          active
+                            ? 'bg-indigo-50 dark:bg-indigo-950/50 text-indigo-700 dark:text-indigo-300'
+                            : 'text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800'
+                        }`}
+                      >
+                        <Icon className="w-4 h-4 shrink-0 text-indigo-600 dark:text-indigo-400" />
+                        <div className="min-w-0">
+                          <div className="text-xs font-semibold truncate">{dest.label}</div>
+                          <div className="text-[11px] text-slate-500 dark:text-slate-400 truncate">{dest.sub}</div>
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
+            <button
+              type="button"
+              onClick={() => setActiveTab('stats')}
+              className={`min-h-[40px] px-3.5 rounded-xl text-xs font-semibold transition-colors flex items-center gap-1.5 cursor-pointer ${
+                isStatsActive
+                  ? 'bg-slate-900 dark:bg-white text-white dark:text-slate-950'
+                  : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'
+              }`}
+            >
+              <BarChart3 className="w-3.5 h-3.5" />
+              <span>학습 통계</span>
+            </button>
+          </nav>
+
+          {/* ZONE 3: Right Compact Utilities */}
+          <div className="flex items-center gap-1 shrink-0">
+            {activeLoopText && (
+              <span className="hidden lg:inline-flex items-center gap-1.5 text-xs font-mono-tabular text-emerald-600 dark:text-emerald-400 mr-1">
+                <span>{isLooping ? '▶' : '⏸'}</span>
+                <span className="max-w-[90px] truncate">{activeLoopText}</span>
+                <span>· {repeatCount}회</span>
+              </span>
+            )}
+
+            <div className="hidden sm:block">
+              <RealtimeAudioSpeedWidget onOpenFullSettings={onOpenAudioSettings} />
+            </div>
+
+            {onOpenJsonBackup && (
+              <button
+                type="button"
+                onClick={onOpenJsonBackup}
+                aria-label="로컬 저장소 및 JSON 백업 관리"
+                title="로컬 저장소 & JSON 백업"
+                className="min-w-[40px] min-h-[40px] md:min-w-[40px] rounded-xl text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center justify-center transition-colors cursor-pointer"
+              >
+                <HardDrive className="w-4 h-4" />
+              </button>
+            )}
+
+            <button
+              type="button"
+              onClick={() => setDarkMode(!darkMode)}
+              aria-label={darkMode ? '라이트 모드로 전환' : '다크 모드로 전환'}
+              title={darkMode ? '라이트 모드' : '다크 모드'}
+              className="min-w-[40px] min-h-[40px] rounded-xl text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center justify-center transition-colors cursor-pointer"
+            >
+              {darkMode ? <Sun className="w-4 h-4 text-amber-400" /> : <Moon className="w-4 h-4" />}
+            </button>
+
+            {onOpenProfileModal && (
+              <button
+                type="button"
+                onClick={onOpenProfileModal}
+                aria-label="내 프로필 열기"
+                title={userProfile ? `${userProfile.name}님 프로필` : '내 프로필'}
+                className="min-w-[40px] min-h-[40px] rounded-xl border border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center justify-center text-sm transition-colors cursor-pointer"
+              >
+                <span>{userProfile?.avatar || '👤'}</span>
+              </button>
+            )}
+
+            {/* Desktop Consolidated Settings Popover */}
+            <div className="relative hidden md:block" ref={toolsMenuRef}>
+              <button
+                type="button"
+                onClick={() => setIsToolsMenuOpen((prev) => !prev)}
+                aria-label="유틸리티 및 시스템 도구"
+                title="유틸리티 & 설정"
+                className="min-w-[40px] min-h-[40px] rounded-xl text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center justify-center relative cursor-pointer"
+              >
+                <SlidersHorizontal className="w-4 h-4" />
+                {updateData?.isUpdateAvailable && (
+                  <span className="w-2 h-2 rounded-full bg-rose-500 absolute top-2 right-2" />
+                )}
+              </button>
+
+              {isToolsMenuOpen && (
+                <div className="absolute right-0 mt-2 w-64 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-xl p-1.5 z-50 space-y-0.5">
+                  <div className="px-3 py-1.5 text-[11px] font-semibold text-slate-400">학습 루틴 & 오디오</div>
+                  {onOpenDailyQuest && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        onOpenDailyQuest();
+                        setIsToolsMenuOpen(false);
+                      }}
+                      className="w-full min-h-[40px] px-3 rounded-xl text-xs font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center gap-2.5 cursor-pointer"
+                    >
+                      <Flame className="w-4 h-4 text-amber-500" />
+                      <span>매일 3분 퀘스트</span>
+                    </button>
+                  )}
+                  {onTriggerRandomLaunch && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        onTriggerRandomLaunch();
+                        setIsToolsMenuOpen(false);
+                      }}
+                      className="w-full min-h-[40px] px-3 rounded-xl text-xs font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center gap-2.5 cursor-pointer"
+                    >
+                      <Shuffle className="w-4 h-4 text-indigo-500" />
+                      <span>랜덤 모드 1-Click</span>
+                    </button>
+                  )}
+                  {onOpenAudioSettings && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        onOpenAudioSettings();
+                        setIsToolsMenuOpen(false);
+                      }}
+                      className="w-full min-h-[40px] px-3 rounded-xl text-xs font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center gap-2.5 cursor-pointer"
+                    >
+                      <Volume2 className="w-4 h-4 text-cyan-600" />
+                      <span>음성 속도 · 발음 설정</span>
+                    </button>
+                  )}
+                  {onOpenRecordingHistory && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        onOpenRecordingHistory();
+                        setIsToolsMenuOpen(false);
+                      }}
+                      className="w-full min-h-[40px] px-3 rounded-xl text-xs font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center gap-2.5 cursor-pointer"
+                    >
+                      <History className="w-4 h-4 text-slate-500" />
+                      <span>발음 녹음 보관함</span>
+                    </button>
+                  )}
+
+                  <div className="my-1 border-t border-slate-100 dark:border-slate-800" />
+                  <div className="px-3 py-1 text-[11px] font-semibold text-slate-400">시스템 · 백업</div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onOpenApiKeyModal();
+                      setIsToolsMenuOpen(false);
+                    }}
+                    className="w-full min-h-[40px] px-3 rounded-xl text-xs font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center justify-between cursor-pointer"
+                  >
+                    <span className="flex items-center gap-2.5">
+                      <Key className="w-4 h-4 text-slate-500" />
+                      <span>Gemini API 키</span>
+                    </span>
+                    <span className="text-[11px] text-slate-400">{hasCustomKey ? '등록됨' : '기본'}</span>
+                  </button>
+                  {onOpenGitHubUpdateModal && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        onOpenGitHubUpdateModal();
+                        setIsToolsMenuOpen(false);
+                      }}
+                      className="w-full min-h-[40px] px-3 rounded-xl text-xs font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center justify-between cursor-pointer"
+                    >
+                      <span className="flex items-center gap-2.5">
+                        <Download className="w-4 h-4 text-indigo-500" />
+                        <span>업데이트 & APK 설치</span>
+                      </span>
+                      <span className="text-[11px] font-mono-tabular text-indigo-500">
+                        {updateData?.isUpdateAvailable ? `v${updateData.latestVersion}` : `v${APP_VERSION}`}
+                      </span>
+                    </button>
+                  )}
+                  {onOpenPatchNotesModal && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        onOpenPatchNotesModal();
+                        setIsToolsMenuOpen(false);
+                      }}
+                      className="w-full min-h-[40px] px-3 rounded-xl text-xs font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center gap-2.5 cursor-pointer"
+                    >
+                      <History className="w-4 h-4 text-emerald-500" />
+                      <span>패치노트 v{APP_VERSION}</span>
+                    </button>
+                  )}
+                  {onOpenAddToHome && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        onOpenAddToHome();
+                        setIsToolsMenuOpen(false);
+                      }}
+                      className="w-full min-h-[40px] px-3 rounded-xl text-xs font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center gap-2.5 cursor-pointer"
+                    >
+                      <Smartphone className="w-4 h-4 text-slate-500" />
+                      <span>홈 화면 추가 (PWA)</span>
+                    </button>
+                  )}
+                  {onOpenNativeDllModal && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        onOpenNativeDllModal();
+                        setIsToolsMenuOpen(false);
+                      }}
+                      className="w-full min-h-[40px] px-3 rounded-xl text-xs font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center gap-2.5 cursor-pointer"
+                    >
+                      <Cpu className="w-4 h-4 text-slate-500" />
+                      <span>네이티브 DLL 기술 명세</span>
+                    </button>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      </header>
+
+      {/* ========================================================= */}
+      {/* Mobile Fixed Bottom 4-Tab Bar (Thumb Zone, 56px, <=15% cap)*/}
+      {/* ========================================================= */}
+      <nav
+        aria-label="모바일 하단 내비게이션"
+        className="md:hidden fixed bottom-0 left-0 right-0 z-40 h-14 pb-[env(safe-area-inset-bottom,0px)] bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border-t border-slate-200 dark:border-slate-800 grid grid-cols-4 items-center"
+      >
         <button
           type="button"
-          className="h-8.5 sm:h-9 px-2.5 sm:px-3 rounded-xl bg-gradient-to-tr from-emerald-500 via-teal-500 to-indigo-600 text-slate-950 font-black flex items-center gap-1.5 shadow-md shadow-emerald-500/20 shrink-0 cursor-pointer hover:scale-105 active:scale-95 transition-transform"
           onClick={() => {
-            if (onGoToLauncher) {
-              onGoToLauncher();
-            } else {
-              setActiveTab('vocab');
-            }
+            setIsMobileSheetOpen(false);
+            handleGoToday();
           }}
-          title="WordLoop 홈(대형 런처)으로 이동"
+          className={`min-h-[44px] flex flex-col items-center justify-center gap-0.5 cursor-pointer ${
+            isTodayActive && !isMobileSheetOpen
+              ? 'text-indigo-600 dark:text-indigo-400 font-bold'
+              : 'text-slate-500 dark:text-slate-400 font-medium'
+          }`}
         >
-          <span className="text-sm leading-none">🔤</span>
-          <span className="text-xs sm:text-sm font-black tracking-tighter leading-none text-white drop-shadow-xs">
-            WordLoop
-          </span>
+          <LayoutGrid className="w-5 h-5" />
+          <span className="text-[10.5px] leading-none">오늘</span>
         </button>
 
-        {/* ========================================================= */}
-        {/* 2. Center Nav: Core Quick Chips + "More" Dropdown (Desktop/Tablet) */}
-        {/* ========================================================= */}
-        <nav className="hidden md:flex items-center gap-1 bg-slate-100/90 dark:bg-slate-800/80 p-1 rounded-2xl border border-slate-200/70 dark:border-slate-700/70 shrink-0">
-          
-          {/* Chip 1: Home (Launcher) */}
-          <button
-            onClick={() => {
-              if (onGoToLauncher) {
-                onGoToLauncher();
-              } else {
-                setActiveTab('vocab');
-              }
-            }}
-            className={`px-2.5 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 whitespace-nowrap cursor-pointer ${
-              activeTab === 'vocab' && homeViewMode === 'launcher'
-                ? 'bg-emerald-500 text-slate-950 font-black shadow-sm'
-                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 hover:bg-white/50 dark:hover:bg-slate-700/50'
-            }`}
-            title="WordLoop 대형 아이콘 런처 홈"
-          >
-            <LayoutGrid className="w-3.5 h-3.5 shrink-0" />
-            <span>홈</span>
-          </button>
+        <button
+          type="button"
+          onClick={() => {
+            setIsMobileSheetOpen(false);
+            handleGoList();
+          }}
+          className={`min-h-[44px] flex flex-col items-center justify-center gap-0.5 cursor-pointer ${
+            isVocabListActive && !isMobileSheetOpen
+              ? 'text-indigo-600 dark:text-indigo-400 font-bold'
+              : 'text-slate-500 dark:text-slate-400 font-medium'
+          }`}
+        >
+          <BookOpen className="w-5 h-5" />
+          <span className="text-[10.5px] leading-none">단어장</span>
+        </button>
 
-          {/* Chip 2: Vocab List */}
-          <button
-            onClick={() => {
-              if (onSwitchToListMode) {
-                onSwitchToListMode();
-              } else {
-                setActiveTab('vocab');
-              }
-            }}
-            className={`px-2.5 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 whitespace-nowrap cursor-pointer ${
-              (activeTab === 'vocab' && homeViewMode === 'list') || activeTab === 'sentences'
-                ? 'bg-white dark:bg-slate-900 text-emerald-600 dark:text-emerald-400 font-black shadow-sm'
-                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 hover:bg-white/50 dark:hover:bg-slate-700/50'
-            }`}
-            title="3,200+ 단어·문장 학습 목록"
-          >
-            <BookOpen className="w-3.5 h-3.5 shrink-0" />
-            <span>단어장</span>
-          </button>
+        <button
+          type="button"
+          onClick={() => setIsMobileSheetOpen((prev) => !prev)}
+          className={`min-h-[44px] flex flex-col items-center justify-center gap-0.5 cursor-pointer ${
+            isMobileSheetOpen || isExploreTabActive
+              ? 'text-indigo-600 dark:text-indigo-400 font-bold'
+              : 'text-slate-500 dark:text-slate-400 font-medium'
+          }`}
+        >
+          <Compass className="w-5 h-5" />
+          <span className="text-[10.5px] leading-none">탐색</span>
+        </button>
 
-          {/* Chip 3: Quiz */}
-          <button
-            onClick={() => setActiveTab('quiz')}
-            className={`px-2.5 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 whitespace-nowrap cursor-pointer ${
-              activeTab === 'quiz'
-                ? 'bg-white dark:bg-slate-900 text-emerald-600 dark:text-emerald-400 font-black shadow-sm'
-                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 hover:bg-white/50 dark:hover:bg-slate-700/50'
-            }`}
-            title="8종 스마트 퀴즈 & 취약 어휘 맞춤 복습"
-          >
-            <Trophy className="w-3.5 h-3.5 shrink-0" />
-            <span>퀴즈</span>
-          </button>
+        <button
+          type="button"
+          onClick={() => {
+            setIsMobileSheetOpen(false);
+            setActiveTab('stats');
+          }}
+          className={`min-h-[44px] flex flex-col items-center justify-center gap-0.5 cursor-pointer ${
+            isStatsActive && !isMobileSheetOpen
+              ? 'text-indigo-600 dark:text-indigo-400 font-bold'
+              : 'text-slate-500 dark:text-slate-400 font-medium'
+          }`}
+        >
+          <BarChart3 className="w-5 h-5" />
+          <span className="text-[10.5px] leading-none">통계</span>
+        </button>
+      </nav>
 
-          {/* Chip 4: Games */}
-          <button
-            onClick={() => setActiveTab('game')}
-            className={`px-2.5 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 whitespace-nowrap cursor-pointer ${
-              activeTab === 'game'
-                ? 'bg-white dark:bg-slate-900 text-indigo-600 dark:text-indigo-400 font-black shadow-sm'
-                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 hover:bg-white/50 dark:hover:bg-slate-700/50'
-            }`}
-            title="14종 단어·문장 게이미피케이션"
-          >
-            <Gamepad2 className="w-3.5 h-3.5 shrink-0 text-indigo-500" />
-            <span>게임</span>
-          </button>
-
-          {/* Chip 5: AI Roleplay */}
-          <button
-            onClick={() => setActiveTab('roleplay')}
-            className={`px-2.5 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 whitespace-nowrap cursor-pointer ${
-              activeTab === 'roleplay'
-                ? 'bg-white dark:bg-slate-900 text-purple-600 dark:text-purple-400 font-black shadow-sm'
-                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 hover:bg-white/50 dark:hover:bg-slate-700/50'
-            }`}
-            title="교육과정 연계 원어민 AI 대화형 롤플레잉"
-          >
-            <MessageSquare className="w-3.5 h-3.5 shrink-0 text-purple-500" />
-            <span>AI 롤플레잉</span>
-          </button>
-
-          {/* "More" Dropdown Popover */}
-          <div className="relative" ref={moreMenuRef}>
-            <button
-              onClick={() => setIsMoreMenuOpen((prev) => !prev)}
-              className={`px-2.5 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1 whitespace-nowrap cursor-pointer ${
-                isMoreTabActive
-                  ? 'bg-white dark:bg-slate-900 text-emerald-600 dark:text-emerald-400 font-black shadow-sm border border-emerald-500/20'
-                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 hover:bg-white/50 dark:hover:bg-slate-700/50'
-              }`}
-              title="오픈사전, AI맞춤, 자기계발, 학습통계 더보기 메뉴"
-            >
-              <span>{isMoreTabActive ? getMoreActiveLabel() : '더보기'}</span>
-              <ChevronDown className={`w-3.5 h-3.5 transition-transform duration-200 ${isMoreMenuOpen ? 'rotate-180' : ''}`} />
-            </button>
-
-            {isMoreMenuOpen && (
-              <div className="absolute left-0 mt-2 w-56 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-xl p-1.5 z-50 animate-in fade-in zoom-in-95 duration-150">
-                <div className="px-2.5 py-1 text-[10px] font-black uppercase tracking-wider text-slate-400 dark:text-slate-500 border-b border-slate-100 dark:border-slate-800/80 mb-1">
-                  부가 학습 & 분석 도구
-                </div>
-
-                {/* 1. Open Dictionary */}
-                <button
-                  onClick={() => {
-                    setActiveTab('dictionary');
-                    setIsMoreMenuOpen(false);
-                  }}
-                  className={`w-full px-2.5 py-2 rounded-xl text-xs font-bold flex items-center justify-between transition-colors ${
-                    activeTab === 'dictionary'
-                      ? 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400'
-                      : 'text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'
-                  }`}
-                >
-                  <div className="flex items-center gap-2">
-                    <Search className="w-4 h-4 text-emerald-500" />
-                    <span>오픈사전 검색</span>
-                  </div>
-                  <span className="text-[10px] text-slate-400 font-mono">1·2·5</span>
-                </button>
-
-                {/* 2. AI Generator */}
-                <button
-                  onClick={() => {
-                    setActiveTab('ai-gen');
-                    setIsMoreMenuOpen(false);
-                  }}
-                  className={`w-full px-2.5 py-2 rounded-xl text-xs font-bold flex items-center justify-between transition-colors ${
-                    activeTab === 'ai-gen'
-                      ? 'bg-purple-50 dark:bg-purple-950/40 text-purple-600 dark:text-purple-400'
-                      : 'text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'
-                  }`}
-                >
-                  <div className="flex items-center gap-2">
-                    <Sparkles className="w-4 h-4 text-purple-500" />
-                    <span>AI 맞춤단어 생성</span>
-                  </div>
-                  <span className="text-[10px] text-purple-500 font-semibold">Gemini</span>
-                </button>
-
-                {/* 3. Goals */}
-                <button
-                  onClick={() => {
-                    setActiveTab('goals');
-                    setIsMoreMenuOpen(false);
-                  }}
-                  className={`w-full px-2.5 py-2 rounded-xl text-xs font-bold flex items-center justify-between transition-colors ${
-                    activeTab === 'goals'
-                      ? 'bg-teal-50 dark:bg-teal-950/40 text-teal-600 dark:text-teal-400'
-                      : 'text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'
-                  }`}
-                >
-                  <div className="flex items-center gap-2">
-                    <Target className="w-4 h-4 text-teal-500" />
-                    <span>자기계발 목표 관리</span>
-                  </div>
-                  <span className="text-[10px] text-teal-500 font-semibold">루틴</span>
-                </button>
-
-                {/* 4. Stats */}
-                <button
-                  onClick={() => {
-                    setActiveTab('stats');
-                    setIsMoreMenuOpen(false);
-                  }}
-                  className={`w-full px-2.5 py-2 rounded-xl text-xs font-bold flex items-center justify-between transition-colors ${
-                    activeTab === 'stats'
-                      ? 'bg-blue-50 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400'
-                      : 'text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'
-                  }`}
-                >
-                  <div className="flex items-center gap-2">
-                    <BarChart3 className="w-4 h-4 text-blue-500" />
-                    <span>학습 통계 & 발음 차트</span>
-                  </div>
-                  <span className="text-[10px] text-blue-500 font-semibold">리포트</span>
-                </button>
-
-                {/* 5. Comical Mom & Dad Nagging Coach */}
-                <button
-                  onClick={() => {
-                    setActiveTab('stats');
-                    setIsMoreMenuOpen(false);
-                  }}
-                  className="w-full px-2.5 py-2 rounded-xl text-xs font-bold flex items-center justify-between transition-colors text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40"
-                >
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm">👩‍🦱</span>
-                    <span>엄빠 사랑의 잔소리</span>
-                  </div>
-                  <span className="text-[10px] text-rose-500 font-bold bg-rose-500/10 px-1.5 py-0.5 rounded">코치</span>
-                </button>
-              </div>
-            )}
-          </div>
-
-        </nav>
-
-        {/* ========================================================= */}
-        {/* 3. Right Toolbar (Essential Quick Controls + Consolidated Tools Popover) */}
-        {/* ========================================================= */}
-        <div className="flex items-center gap-1 sm:gap-1.5 shrink-0">
-          
-          {/* Active Loop Status Pill (Large screen only) */}
-          {activeLoopText && (
-            <div className="hidden 2xl:flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30 text-xs font-bold animate-pulse">
-              <RotateCcw className="w-3 h-3 animate-spin" style={{ animationDuration: isLooping ? '3s' : '0s' }} />
-              <span className="truncate max-w-[90px]">{activeLoopText}</span>
-              <span className="text-[10px] bg-emerald-500 text-slate-950 px-1.5 py-0.2 rounded-full font-extrabold">
-                {repeatCount}회
+      {/* ========================================================= */}
+      {/* Mobile Progressive Disclosure Bottom Sheet                */}
+      {/* ========================================================= */}
+      {isMobileSheetOpen && (
+        <div
+          className="md:hidden fixed inset-0 z-50 bg-slate-950/50 backdrop-blur-xs flex items-end"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setIsMobileSheetOpen(false);
+          }}
+        >
+          <div className="w-full rounded-t-3xl bg-white dark:bg-slate-900 border-t border-slate-200 dark:border-slate-800 max-h-[82dvh] flex flex-col overflow-hidden pb-[env(safe-area-inset-bottom,12px)]">
+            <div className="w-10 h-1.5 rounded-full bg-slate-300 dark:bg-slate-700 mx-auto my-3 shrink-0" />
+            <div className="px-5 pb-3 flex items-center justify-between border-b border-slate-100 dark:border-slate-800">
+              <span className="font-display text-base font-bold text-slate-900 dark:text-white">
+                전체 학습 · 도구 탐색
               </span>
+              <button
+                type="button"
+                onClick={() => setIsMobileSheetOpen(false)}
+                aria-label="닫기"
+                className="min-w-[44px] min-h-[44px] -mr-2 flex items-center justify-center rounded-xl text-slate-500"
+              >
+                <X className="w-5 h-5" />
+              </button>
             </div>
-          )}
 
-          {/* Student Level Experience Bar (Tracks progress toward next student title) */}
-          <div className="hidden sm:flex shrink-0">
-            <LevelExperienceBar
-              levelInfo={computedLevelInfo}
-              onClick={onOpenProfileModal}
-              variant="compact"
-            />
-          </div>
-
-          {/* 1. Real-time Audio Speed Control Widget */}
-          <RealtimeAudioSpeedWidget onOpenFullSettings={onOpenAudioSettings} />
-
-          {/* 2. User Profile Button */}
-          {onOpenProfileModal && (
-            <button
-              onClick={onOpenProfileModal}
-              className={`w-8 h-8 md:w-8.5 md:h-8.5 rounded-xl border text-xs font-bold flex items-center justify-center transition-all active:scale-95 shrink-0 relative cursor-pointer ${
-                userProfile
-                  ? 'bg-slate-100 dark:bg-slate-800 border-slate-200/80 dark:border-slate-700/80 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 shadow-xs'
-                  : 'bg-emerald-500 text-slate-950 border-emerald-400 font-extrabold shadow-md shadow-emerald-500/20'
-              }`}
-              title={userProfile ? `${userProfile.name}님 프로필 & 저장소` : '내 프로필 & 저장소 관리'}
-            >
-              <span className="text-sm leading-none">{userProfile ? userProfile.avatar : '👤'}</span>
-              {userProfile && (
-                <span className="w-2 h-2 rounded-full bg-emerald-500 border border-white dark:border-slate-900 absolute -top-0.5 -right-0.5" />
-              )}
-            </button>
-          )}
-
-          {/* 3. High-Priority Update Pulse Badge (Shown prominently only when update is ready) */}
-          {onOpenGitHubUpdateModal && updateData?.isUpdateAvailable && (
-            <button
-              onClick={onOpenGitHubUpdateModal}
-              className="h-8 md:h-8.5 px-2.5 rounded-xl bg-gradient-to-r from-rose-500 via-indigo-600 to-purple-600 hover:from-rose-600 hover:to-indigo-700 text-white font-black text-[11px] flex items-center gap-1 shadow-md shadow-rose-500/25 animate-pulse shrink-0 active:scale-95 transition-all cursor-pointer"
-              title={`새 버전 v${updateData.latestVersion} 배포됨! 클릭하여 업데이트`}
-            >
-              <Sparkles className="w-3.5 h-3.5 text-amber-300" />
-              <span className="hidden sm:inline">v{updateData.latestVersion}</span>
-              <span className="sm:hidden">업데이트</span>
-            </button>
-          )}
-
-          {/* 4. Consolidated Tools Popover Menu (⚙️ 도구 모음 드롭다운) */}
-          <div className="relative" ref={toolsMenuRef}>
-            <button
-              onClick={() => setIsToolsMenuOpen((prev) => !prev)}
-              className="w-8 h-8 md:w-8.5 md:h-8.5 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 border border-slate-200/80 dark:border-slate-700/80 flex items-center justify-center transition-colors shrink-0 relative cursor-pointer"
-              title="추가 유틸리티 및 설정 도구 모음"
-            >
-              <SlidersHorizontal className="w-3.5 h-3.5 md:w-4 md:h-4 text-slate-600 dark:text-slate-400" />
-              {(hasCustomKey || updateData?.isUpdateAvailable) && (
-                <span className="w-1.5 h-1.5 rounded-full bg-indigo-500 absolute top-1 right-1" />
-              )}
-            </button>
-
-            {isToolsMenuOpen && (
-              <div className="absolute right-0 mt-2 w-64 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-2xl p-1.5 z-50 animate-in fade-in zoom-in-95 duration-150">
-                <div className="px-3 py-1.5 text-[10px] font-black uppercase tracking-wider text-slate-400 dark:text-slate-500 border-b border-slate-100 dark:border-slate-800 mb-1 flex items-center justify-between">
-                  <span>유틸리티 도구 & 설정</span>
-                  <Settings className="w-3 h-3 text-slate-400" />
+            <div className="p-4 overflow-y-auto space-y-5">
+              <div>
+                <div className="text-[11px] font-semibold text-slate-400 mb-2">학습 모드</div>
+                <div className="grid grid-cols-2 gap-2">
+                  {exploreDestinations.map((dest) => {
+                    const Icon = dest.icon;
+                    return (
+                      <button
+                        key={dest.id}
+                        type="button"
+                        onClick={() => {
+                          setActiveTab(dest.id);
+                          setIsMobileSheetOpen(false);
+                        }}
+                        className="min-h-[56px] p-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/60 dark:bg-slate-800/50 text-left flex items-center gap-2.5 cursor-pointer"
+                      >
+                        <Icon className="w-4 h-4 text-indigo-600 dark:text-indigo-400 shrink-0" />
+                        <div className="min-w-0">
+                          <div className="text-xs font-bold text-slate-900 dark:text-white truncate">{dest.label}</div>
+                          <div className="text-[10.5px] text-slate-500 dark:text-slate-400 truncate">{dest.sub}</div>
+                        </div>
+                      </button>
+                    );
+                  })}
                 </div>
-
-                {/* 1. Daily 3-Minute Quest */}
-                {onOpenDailyQuest && (
-                  <button
-                    onClick={() => {
-                      onOpenDailyQuest();
-                      setIsToolsMenuOpen(false);
-                    }}
-                    className="w-full px-2.5 py-2 rounded-xl text-xs font-bold flex items-center justify-between text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
-                  >
-                    <div className="flex items-center gap-2">
-                      <Flame className="w-4 h-4 text-orange-500" />
-                      <span>매일 3분 퀘스트</span>
-                    </div>
-                    <span className="text-[10px] px-1.5 py-0.5 rounded bg-orange-500/10 text-orange-600 dark:text-orange-400 font-extrabold">
-                      루틴
-                    </span>
-                  </button>
-                )}
-
-                {/* 2. Random Mode Launch */}
-                {onTriggerRandomLaunch && (
-                  <button
-                    onClick={() => {
-                      onTriggerRandomLaunch();
-                      setIsToolsMenuOpen(false);
-                    }}
-                    className="w-full px-2.5 py-2 rounded-xl text-xs font-bold flex items-center justify-between text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
-                  >
-                    <div className="flex items-center gap-2">
-                      <span className="text-sm">🎲</span>
-                      <span>랜덤 모드 즉시 추첨</span>
-                    </div>
-                    <span className="text-[10px] text-slate-400">랜덤</span>
-                  </button>
-                )}
-
-                {/* 3. BYOK Gemini API Key */}
-                <button
-                  onClick={() => {
-                    onOpenApiKeyModal();
-                    setIsToolsMenuOpen(false);
-                  }}
-                  className="w-full px-2.5 py-2 rounded-xl text-xs font-bold flex items-center justify-between text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
-                >
-                  <div className="flex items-center gap-2">
-                    <Key className={`w-4 h-4 ${hasCustomKey ? 'text-amber-500' : 'text-slate-400'}`} />
-                    <span>개인 Gemini API Key</span>
-                  </div>
-                  <span className={`text-[10px] px-1.5 py-0.5 rounded font-bold ${
-                    hasCustomKey
-                      ? 'bg-amber-500/10 text-amber-600 dark:text-amber-400'
-                      : 'bg-slate-100 dark:bg-slate-800 text-slate-400'
-                  }`}>
-                    {hasCustomKey ? '설정됨' : '기본'}
-                  </span>
-                </button>
-
-                {/* 4. GitHub Releases & Update Center */}
-                {onOpenGitHubUpdateModal && (
-                  <button
-                    onClick={() => {
-                      onOpenGitHubUpdateModal();
-                      setIsToolsMenuOpen(false);
-                    }}
-                    className="w-full px-2.5 py-2 rounded-xl text-xs font-bold flex items-center justify-between text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
-                  >
-                    <div className="flex items-center gap-2">
-                      <Download className="w-4 h-4 text-indigo-500" />
-                      <span>업데이트 & 설치파일</span>
-                    </div>
-                    <span className="text-[10px] font-mono text-indigo-500 font-bold">
-                      {updateData?.latestVersion ? `v${updateData.latestVersion}` : 'Releases'}
-                    </span>
-                  </button>
-                )}
-
-                {/* 5. Patch Notes Modal */}
-                {onOpenPatchNotesModal && (
-                  <button
-                    onClick={() => {
-                      onOpenPatchNotesModal();
-                      setIsToolsMenuOpen(false);
-                    }}
-                    className="w-full px-2.5 py-2 rounded-xl text-xs font-bold flex items-center justify-between text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
-                  >
-                    <div className="flex items-center gap-2">
-                      <History className="w-4 h-4 text-emerald-500" />
-                      <span>패치노트 & 버전 기록</span>
-                    </div>
-                    <span className="text-[10px] text-emerald-500 font-semibold">Docs</span>
-                  </button>
-                )}
-
-                {/* 6. Pure Proprietary Native DLL Docs Modal */}
-                {onOpenNativeDllModal && (
-                  <button
-                    onClick={() => {
-                      onOpenNativeDllModal();
-                      setIsToolsMenuOpen(false);
-                    }}
-                    className="w-full px-2.5 py-2 rounded-xl text-xs font-bold flex items-center justify-between text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
-                  >
-                    <div className="flex items-center gap-2">
-                      <Cpu className="w-4 h-4 text-indigo-500" />
-                      <span>순수 창작 DLL 기술 명세서</span>
-                    </div>
-                    <span className="text-[10px] px-1.5 py-0.5 rounded bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 font-bold">
-                      x64
-                    </span>
-                  </button>
-                )}
-
-                {/* Voice Recording History & AudioEngine DTW Comparison */}
-                {onOpenRecordingHistory && (
-                  <button
-                    onClick={() => {
-                      onOpenRecordingHistory();
-                      setIsToolsMenuOpen(false);
-                    }}
-                    className="w-full px-2.5 py-2 rounded-xl text-xs font-bold flex items-center justify-between text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
-                  >
-                    <div className="flex items-center gap-2">
-                      <History className="w-4 h-4 text-blue-500" />
-                      <span>음성 녹음 보관함 &amp; DTW 비교</span>
-                    </div>
-                    <span className="text-[10px] px-1.5 py-0.5 rounded bg-blue-500/10 text-blue-600 dark:text-blue-400 font-bold">
-                      AudioEngine
-                    </span>
-                  </button>
-                )}
-
-                {/* 6. Add to Home Screen (PWA Guide) */}
-                {onOpenAddToHome && (
-                  <button
-                    onClick={() => {
-                      onOpenAddToHome();
-                      setIsToolsMenuOpen(false);
-                    }}
-                    className="w-full px-2.5 py-2 rounded-xl text-xs font-bold flex items-center justify-between text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
-                  >
-                    <div className="flex items-center gap-2">
-                      <Smartphone className="w-4 h-4 text-teal-500" />
-                      <span>홈 화면에 추가 (PWA)</span>
-                    </div>
-                    <span className="text-[10px] text-teal-500 font-semibold">설치</span>
-                  </button>
-                )}
-
-                {/* 7. Android Standalone APK Direct Download */}
-                <button
-                  onClick={() => {
-                    setIsToolsMenuOpen(false);
-                    if (onOpenAddToHome) {
-                      onOpenAddToHome();
-                    } else {
-                      window.open('https://github.com/ahbiyout-all/WordLoop/releases', '_blank');
-                    }
-                  }}
-                  className="w-full px-2.5 py-2 rounded-xl text-xs font-bold flex items-center justify-between text-slate-700 dark:text-slate-300 hover:bg-emerald-50 dark:hover:bg-emerald-950/40 hover:text-emerald-700 dark:hover:text-emerald-300 transition-colors cursor-pointer group"
-                >
-                  <div className="flex items-center gap-2">
-                    <Smartphone className="w-4 h-4 text-emerald-500 group-hover:scale-110 transition-transform" />
-                    <span>안드로이드 APK 설치 센터</span>
-                  </div>
-                  <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 font-bold">
-                    v{APP_VERSION}
-                  </span>
-                </button>
-
-                {/* 7. Full Audio Settings */}
-                {onOpenAudioSettings && (
-                  <button
-                    onClick={() => {
-                      onOpenAudioSettings();
-                      setIsToolsMenuOpen(false);
-                    }}
-                    className="w-full px-2.5 py-2 rounded-xl text-xs font-bold flex items-center justify-between text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
-                  >
-                    <div className="flex items-center gap-2">
-                      <Volume2 className="w-4 h-4 text-blue-500" />
-                      <span>발음 및 오디오 상세 설정</span>
-                    </div>
-                    <span className="text-[10px] text-slate-400">옵션</span>
-                  </button>
-                )}
               </div>
-            )}
-          </div>
 
-          {/* 5. Dark Mode Toggle Button */}
-          <button
-            onClick={() => setDarkMode(!darkMode)}
-            className="w-8 h-8 md:w-8.5 md:h-8.5 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 border border-slate-200/80 dark:border-slate-700/80 flex items-center justify-center transition-colors shrink-0 cursor-pointer"
-            title={darkMode ? "라이트 모드로 변경" : "다크 모드로 변경"}
-          >
-            {darkMode ? <Sun className="w-3.5 h-3.5 md:w-4 md:h-4 text-amber-400" /> : <Moon className="w-3.5 h-3.5 md:w-4 md:h-4" />}
-          </button>
-
-        </div>
-
-      </div>
-
-      {/* ========================================================= */}
-      {/* 4. Mobile Navigation Bar (Clean 4-Chip + "All Menu" Pull-down) */}
-      {/* ========================================================= */}
-      <div className="grid grid-cols-5 md:hidden border-t border-slate-200/80 dark:border-slate-800/80 bg-slate-50/95 dark:bg-slate-900/95 backdrop-blur-sm px-1 py-1 gap-1 items-center text-[10.5px] font-bold">
-        
-        {/* Mobile Chip 1: Home */}
-        <button
-          onClick={() => {
-            if (onGoToLauncher) {
-              onGoToLauncher();
-            } else {
-              setActiveTab('vocab');
-            }
-          }}
-          className={`py-1.5 px-1 rounded-xl flex flex-col items-center justify-center gap-0.5 min-w-0 cursor-pointer ${
-            activeTab === 'vocab' && homeViewMode === 'launcher'
-              ? 'text-emerald-600 dark:text-emerald-400 bg-white dark:bg-slate-800 shadow-xs font-black'
-              : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
-          }`}
-          title="WordLoop 홈"
-        >
-          <LayoutGrid className="w-4 h-4 text-emerald-500 shrink-0" />
-          <span className="tracking-tighter truncate w-full text-center">홈</span>
-        </button>
-
-        {/* Mobile Chip 2: Vocab List */}
-        <button
-          onClick={() => {
-            if (onSwitchToListMode) {
-              onSwitchToListMode();
-            } else {
-              setActiveTab('vocab');
-            }
-          }}
-          className={`py-1.5 px-1 rounded-xl flex flex-col items-center justify-center gap-0.5 min-w-0 cursor-pointer ${
-            (activeTab === 'vocab' && homeViewMode === 'list') || activeTab === 'sentences'
-              ? 'text-emerald-600 dark:text-emerald-400 bg-white dark:bg-slate-800 shadow-xs font-black'
-              : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
-          }`}
-          title="단어장 학습 목록"
-        >
-          <BookOpen className="w-4 h-4 shrink-0" />
-          <span className="tracking-tighter truncate w-full text-center">단어장</span>
-        </button>
-
-        {/* Mobile Chip 3: Quiz */}
-        <button
-          onClick={() => setActiveTab('quiz')}
-          className={`py-1.5 px-1 rounded-xl flex flex-col items-center justify-center gap-0.5 min-w-0 cursor-pointer ${
-            activeTab === 'quiz'
-              ? 'text-emerald-600 dark:text-emerald-400 bg-white dark:bg-slate-800 shadow-xs font-black'
-              : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
-          }`}
-          title="퀴즈 복습"
-        >
-          <Trophy className="w-4 h-4 text-emerald-500 shrink-0" />
-          <span className="tracking-tighter truncate w-full text-center">퀴즈</span>
-        </button>
-
-        {/* Mobile Chip 4: Games */}
-        <button
-          onClick={() => setActiveTab('game')}
-          className={`py-1.5 px-1 rounded-xl flex flex-col items-center justify-center gap-0.5 min-w-0 cursor-pointer ${
-            activeTab === 'game'
-              ? 'text-indigo-600 dark:text-indigo-400 bg-white dark:bg-slate-800 shadow-xs font-black'
-              : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
-          }`}
-          title="14종 단어·문장 게임"
-        >
-          <Gamepad2 className="w-4 h-4 text-indigo-500 shrink-0" />
-          <span className="tracking-tighter truncate w-full text-center">게임</span>
-        </button>
-
-        {/* Mobile Chip 5: "All Menu" Pull-down Toggle */}
-        <button
-          onClick={() => setIsMobileDrawerOpen((prev) => !prev)}
-          className={`py-1.5 px-1 rounded-xl flex flex-col items-center justify-center gap-0.5 min-w-0 cursor-pointer transition-colors ${
-            isMobileDrawerOpen || isMoreTabActive || activeTab === 'roleplay'
-              ? 'text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/60 shadow-xs font-black'
-              : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
-          }`}
-          title="전체 학습 및 부가 메뉴 열기"
-        >
-          {isMobileDrawerOpen ? (
-            <X className="w-4 h-4 text-indigo-500 shrink-0" />
-          ) : (
-            <Menu className="w-4 h-4 text-indigo-500 shrink-0" />
-          )}
-          <span className="tracking-tighter truncate w-full text-center">전체 메뉴</span>
-        </button>
-
-      </div>
-
-      {/* ========================================================= */}
-      {/* 5. Mobile Pull-down Drawer / Sheet */}
-      {/* ========================================================= */}
-      {isMobileDrawerOpen && (
-        <div className="md:hidden border-t border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-3 shadow-xl animate-in slide-in-from-top-2 duration-150">
-          
-          {/* Mobile Student Level Experience Bar */}
-          <div className="mb-3">
-            <LevelExperienceBar
-              levelInfo={computedLevelInfo}
-              onClick={() => {
-                if (onOpenProfileModal) onOpenProfileModal();
-                setIsMobileDrawerOpen(false);
-              }}
-              variant="full"
-            />
-          </div>
-
-          <div className="text-[11px] font-black uppercase tracking-wider text-slate-400 dark:text-slate-500 mb-2">
-            전체 학습 & AI 도구 모음
-          </div>
-
-          <div className="grid grid-cols-2 gap-2">
-            
-            {/* AI Roleplay */}
-            <button
-              onClick={() => {
-                setActiveTab('roleplay');
-                setIsMobileDrawerOpen(false);
-              }}
-              className={`p-2.5 rounded-xl border text-left flex items-center gap-2.5 transition-colors cursor-pointer ${
-                activeTab === 'roleplay'
-                  ? 'bg-purple-50 dark:bg-purple-950/40 border-purple-300 dark:border-purple-800 text-purple-700 dark:text-purple-300 font-black'
-                  : 'bg-slate-50 dark:bg-slate-800/60 border-slate-200 dark:border-slate-700/80 text-slate-700 dark:text-slate-300'
-              }`}
-            >
-              <MessageSquare className="w-4 h-4 text-purple-500 shrink-0" />
               <div>
-                <div className="text-xs font-bold leading-tight">AI 롤플레잉</div>
-                <div className="text-[10px] text-slate-400">원어민 실전 대화</div>
-              </div>
-            </button>
-
-            {/* AI Generator */}
-            <button
-              onClick={() => {
-                setActiveTab('ai-gen');
-                setIsMobileDrawerOpen(false);
-              }}
-              className={`p-2.5 rounded-xl border text-left flex items-center gap-2.5 transition-colors cursor-pointer ${
-                activeTab === 'ai-gen'
-                  ? 'bg-purple-50 dark:bg-purple-950/40 border-purple-300 dark:border-purple-800 text-purple-700 dark:text-purple-300 font-black'
-                  : 'bg-slate-50 dark:bg-slate-800/60 border-slate-200 dark:border-slate-700/80 text-slate-700 dark:text-slate-300'
-              }`}
-            >
-              <Sparkles className="w-4 h-4 text-purple-500 shrink-0" />
-              <div>
-                <div className="text-xs font-bold leading-tight">AI 맞춤단어</div>
-                <div className="text-[10px] text-slate-400">맞춤 생성 & 학습</div>
-              </div>
-            </button>
-
-            {/* Open Dictionary */}
-            <button
-              onClick={() => {
-                setActiveTab('dictionary');
-                setIsMobileDrawerOpen(false);
-              }}
-              className={`p-2.5 rounded-xl border text-left flex items-center gap-2.5 transition-colors cursor-pointer ${
-                activeTab === 'dictionary'
-                  ? 'bg-emerald-50 dark:bg-emerald-950/40 border-emerald-300 dark:border-emerald-800 text-emerald-700 dark:text-emerald-300 font-black'
-                  : 'bg-slate-50 dark:bg-slate-800/60 border-slate-200 dark:border-slate-700/80 text-slate-700 dark:text-slate-300'
-              }`}
-            >
-              <Search className="w-4 h-4 text-emerald-500 shrink-0" />
-              <div>
-                <div className="text-xs font-bold leading-tight">오픈사전</div>
-                <div className="text-[10px] text-slate-400">1·2·5종 사전 검색</div>
-              </div>
-            </button>
-
-            {/* Goals */}
-            <button
-              onClick={() => {
-                setActiveTab('goals');
-                setIsMobileDrawerOpen(false);
-              }}
-              className={`p-2.5 rounded-xl border text-left flex items-center gap-2.5 transition-colors cursor-pointer ${
-                activeTab === 'goals'
-                  ? 'bg-teal-50 dark:bg-teal-950/40 border-teal-300 dark:border-teal-800 text-teal-700 dark:text-teal-300 font-black'
-                  : 'bg-slate-50 dark:bg-slate-800/60 border-slate-200 dark:border-slate-700/80 text-slate-700 dark:text-slate-300'
-              }`}
-            >
-              <Target className="w-4 h-4 text-teal-500 shrink-0" />
-              <div>
-                <div className="text-xs font-bold leading-tight">자기계발 목표</div>
-                <div className="text-[10px] text-slate-400">루틴 & 스트릭 관리</div>
-              </div>
-            </button>
-
-            {/* Stats */}
-            <button
-              onClick={() => {
-                setActiveTab('stats');
-                setIsMobileDrawerOpen(false);
-              }}
-              className={`p-2.5 rounded-xl border text-left flex items-center gap-2.5 transition-colors cursor-pointer ${
-                activeTab === 'stats'
-                  ? 'bg-blue-50 dark:bg-blue-950/40 border-blue-300 dark:border-blue-800 text-blue-700 dark:text-blue-300 font-black'
-                  : 'bg-slate-50 dark:bg-slate-800/60 border-slate-200 dark:border-slate-700/80 text-slate-700 dark:text-slate-300'
-              }`}
-            >
-              <BarChart3 className="w-4 h-4 text-blue-500 shrink-0" />
-              <div>
-                <div className="text-xs font-bold leading-tight">학습 통계</div>
-                <div className="text-[10px] text-slate-400">발음 진단 & 리포트</div>
-              </div>
-            </button>
-
-            {/* Daily Quest */}
-            {onOpenDailyQuest && (
-              <button
-                onClick={() => {
-                  onOpenDailyQuest();
-                  setIsMobileDrawerOpen(false);
-                }}
-                className="p-2.5 rounded-xl border border-orange-200 dark:border-orange-800/60 bg-orange-50/50 dark:bg-orange-950/30 text-left flex items-center gap-2.5 transition-colors cursor-pointer"
-              >
-                <Flame className="w-4 h-4 text-orange-500 shrink-0" />
-                <div>
-                  <div className="text-xs font-bold text-orange-700 dark:text-orange-300 leading-tight">3분 퀘스트</div>
-                  <div className="text-[10px] text-slate-400">매일 미션 & 알림</div>
+                <div className="text-[11px] font-semibold text-slate-400 mb-2">루틴 · 백업 · 시스템</div>
+                <div className="divide-y divide-slate-100 dark:divide-slate-800 rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden">
+                  {onOpenJsonBackup && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsMobileSheetOpen(false);
+                        onOpenJsonBackup();
+                      }}
+                      className="w-full min-h-[48px] px-4 flex items-center justify-between text-xs font-semibold text-slate-800 dark:text-slate-100 bg-white dark:bg-slate-900"
+                    >
+                      <span className="flex items-center gap-2.5">
+                        <HardDrive className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
+                        <span>로컬 저장소 & JSON 백업</span>
+                      </span>
+                    </button>
+                  )}
+                  {onOpenDailyQuest && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsMobileSheetOpen(false);
+                        onOpenDailyQuest();
+                      }}
+                      className="w-full min-h-[48px] px-4 flex items-center justify-between text-xs font-semibold text-slate-800 dark:text-slate-100 bg-white dark:bg-slate-900"
+                    >
+                      <span className="flex items-center gap-2.5">
+                        <Flame className="w-4 h-4 text-amber-500" />
+                        <span>일일 3분 퀘스트</span>
+                      </span>
+                    </button>
+                  )}
+                  {onOpenAudioSettings && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsMobileSheetOpen(false);
+                        onOpenAudioSettings();
+                      }}
+                      className="w-full min-h-[48px] px-4 flex items-center justify-between text-xs font-semibold text-slate-800 dark:text-slate-100 bg-white dark:bg-slate-900"
+                    >
+                      <span className="flex items-center gap-2.5">
+                        <Volume2 className="w-4 h-4 text-cyan-600" />
+                        <span>음성 속도 · 발음 설정</span>
+                      </span>
+                    </button>
+                  )}
+                  {onOpenGitHubUpdateModal && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsMobileSheetOpen(false);
+                        onOpenGitHubUpdateModal();
+                      }}
+                      className="w-full min-h-[48px] px-4 flex items-center justify-between text-xs font-semibold text-slate-800 dark:text-slate-100 bg-white dark:bg-slate-900"
+                    >
+                      <span className="flex items-center gap-2.5">
+                        <Download className="w-4 h-4 text-indigo-500" />
+                        <span>업데이트 & APK 설치</span>
+                      </span>
+                      <span className="font-mono-tabular text-[11px] text-slate-400">v{APP_VERSION}</span>
+                    </button>
+                  )}
+                  {onOpenPatchNotesModal && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsMobileSheetOpen(false);
+                        onOpenPatchNotesModal();
+                      }}
+                      className="w-full min-h-[48px] px-4 flex items-center justify-between text-xs font-semibold text-slate-800 dark:text-slate-100 bg-white dark:bg-slate-900"
+                    >
+                      <span className="flex items-center gap-2.5">
+                        <History className="w-4 h-4 text-emerald-500" />
+                        <span>패치노트 보기</span>
+                      </span>
+                    </button>
+                  )}
                 </div>
-              </button>
-            )}
-
-            {/* Native DLL Docs */}
-            {onOpenNativeDllModal && (
-              <button
-                onClick={() => {
-                  onOpenNativeDllModal();
-                  setIsMobileDrawerOpen(false);
-                }}
-                className="p-2.5 rounded-xl border border-indigo-200 dark:border-indigo-800/60 bg-indigo-50/50 dark:bg-indigo-950/30 text-left flex items-center gap-2.5 transition-colors cursor-pointer"
-              >
-                <Cpu className="w-4 h-4 text-indigo-500 shrink-0" />
-                <div>
-                  <div className="text-xs font-bold text-indigo-700 dark:text-indigo-300 leading-tight">순수 창작 DLL</div>
-                  <div className="text-[10px] text-slate-400">동작 원리 명세서</div>
-                </div>
-              </button>
-            )}
-
-            {/* Voice Recording History & AudioEngine DTW */}
-            {onOpenRecordingHistory && (
-              <button
-                onClick={() => {
-                  onOpenRecordingHistory();
-                  setIsMobileDrawerOpen(false);
-                }}
-                className="p-2.5 rounded-xl border border-blue-200 dark:border-blue-800/60 bg-blue-50/50 dark:bg-blue-950/30 text-left flex items-center gap-2.5 transition-colors cursor-pointer"
-              >
-                <History className="w-4 h-4 text-blue-500 shrink-0" />
-                <div>
-                  <div className="text-xs font-bold text-blue-700 dark:text-blue-300 leading-tight">음성 녹음 보관함</div>
-                  <div className="text-[10px] text-slate-400">AudioEngine DTW 비교</div>
-                </div>
-              </button>
-            )}
-
+              </div>
+            </div>
           </div>
-
-          <div className="mt-3 pt-2.5 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between gap-2 text-xs">
-            <span className="text-[11px] text-slate-400 font-medium">
-              WordLoop AI Suite
-            </span>
-            <button
-              onClick={() => setIsMobileDrawerOpen(false)}
-              className="px-3 py-1 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 text-xs font-bold"
-            >
-              닫기
-            </button>
-          </div>
-
         </div>
       )}
-
-    </header>
+    </>
   );
 };

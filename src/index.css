@@ -1,6 +1,16 @@
 @import "tailwindcss";
+@custom-variant dark (&:where(.dark, .dark *));
 
 :root {
+  /* Semantic 60-30-10 Calm Utilitarian EdTech Tokens */
+  --bg-canvas: #fafafa;
+  --bg-surface: #ffffff;
+  --border-hairline: #e2e8f0;
+  --text-primary: #0f172a;
+  --text-secondary: #475569;
+  --accent-primary: #4f46e5;
+  --accent-secondary: #0891b2;
+
   /* Dynamic Viewport Fluid Spacing Variables (Auto-calibrates for any mobile/tablet/desktop resolution) */
   --fluid-px: clamp(0.625rem, 3.2vw, 1.5rem);
   --fluid-py: clamp(0.5rem, 1.5dvh, 1.5rem);
@@ -11,6 +21,30 @@
   --safe-bottom: env(safe-area-inset-bottom, 0px);
   --safe-left: env(safe-area-inset-left, 0px);
   --safe-right: env(safe-area-inset-right, 0px);
+}
+
+.dark {
+  --bg-canvas: #0f172a;
+  --bg-surface: #1e293b;
+  --border-hairline: #334155;
+  --text-primary: #f8fafc;
+  --text-secondary: #94a3b8;
+  --accent-primary: #6366f1;
+  --accent-secondary: #22d3ee;
+}
+
+.font-display {
+  font-family: 'Plus Jakarta Sans', 'DM Sans', -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", "Noto Sans KR", sans-serif;
+  letter-spacing: -0.02em;
+}
+
+.font-mono-tabular {
+  font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-variant-numeric: tabular-nums;
+}
+
+.tabular-nums {
+  font-variant-numeric: tabular-nums;
 }
 
 /* Fluid Container that adapts top/bottom/left/right spacing to device resolution */

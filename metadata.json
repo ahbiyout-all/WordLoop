@@ -1,6 +1,6 @@
 {
   "name": "Self-Improvement & English Vocab",
-  "description": "WordLoop (v4.0.1): ESM child_process execSync fix for on-demand APK build, Grass Planting Monthly Heatmap Calendar with Quiz Flame Animations, High-Accuracy Korean TTS Voice Isolation, and Mobile Self-Updater.",
+  "description": "WordLoop (v4.2.0): 3,210 Grade-Appropriate Curriculum Vocabulary Example Sentences (Elementary / Middle / High-SAT) with Korean Translations, Minimalist TodayHub & Focus Routine Player, SM-2 SRS Spaced Repetition Engine, 3-Tab Calm StatsDashboard, and Schema v2 Checksummed JSON Smart Merge.",
   "requestFramePermissions": [
     "microphone"
   ],
