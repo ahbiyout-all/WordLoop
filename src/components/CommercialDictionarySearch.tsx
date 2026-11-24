@@ -4,6 +4,7 @@ import { VocabItem } from '../types';
 import { speechService } from '../services/speechService';
 import { lookupEmbeddedDict, EMBEDDED_DICTIONARY } from '../data/embeddedDictionary';
 import { getAuthHeaders } from '../services/apiClient';
+import { generateBrowserFreeAiText, extractJsonFromAiText } from '../services/freeAiService';
 
 interface CommercialDictionarySearchProps {
   onAddVocab: (item: Omit<VocabItem, 'id'>) => void;
@@ -60,40 +61,78 @@ export const CommercialDictionarySearch: React.FC<CommercialDictionarySearchProp
         }
       }
       
-      // If server API returns 404/error (e.g. running statically on GitHub Pages or offline), fallback to direct FreeDictionaryAPI
-      const freeRes = await fetch(`https://api.dictionaryapi.dev/api/v2/entries/en/${encodeURIComponent(query)}`);
-      if (freeRes.ok) {
-        const json = await freeRes.json();
-        const entry = Array.isArray(json) ? json[0] : null;
-        if (entry) {
-          const audioObj = entry.phonetics?.find((p: any) => p.audio && p.audio.length > 0);
-          const audioUrl = audioObj ? audioObj.audio : undefined;
-          const ipa = entry.phonetic || entry.phonetics?.find((p: any) => p.text)?.text || '';
-          const meaningObj = entry.meanings?.[0];
-          const partOfSpeech = meaningObj?.partOfSpeech || 'n.';
-          const def = meaningObj?.definitions?.[0]?.definition || '';
-          const example = meaningObj?.definitions?.[0]?.example || '';
-          
+      // If server API returns 404/error (e.g. running statically on GitHub Pages or offline), fallback to FreeDictionaryAPI + browser Free AI
+      let freeEntry: any = null;
+      try {
+        const freeRes = await fetch(`https://api.dictionaryapi.dev/api/v2/entries/en/${encodeURIComponent(query)}`);
+        if (freeRes.ok) {
+          const json = await freeRes.json();
+          freeEntry = Array.isArray(json) ? json[0] : null;
+        }
+      } catch {}
+
+      try {
+        const aiRes = await generateBrowserFreeAiText(
+          `Word/Phrase: "${query}". Reply strictly in raw JSON: {"ipa":"/.../","koreanMeaning":"자연스러운 한국어 뜻","partOfSpeech":"n.","nuanceTip":"짧은 한국어 뉘앙스 팁","examples":[{"en":"English example","ko":"한국어 번역"}]}`,
+          'You are a bilingual English-Korean dictionary for Korean learners. Return valid JSON only with Korean meanings.'
+        );
+        const aiJson = extractJsonFromAiText<any>(aiRes.text);
+        if (aiJson?.koreanMeaning) {
+          const audioObj = freeEntry?.phonetics?.find((p: any) => p.audio && p.audio.length > 0);
+          const meaningObj = freeEntry?.meanings?.[0];
           setResult({
-            word: entry.word,
-            ipa,
-            audioUrl,
-            koreanMeaning: `(영문 정의) ${def}`,
-            meaning: def,
-            partOfSpeech,
-            nuanceTip: `글로벌 오픈 사전(FreeDictionary)에서 직접 조회되었습니다.`,
-            examples: example
-              ? [{ en: example, ko: '' }]
-              : [{ en: `I learned the word ${entry.word} today.`, ko: `나는 오늘 ${entry.word} 단어를 공부했다.` }],
+            word: freeEntry?.word || query,
+            ipa: aiJson.ipa || freeEntry?.phonetic || freeEntry?.phonetics?.find((p: any) => p.text)?.text || '',
+            audioUrl: audioObj ? audioObj.audio : undefined,
+            koreanMeaning: aiJson.koreanMeaning,
+            meaning: meaningObj?.definitions?.[0]?.definition || aiJson.koreanMeaning,
+            partOfSpeech: aiJson.partOfSpeech || meaningObj?.partOfSpeech || 'n.',
+            nuanceTip: aiJson.nuanceTip || '무료 오픈 AI 사전 분석 결과입니다.',
+            examples: Array.isArray(aiJson.examples) && aiJson.examples.length > 0
+              ? aiJson.examples
+              : [{ en: `I learned the word "${query}" today.`, ko: `나는 오늘 "${query}" 표현을 공부했다.` }],
             englishDefinitions: meaningObj?.definitions?.slice(0, 3).map((d: any) => ({
               definition: d.definition,
               example: d.example,
             })) || [],
-            sourcesUsed: ['FreeDictionaryAPI (정적 웹 / GitHub Pages 직접 연동)'],
+            sourcesUsed: [
+              ...(freeEntry ? ['FreeDictionaryAPI'] : []),
+              aiRes.providerName,
+            ],
             isEmbedded: false,
           });
           return;
         }
+      } catch {}
+
+      if (freeEntry) {
+        const audioObj = freeEntry.phonetics?.find((p: any) => p.audio && p.audio.length > 0);
+        const audioUrl = audioObj ? audioObj.audio : undefined;
+        const ipa = freeEntry.phonetic || freeEntry.phonetics?.find((p: any) => p.text)?.text || '';
+        const meaningObj = freeEntry.meanings?.[0];
+        const partOfSpeech = meaningObj?.partOfSpeech || 'n.';
+        const def = meaningObj?.definitions?.[0]?.definition || '';
+        const example = meaningObj?.definitions?.[0]?.example || '';
+
+        setResult({
+          word: freeEntry.word,
+          ipa,
+          audioUrl,
+          koreanMeaning: `(영문 정의) ${def}`,
+          meaning: def,
+          partOfSpeech,
+          nuanceTip: '글로벌 오픈 사전(FreeDictionary)에서 직접 조회되었습니다.',
+          examples: example
+            ? [{ en: example, ko: '' }]
+            : [{ en: `I learned the word ${freeEntry.word} today.`, ko: `나는 오늘 ${freeEntry.word} 단어를 공부했다.` }],
+          englishDefinitions: meaningObj?.definitions?.slice(0, 3).map((d: any) => ({
+            definition: d.definition,
+            example: d.example,
+          })) || [],
+          sourcesUsed: ['FreeDictionaryAPI (정적 웹 / 직접 연동)'],
+          isEmbedded: false,
+        });
+        return;
       }
 
       throw new Error('사전 검색 결과를 찾을 수 없습니다.');
@@ -168,7 +207,7 @@ export const CommercialDictionarySearch: React.FC<CommercialDictionarySearchProp
               내장 코드 사전 & 실시간 오픈사전 / AI 연동 검색
             </h2>
             <p className="text-xs text-slate-300 mt-1 max-w-xl">
-              앱 코드 내에 필수 단어 사전 데이터베이스(IPA, 한국어 뜻, 품사, 예문, 뉘앙스)가 <strong>미리 탑재</strong>되어 있어 즉각 검색되며, 그 외 모든 단어는 <strong>FreeDictionaryAPI + Wiktionary + Gemini AI</strong> 결합 검색으로 자동 처리됩니다.
+              앱 코드 내에 필수 단어 사전 데이터베이스(IPA, 한국어 뜻, 품사, 예문, 뉘앙스)가 <strong>미리 탑재</strong>되어 있어 즉각 검색되며, 그 외 모든 단어는 <strong>FreeDictionaryAPI + Wiktionary + 무료 오픈 AI(키 불필요)</strong> 결합 검색으로 자동 처리됩니다.
             </p>
           </div>
         </div>
@@ -185,7 +224,7 @@ export const CommercialDictionarySearch: React.FC<CommercialDictionarySearchProp
             ✓ 2. Wiktionary CC-BY-SA
           </span>
           <span className="px-2.5 py-0.5 rounded-full bg-slate-800 text-slate-300 border border-slate-700">
-            ✓ 5. Gemini AI Engine
+            ✓ 5. 무료 AI (Pollinations · Workers AI · Gemini)
           </span>
         </div>
       </div>
@@ -294,7 +333,7 @@ export const CommercialDictionarySearch: React.FC<CommercialDictionarySearchProp
             <div className="p-4 rounded-2xl bg-purple-50 dark:bg-purple-950/30 border border-purple-200 dark:border-purple-800/50 space-y-1">
               <div className="flex items-center gap-1.5 text-xs font-bold text-purple-700 dark:text-purple-300">
                 <Sparkles className="w-4 h-4" />
-                <span>원어민 활용 뉘앙스 & 발음 팁 (Gemini AI)</span>
+                <span>원어민 활용 뉘앙스 & 발음 팁 (AI 분석)</span>
               </div>
               <p className="text-xs text-purple-900 dark:text-purple-200 leading-relaxed">
                 {result.nuanceTip}

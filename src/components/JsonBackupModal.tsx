@@ -79,19 +79,52 @@ export const JsonBackupModal: React.FC<JsonBackupModalProps> = ({
       totalRepeatsCount,
     });
     setStats(getDeviceStorageStats());
+    window.dispatchEvent(new CustomEvent('wordloop_storage_updated'));
     setStatusMessage(
       `v${manifest.appVersion} 무결성 JSON 백업 저장 완료 (${manifest.statsSummary.vocabCount}단어 · 체크섬 ${manifest.checksum.slice(0, 8)})`
     );
   };
 
   const handleCleanupCache = () => {
-    const { freedBytes, removedKeys } = cleanupRedundantStorageCache();
-    setStats(getDeviceStorageStats());
-    if (removedKeys.length > 0) {
-      setStatusMessage(`중복 스냅샷 정리 완료: ${formatByteSize(freedBytes)} 확보됨`);
+    const { freedBytes, removedKeys, compactedKeys } = cleanupRedundantStorageCache({
+      vocabList,
+      sentenceList,
+    });
+    const nextStats = getDeviceStorageStats();
+    setStats(nextStats);
+    window.dispatchEvent(new CustomEvent('wordloop_storage_updated'));
+    if (removedKeys.length > 0 || compactedKeys.length > 0) {
+      setStatusMessage(
+        `캐시 · 중복 스냅샷 정리 완료: ${formatByteSize(freedBytes)} 확보 (현재 사용률 ${nextStats.usagePercent}%)`
+      );
     } else {
-      setStatusMessage('정리할 불필요한 임시 스냅샷이 없습니다.');
+      setStatusMessage(`정리할 불필요한 캐시가 없습니다 (현재 사용률 ${nextStats.usagePercent}%).`);
     }
+  };
+
+  const handleBackupAndCleanup = () => {
+    const manifest = exportVersionedAllDataToFile({
+      userProfile,
+      vocabList,
+      sentenceList,
+      goals,
+      history,
+      totalRepeatsCount,
+    });
+    const { freedBytes, removedKeys, compactedKeys } = cleanupRedundantStorageCache({
+      vocabList,
+      sentenceList,
+    });
+    const nextStats = getDeviceStorageStats();
+    setStats(nextStats);
+    window.dispatchEvent(new CustomEvent('wordloop_storage_updated'));
+    const freedText =
+      removedKeys.length > 0 || compactedKeys.length > 0
+        ? ` · ${formatByteSize(freedBytes)} 확보됨`
+        : '';
+    setStatusMessage(
+      `JSON 백업(${manifest.statsSummary.vocabCount}단어) 후 캐시 정리 완료${freedText} (현재 사용률 ${nextStats.usagePercent}%)`
+    );
   };
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -133,6 +166,7 @@ export const JsonBackupModal: React.FC<JsonBackupModalProps> = ({
     onApplyImportedState(nextState);
     setPreview(null);
     setStats(getDeviceStorageStats());
+    window.dispatchEvent(new CustomEvent('wordloop_storage_updated'));
     setStatusMessage(
       mode === 'merge'
         ? '스마트 병합 완료: 기기 기존 기록과 백업 최신 진도가 안전하게 합쳐졌습니다.'
@@ -233,14 +267,16 @@ export const JsonBackupModal: React.FC<JsonBackupModalProps> = ({
                   {stats.lastExportedAt ? new Date(stats.lastExportedAt).toLocaleString('ko-KR') : '기록 없음'}
                 </strong>
               </span>
-              <button
-                type="button"
-                onClick={handleCleanupCache}
-                className="min-h-[36px] px-3 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200 font-semibold inline-flex items-center gap-1.5 cursor-pointer"
-              >
-                <Trash2 className="w-3.5 h-3.5" />
-                <span>중복 스냅샷 정리</span>
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={handleCleanupCache}
+                  className="min-h-[36px] px-3 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200 font-semibold inline-flex items-center gap-1.5 cursor-pointer"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                  <span>캐시 · 중복 스냅샷 정리</span>
+                </button>
+              </div>
             </div>
           </section>
 
@@ -254,14 +290,24 @@ export const JsonBackupModal: React.FC<JsonBackupModalProps> = ({
                 어휘 · SM-2 복습 주기 · 일일 잔디 기록 · 목표 · 프로필을 무결성 체크섬과 함께 단일 파일로 저장합니다.
               </p>
             </div>
-            <button
-              type="button"
-              onClick={handleExportV2}
-              className="w-full min-h-[44px] rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs sm:text-sm font-semibold flex items-center justify-center gap-2 cursor-pointer transition-colors"
-            >
-              <Download className="w-4 h-4" />
-              <span>전체 학습 데이터 JSON 다운로드 ({vocabList.length.toLocaleString()}단어)</span>
-            </button>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={handleBackupAndCleanup}
+                className="w-full min-h-[44px] px-3 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs sm:text-sm font-semibold flex items-center justify-center gap-2 cursor-pointer transition-colors"
+              >
+                <Download className="w-4 h-4 shrink-0" />
+                <span>JSON 백업 후 캐시 정리</span>
+              </button>
+              <button
+                type="button"
+                onClick={handleExportV2}
+                className="w-full min-h-[44px] px-3 rounded-xl border border-slate-300 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-800 dark:text-slate-100 text-xs sm:text-sm font-semibold flex items-center justify-center gap-2 cursor-pointer transition-colors"
+              >
+                <Download className="w-4 h-4 shrink-0 text-indigo-600 dark:text-indigo-400" />
+                <span>JSON만 다운로드 ({vocabList.length.toLocaleString()}단어)</span>
+              </button>
+            </div>
           </section>
 
           {/* 3. Import & Smart Merge Preview Section */}

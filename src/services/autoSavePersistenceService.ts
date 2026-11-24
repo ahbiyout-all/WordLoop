@@ -1,9 +1,19 @@
 import { UserProfile, VocabItem, SentenceItem, Goal, DailyGoalHistory } from '../types';
-import { STORAGE_KEYS } from './deviceStorageService';
+import {
+  STORAGE_KEYS,
+  CompactVocabStorageV2,
+  CompactSentenceStorageV2,
+  serializeCompactVocab,
+  serializeCompactSentences,
+} from './deviceStorageService';
+
+import { DEFAULT_VOCAB, DEFAULT_SENTENCES } from '../data/defaultVocab';
 
 export interface FullAppStateSnapshot {
-  vocabList: VocabItem[];
-  sentenceList: SentenceItem[];
+  vocabList?: VocabItem[];
+  sentenceList?: SentenceItem[];
+  compactVocab?: CompactVocabStorageV2;
+  compactSentences?: CompactSentenceStorageV2;
   goals: Goal[];
   history: DailyGoalHistory[];
   totalRepeatsCount: number;
@@ -16,8 +26,8 @@ const EMERGENCY_SNAPSHOT_KEY = 'wordloop_emergency_exit_snapshot';
 const ATOMIC_SAFETY_LEDGER_KEY = 'wordloop_atomic_safety_ledger';
 
 /**
- * Perform an immediate, synchronous, blocking flush of all app data to local storage.
- * Designed specifically for beforeunload, pagehide, visibilitychange (hidden), and freeze events.
+ * Perform an immediate, synchronous flush of delta progress & metadata to local storage.
+ * Uses compact v2 delta format (< 50KB instead of ~2.3MB) so the 5MB localStorage quota stays healthy.
  */
 export function flushEmergencyAppState(snapshot: {
   vocabList: VocabItem[];
@@ -29,13 +39,14 @@ export function flushEmergencyAppState(snapshot: {
 }): boolean {
   try {
     const timestamp = new Date().toISOString();
-    
-    // 1. Save individual standard primary keys
+    const compactVocab = serializeCompactVocab(snapshot.vocabList || [], DEFAULT_VOCAB);
+    const compactSentences = serializeCompactSentences(snapshot.sentenceList || [], DEFAULT_SENTENCES);
+
     if (snapshot.vocabList && snapshot.vocabList.length > 0) {
-      localStorage.setItem(STORAGE_KEYS.VOCAB, JSON.stringify(snapshot.vocabList));
+      localStorage.setItem(STORAGE_KEYS.VOCAB, JSON.stringify(compactVocab));
     }
     if (snapshot.sentenceList && snapshot.sentenceList.length > 0) {
-      localStorage.setItem(STORAGE_KEYS.SENTENCES, JSON.stringify(snapshot.sentenceList));
+      localStorage.setItem(STORAGE_KEYS.SENTENCES, JSON.stringify(compactSentences));
     }
     if (snapshot.goals) {
       localStorage.setItem(STORAGE_KEYS.GOALS, JSON.stringify(snapshot.goals));
@@ -51,17 +62,22 @@ export function flushEmergencyAppState(snapshot: {
         lastSavedToDeviceAt: timestamp,
       };
       localStorage.setItem(STORAGE_KEYS.USER_PROFILE, JSON.stringify(updatedProfile));
-      localStorage.setItem(STORAGE_KEYS.USER_PROFILE_BACKUP, JSON.stringify(updatedProfile));
     }
 
-    // 2. Save unified emergency full-bundle snapshot with integrity hash
+    // Store compact delta emergency snapshot (~5-30KB) instead of duplicating 3,210 static dictionary entries
     const fullSnapshot: FullAppStateSnapshot = {
-      vocabList: snapshot.vocabList,
-      sentenceList: snapshot.sentenceList,
+      compactVocab,
+      compactSentences,
       goals: snapshot.goals,
       history: snapshot.history,
       totalRepeatsCount: snapshot.totalRepeatsCount,
-      userProfile: snapshot.userProfile,
+      userProfile: snapshot.userProfile
+        ? {
+            ...snapshot.userProfile,
+            momPhotoUrl: undefined,
+            dadPhotoUrl: undefined,
+          }
+        : null,
       savedAt: timestamp,
       isEmergencySave: true,
     };
@@ -98,7 +114,9 @@ export function checkEmergencyRecoverySnapshot(): {
     if (!raw) return { hasRecoveryData: false, snapshot: null, timestamp: null };
 
     const parsed: FullAppStateSnapshot = JSON.parse(raw);
-    if (parsed && Array.isArray(parsed.vocabList) && parsed.vocabList.length > 0) {
+    const hasCompact = Boolean(parsed?.compactVocab && parsed.compactVocab.v === 2);
+    const hasLegacy = Boolean(Array.isArray(parsed?.vocabList) && parsed.vocabList.length > 0);
+    if (parsed && (hasCompact || hasLegacy)) {
       return {
         hasRecoveryData: true,
         snapshot: parsed,
@@ -123,7 +141,6 @@ export function setupAppTerminationSafeguards(getCurrentState: () => {
   totalRepeatsCount: number;
   userProfile: UserProfile | null;
 }): () => void {
-  // Handler for immediate synchronous write
   const handleExitFlush = (e?: Event) => {
     try {
       const state = getCurrentState();
@@ -133,24 +150,17 @@ export function setupAppTerminationSafeguards(getCurrentState: () => {
     }
   };
 
-  // 1. beforeunload: Desktop browser tab close, window close, refresh (F5)
   window.addEventListener('beforeunload', handleExitFlush, { capture: true });
-
-  // 2. pagehide: iOS Safari & Modern Mobile Browser tab navigation, back/forward cache
   window.addEventListener('pagehide', handleExitFlush, { capture: true });
 
-  // 3. visibilitychange (Page Lifecycle API): Mobile home button press, app switcher, screen sleep
   const handleVisibilityChange = () => {
     if (document.visibilityState === 'hidden') {
       handleExitFlush();
     }
   };
   document.addEventListener('visibilitychange', handleVisibilityChange, { capture: true });
-
-  // 4. freeze event (W3C Page Lifecycle spec - CPU throttling before kill)
   window.addEventListener('freeze' as any, handleExitFlush, { capture: true });
 
-  // Cleanup function
   return () => {
     window.removeEventListener('beforeunload', handleExitFlush, { capture: true });
     window.removeEventListener('pagehide', handleExitFlush, { capture: true });

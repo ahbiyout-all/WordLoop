@@ -174,6 +174,7 @@ export const StudentWordGame: React.FC<StudentWordGameProps> = ({
   // Mandatory Mom & Dad photo registration check
   const hasParentPhotos = Boolean(userProfile?.momPhotoUrl && userProfile?.dadPhotoUrl);
   const [showPhotoReqModal, setShowPhotoReqModal] = useState<boolean>(false);
+  const [photoError, setPhotoError] = useState<string | null>(null);
 
   const handleAutoRegisterPresetParents = () => {
     if (!onSaveProfile) {
@@ -226,8 +227,9 @@ export const StudentWordGame: React.FC<StudentWordGameProps> = ({
           savedToDeviceCount: (base.savedToDeviceCount || 0) + 1,
         };
         onSaveProfile(updated);
+        setPhotoError(null);
       } catch (err: any) {
-        alert(err.message || '사진 업로드 실패');
+        setPhotoError(err?.message || '사진 업로드 실패');
       }
     }
     if (e.target) e.target.value = '';
@@ -255,8 +257,9 @@ export const StudentWordGame: React.FC<StudentWordGameProps> = ({
           savedToDeviceCount: (base.savedToDeviceCount || 0) + 1,
         };
         onSaveProfile(updated);
+        setPhotoError(null);
       } catch (err: any) {
-        alert(err.message || '사진 업로드 실패');
+        setPhotoError(err?.message || '사진 업로드 실패');
       }
     }
     if (e.target) e.target.value = '';
@@ -2023,6 +2026,12 @@ export const StudentWordGame: React.FC<StudentWordGameProps> = ({
                 )}
               </div>
             </div>
+
+            {photoError && (
+              <div className="px-3 py-2 rounded-xl bg-rose-500/20 border border-rose-500/40 text-rose-200 text-xs font-bold">
+                ⚠️ {photoError}
+              </div>
+            )}
 
             <div className="pt-2 flex flex-col gap-2">
               {/* Ready to play button if both photos registered */}

@@ -26,7 +26,12 @@ import {
   ChevronDown,
 } from 'lucide-react';
 import { ActiveTab, UserProfile } from '../types';
-import { getUserGeminiKey } from '../services/apiClient';
+import {
+  AI_ENGINE_LABELS,
+  AiEngineMode,
+  getAiEngineMode,
+  getUserGeminiKey,
+} from '../services/apiClient';
 import { UpdateCheckResult } from '../services/githubUpdateService';
 import { RealtimeAudioSpeedWidget } from './RealtimeAudioSpeedWidget';
 import { StudentLevelInfo } from '../services/studentGamificationService';
@@ -85,6 +90,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   onOpenJsonBackup,
 }) => {
   const [hasCustomKey, setHasCustomKey] = useState<boolean>(() => Boolean(getUserGeminiKey()));
+  const [engineMode, setEngineMode] = useState<AiEngineMode>(() => getAiEngineMode());
   const [isExploreMenuOpen, setIsExploreMenuOpen] = useState<boolean>(false);
   const [isToolsMenuOpen, setIsToolsMenuOpen] = useState<boolean>(false);
   const [isMobileSheetOpen, setIsMobileSheetOpen] = useState<boolean>(false);
@@ -93,7 +99,10 @@ export const Navbar: React.FC<NavbarProps> = ({
   const toolsMenuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    const syncKey = () => setHasCustomKey(Boolean(getUserGeminiKey()));
+    const syncKey = () => {
+      setHasCustomKey(Boolean(getUserGeminiKey()));
+      setEngineMode(getAiEngineMode());
+    };
     window.addEventListener('wordloop_api_key_changed', syncKey);
     window.addEventListener('storage', syncKey);
     return () => {
@@ -423,10 +432,14 @@ export const Navbar: React.FC<NavbarProps> = ({
                     className="w-full min-h-[40px] px-3 rounded-xl text-xs font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center justify-between cursor-pointer"
                   >
                     <span className="flex items-center gap-2.5">
-                      <Key className="w-4 h-4 text-slate-500" />
-                      <span>Gemini API 키</span>
+                      <Key className="w-4 h-4 text-emerald-500" />
+                      <span>무료 AI 엔진 · API 키</span>
                     </span>
-                    <span className="text-[11px] text-slate-400">{hasCustomKey ? '등록됨' : '기본'}</span>
+                    <span className="text-[11px] font-semibold text-emerald-600 dark:text-emerald-400">
+                      {hasCustomKey && engineMode === 'gemini_byok'
+                        ? 'Gemini 키'
+                        : AI_ENGINE_LABELS[engineMode].badge}
+                    </span>
                   </button>
                   {onOpenGitHubUpdateModal && (
                     <button
@@ -662,6 +675,24 @@ export const Navbar: React.FC<NavbarProps> = ({
                       </span>
                     </button>
                   )}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsMobileSheetOpen(false);
+                      onOpenApiKeyModal();
+                    }}
+                    className="w-full min-h-[48px] px-4 flex items-center justify-between text-xs font-semibold text-slate-800 dark:text-slate-100 bg-white dark:bg-slate-900"
+                  >
+                    <span className="flex items-center gap-2.5">
+                      <Key className="w-4 h-4 text-emerald-500" />
+                      <span>무료 AI 엔진 · API 키</span>
+                    </span>
+                    <span className="text-[11px] font-semibold text-emerald-600 dark:text-emerald-400">
+                      {hasCustomKey && engineMode === 'gemini_byok'
+                        ? 'Gemini 키'
+                        : AI_ENGINE_LABELS[engineMode].badge}
+                    </span>
+                  </button>
                   {onOpenGitHubUpdateModal && (
                     <button
                       type="button"

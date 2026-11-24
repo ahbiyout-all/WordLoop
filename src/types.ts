@@ -177,3 +177,64 @@ export interface UserProfile {
   studyBuddyMascot?: 'hoot' | 'luffy' | 'teddy' | 'bot'; // 선택한 마스코트 메이트 ('hoot' | 'luffy' | 'teddy' | 'bot')
 }
 
+export type PhonemeMouthFocus =
+  | 'interdental'
+  | 'alveolar'
+  | 'lips_teeth'
+  | 'bilabial'
+  | 'velar'
+  | 'retroflex_r'
+  | 'vowel_open'
+  | 'vowel_spread'
+  | 'glottal';
+
+export type PhonemeCorrectionErrorType =
+  | 'accurate'
+  | 'substitution'
+  | 'omission'
+  | 'distortion'
+  | 'weak_stress';
+
+export interface PhonemeErrorItem {
+  id: string;
+  word: string;
+  grapheme: string;
+  expectedIpa: string;
+  spokenIpa: string;
+  errorType: PhonemeCorrectionErrorType;
+  severity: 'good' | 'moderate' | 'critical';
+  accuracyScore: number;
+  diagnosis: string;
+  articulationCue: string;
+  mouthFocus: PhonemeMouthFocus;
+  minimalPairWord?: string;
+  minimalPairIpa?: string;
+  startPercent?: number;
+  endPercent?: number;
+  aiPeak?: number;
+  userPeak?: number;
+}
+
+export interface PronunciationCorrectionReport {
+  source: 'local' | 'ai';
+  providerName?: string;
+  targetText: string;
+  recognizedText: string;
+  overallSummary: string;
+  phonemeItems: PhonemeErrorItem[];
+  practiceDrills: Array<{
+    pairA: string;
+    pairB: string;
+    focusIpa: string;
+    tip: string;
+  }>;
+  stats: {
+    totalCount: number;
+    criticalCount: number;
+    moderateCount: number;
+    accurateCount: number;
+  };
+  generatedAt: string;
+}
+
+

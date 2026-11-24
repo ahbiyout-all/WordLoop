@@ -33,7 +33,17 @@ import {
 import { ROLEPLAY_SCENARIOS, RoleplayScenario, RoleplayMission } from '../data/roleplayScenariosData';
 import { RoleplayMessage, RoleplayReport, VocabItem, SentenceItem } from '../types';
 import { speechService } from '../services/speechService';
-import { getAuthHeaders, getUserGeminiKey } from '../services/apiClient';
+import {
+  AI_ENGINE_LABELS,
+  AiEngineMode,
+  getAiEngineMode,
+  getUserGeminiKey,
+  setAiEngineMode,
+} from '../services/apiClient';
+import {
+  generateRoleplayReportWithFreeAi,
+  sendRoleplayTurnWithFreeAi,
+} from '../services/freeAiService';
 
 interface AIRoleplayViewProps {
   onAddBookmarkVocab?: (items: VocabItem[]) => void;
@@ -48,12 +58,14 @@ export const AIRoleplayView: React.FC<AIRoleplayViewProps> = ({
   onIncrementGoal,
   onOpenApiKeyModal,
 }) => {
-  // User Gemini API Key Verification State
+  // AI Engine & Optional Gemini Key State (Free AI works immediately with zero API key!)
   const [hasUserApiKey, setHasUserApiKey] = useState<boolean>(() => Boolean(getUserGeminiKey().trim()));
-  const [showApiKeyRequiredModal, setShowApiKeyRequiredModal] = useState<boolean>(
-    () => !Boolean(getUserGeminiKey().trim())
-  );
+  const [engineMode, setEngineMode] = useState<AiEngineMode>(() => getAiEngineMode());
+  const [showApiKeyRequiredModal, setShowApiKeyRequiredModal] = useState<boolean>(false);
   const [pendingScenario, setPendingScenario] = useState<RoleplayScenario | null>(null);
+  const [activeAiProvider, setActiveAiProvider] = useState<string>('');
+
+  const needsByokKey = engineMode === 'gemini_byok' && !hasUserApiKey;
 
   // Scenario List & Active Scenario State
   const [selectedGrade, setSelectedGrade] = useState<string>('all');
@@ -95,6 +107,14 @@ export const AIRoleplayView: React.FC<AIRoleplayViewProps> = ({
   const [report, setReport] = useState<RoleplayReport | null>(null);
   const [isGeneratingReport, setIsGeneratingReport] = useState<boolean>(false);
   const [savedPhrases, setSavedPhrases] = useState<Set<number>>(new Set());
+  const [roleplayNotice, setRoleplayNotice] = useState<string | null>(null);
+  const noticeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const showRoleplayNotice = (msg: string) => {
+    setRoleplayNotice(msg);
+    if (noticeTimerRef.current) clearTimeout(noticeTimerRef.current);
+    noticeTimerRef.current = setTimeout(() => setRoleplayNotice(null), 3500);
+  };
 
   const chatEndRef = useRef<HTMLDivElement>(null);
 
@@ -107,12 +127,14 @@ export const AIRoleplayView: React.FC<AIRoleplayViewProps> = ({
     scrollToBottom();
   }, [messages, isAiThinking, liveTranscript]);
 
-  // Listen for User Gemini API Key changes in real time
+  // Listen for AI Engine & Optional Gemini API Key changes in real time
   useEffect(() => {
     const syncApiKey = () => {
       const hasKey = Boolean(getUserGeminiKey().trim());
+      const mode = getAiEngineMode();
       setHasUserApiKey(hasKey);
-      if (hasKey) {
+      setEngineMode(mode);
+      if (hasKey || mode !== 'gemini_byok') {
         setShowApiKeyRequiredModal(false);
       }
     };
@@ -124,9 +146,12 @@ export const AIRoleplayView: React.FC<AIRoleplayViewProps> = ({
     };
   }, []);
 
-  // Clean up recognition on unmount
+  // Clean up recognition and timers on unmount
   useEffect(() => {
     return () => {
+      if (noticeTimerRef.current) {
+        clearTimeout(noticeTimerRef.current);
+      }
       if (recognitionRef.current) {
         try {
           recognitionRef.current.stop();
@@ -163,21 +188,23 @@ export const AIRoleplayView: React.FC<AIRoleplayViewProps> = ({
     }
   }, [autoPlayAudio]);
 
-  // Auto-start pending scenario once user registers API Key
+  // Auto-start pending scenario once user switches engine or registers API Key
   useEffect(() => {
-    if (hasUserApiKey && pendingScenario) {
+    if (!needsByokKey && pendingScenario) {
       const target = pendingScenario;
       setPendingScenario(null);
       setShowApiKeyRequiredModal(false);
       launchScenarioConversation(target);
     }
-  }, [hasUserApiKey, pendingScenario, launchScenarioConversation]);
+  }, [needsByokKey, pendingScenario, launchScenarioConversation]);
 
-  // Initialize Scenario Conversation (Checks User API Key First)
+  // Initialize Scenario Conversation (Free AI starts immediately; BYOK-only prompts if key missing)
   const handleStartScenario = (scenario: RoleplayScenario) => {
     const currentKey = getUserGeminiKey().trim();
-    if (!currentKey) {
+    const currentMode = getAiEngineMode();
+    if (currentMode === 'gemini_byok' && !currentKey) {
       setHasUserApiKey(false);
+      setEngineMode(currentMode);
       setPendingScenario(scenario);
       setShowApiKeyRequiredModal(true);
       return;
@@ -201,7 +228,7 @@ export const AIRoleplayView: React.FC<AIRoleplayViewProps> = ({
       (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
 
     if (!SpeechRecognition) {
-      alert('사용 중인 브라우저가 음성 인식을 지원하지 않습니다. Chrome 브라우저를 권장합니다.');
+      showRoleplayNotice('사용 중인 브라우저가 음성 인식을 지원하지 않습니다. Chrome 브라우저를 권장합니다.');
       return;
     }
 
@@ -278,64 +305,62 @@ export const AIRoleplayView: React.FC<AIRoleplayViewProps> = ({
     }
 
     try {
-      const res = await fetch('/api/ai/roleplay/chat', {
-        method: 'POST',
-        headers: getAuthHeaders(),
-        body: JSON.stringify({
-          scenario: activeScenario,
-          messages: updatedMessages,
-          userMessage: text,
-          completedMissions,
-        }),
+      const data = await sendRoleplayTurnWithFreeAi({
+        scenario: activeScenario,
+        messages: updatedMessages,
+        userMessage: text,
+        completedMissions,
       });
 
-      const data = await res.json();
-      if (res.ok && data.success) {
-        // Update user message with AI feedback
-        if (data.feedback) {
-          setMessages((prev) =>
-            prev.map((m) =>
-              m.id === userMsgId
-                ? {
-                    ...m,
-                    feedback: data.feedback,
-                  }
-                : m
-            )
-          );
-          setExpandedFeedbackId(userMsgId);
-        }
+      if (data.aiProvider) {
+        setActiveAiProvider(data.aiProvider);
+      }
 
-        // Add completed mission IDs
-        if (Array.isArray(data.newCompletedMissionIds) && data.newCompletedMissionIds.length > 0) {
-          setCompletedMissions((prev) => {
-            const next = new Set([...prev, ...data.newCompletedMissionIds]);
-            return Array.from(next);
-          });
-        }
+      // Update user message with AI feedback
+      if (data.feedback) {
+        setMessages((prev) =>
+          prev.map((m) =>
+            m.id === userMsgId
+              ? {
+                  ...m,
+                  feedback: data.feedback,
+                }
+              : m
+          )
+        );
+        setExpandedFeedbackId(userMsgId);
+      }
 
-        // Add AI response
-        if (data.aiResponse) {
-          const aiMsg: RoleplayMessage = {
-            id: `msg-ai-${Date.now()}`,
-            sender: 'ai',
-            text: data.aiResponse.en,
-            translationKo: data.aiResponse.ko,
-            timestamp: Date.now(),
-          };
-          setMessages((prev) => [...prev, aiMsg]);
+      // Add completed mission IDs
+      if (Array.isArray(data.newCompletedMissionIds) && data.newCompletedMissionIds.length > 0) {
+        setCompletedMissions((prev) => {
+          const next = new Set([...prev, ...data.newCompletedMissionIds]);
+          return Array.from(next);
+        });
+      }
 
-          if (autoPlayAudio) {
-            speechService.speakOnce(data.aiResponse.en);
-          }
-        }
+      // Add AI response
+      if (data.aiResponse) {
+        const aiMsg: RoleplayMessage = {
+          id: `msg-ai-${Date.now()}`,
+          sender: 'ai',
+          text: data.aiResponse.en,
+          translationKo: data.aiResponse.ko,
+          timestamp: Date.now(),
+        };
+        setMessages((prev) => [...prev, aiMsg]);
 
-        if (Array.isArray(data.recommendedNextHints) && data.recommendedNextHints.length > 0) {
-          setCurrentHints(data.recommendedNextHints);
+        if (autoPlayAudio) {
+          speechService.speakOnce(data.aiResponse.en);
         }
       }
-    } catch (err) {
+
+      if (Array.isArray(data.recommendedNextHints) && data.recommendedNextHints.length > 0) {
+        setCurrentHints(data.recommendedNextHints);
+      }
+    } catch (err: any) {
       console.error('Roleplay chat error:', err);
+      showRoleplayNotice(err?.message || 'AI 응답을 생성하지 못했습니다. 다시 시도해 주세요.');
     } finally {
       setIsAiThinking(false);
     }
@@ -345,7 +370,7 @@ export const AIRoleplayView: React.FC<AIRoleplayViewProps> = ({
   // Generate End-of-Dialogue Report
   const handleFinishAndGenerateReport = async () => {
     if (!activeScenario || messages.length < 2) {
-      alert('최소 1회 이상 대화를 주고받은 후 리포트를 생성할 수 있습니다.');
+      showRoleplayNotice('최소 1회 이상 대화를 주고받은 후 리포트를 생성할 수 있습니다.');
       return;
     }
 
@@ -353,22 +378,17 @@ export const AIRoleplayView: React.FC<AIRoleplayViewProps> = ({
     setIsGeneratingReport(true);
 
     try {
-      const res = await fetch('/api/ai/roleplay/report', {
-        method: 'POST',
-        headers: getAuthHeaders(),
-        body: JSON.stringify({
-          scenario: activeScenario,
-          messages,
-          completedMissions,
-        }),
+      const data = await generateRoleplayReportWithFreeAi({
+        scenario: activeScenario,
+        messages,
+        completedMissions,
       });
-
-      const data = await res.json();
-      if (res.ok && data.success && data.report) {
+      if (data.report) {
         setReport(data.report);
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error('Report error:', err);
+      showRoleplayNotice(err?.message || '리포트 생성에 실패했습니다. 다시 시도해 주세요.');
     } finally {
       setIsGeneratingReport(false);
     }
@@ -494,10 +514,10 @@ export const AIRoleplayView: React.FC<AIRoleplayViewProps> = ({
               <div className="flex flex-wrap items-center gap-2">
                 <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 text-xs font-bold">
                   <Sparkles className="w-3.5 h-3.5 animate-pulse" />
-                  <span>Gemini AI 대화형 롤플레잉 (AI Roleplay)</span>
+                  <span>무료 AI 대화형 롤플레잉 (API 키 불필요)</span>
                 </div>
 
-                {/* Live API Key Verification Badge */}
+                {/* Live AI Engine Status Badge */}
                 <button
                   type="button"
                   onClick={() => {
@@ -508,17 +528,19 @@ export const AIRoleplayView: React.FC<AIRoleplayViewProps> = ({
                     }
                   }}
                   className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full border text-xs font-extrabold transition-all active:scale-95 cursor-pointer ${
-                    hasUserApiKey
-                      ? 'bg-emerald-500 text-slate-950 border-emerald-400 shadow-sm'
-                      : 'bg-amber-500/25 text-amber-200 border-amber-400/60 hover:bg-amber-500/35 animate-pulse'
+                    needsByokKey
+                      ? 'bg-amber-500/25 text-amber-200 border-amber-400/60 hover:bg-amber-500/35'
+                      : 'bg-emerald-500 text-slate-950 border-emerald-400 shadow-sm'
                   }`}
-                  title="사용자 Gemini API 키 상태 확인 및 설정"
+                  title="무료 AI 엔진 및 API 키 설정"
                 >
-                  <Key className="w-3.5 h-3.5" />
+                  <Globe className="w-3.5 h-3.5" />
                   <span>
-                    {hasUserApiKey
-                      ? '사용자 API 키 확인됨'
-                      : '⚠️ 사용자 API 키 미등록 (필수)'}
+                    {needsByokKey
+                      ? '개인 Gemini 키 입력 필요 (BYOK 모드)'
+                      : hasUserApiKey && engineMode === 'gemini_byok'
+                      ? '개인 Gemini API 키 활성화'
+                      : `무료 AI 활성화 · ${AI_ENGINE_LABELS[engineMode].badge}`}
                   </span>
                 </button>
               </div>
@@ -527,7 +549,7 @@ export const AIRoleplayView: React.FC<AIRoleplayViewProps> = ({
                 실전 상황별 원어민 AI 롤플레잉
               </h2>
               <p className="text-xs sm:text-sm text-emerald-100/80 max-w-2xl leading-relaxed">
-                스타벅스 주문, 공항 입국 심사, 영어 면접, 호텔 체크인 등 실전 상황에서 AI 원어민과 실시간 음성 대화를 나누고, 실시간 표현 첨삭과 미션 클리어 피드백을 받아보세요!
+                API 키나 로그인 없이도 전 세계 무료 AI(OVHcloud 70B · Kilo 550B · Pollinations · Workers AI · LLM7 · DeepSeek · 온디바이스 Gemini Nano)로 스타벅스 주문, 공항 입국 심사, 영어 면접 등 실전 영어 대화를 바로 연습해 보세요!
               </p>
             </div>
 
@@ -535,8 +557,7 @@ export const AIRoleplayView: React.FC<AIRoleplayViewProps> = ({
               <button
                 type="button"
                 onClick={() => {
-                  if (!getUserGeminiKey().trim()) {
-                    setHasUserApiKey(false);
+                  if (getAiEngineMode() === 'gemini_byok' && !getUserGeminiKey().trim()) {
                     setShowApiKeyRequiredModal(true);
                     return;
                   }
@@ -551,24 +572,19 @@ export const AIRoleplayView: React.FC<AIRoleplayViewProps> = ({
           </div>
         </div>
 
-        {/* User API Key Verification Notice Banner */}
-        {!hasUserApiKey ? (
+        {/* AI Engine Status Banner */}
+        {needsByokKey ? (
           <div className="p-4 sm:p-5 rounded-3xl bg-amber-50 dark:bg-amber-950/40 border-2 border-amber-400/70 dark:border-amber-500/50 shadow-md flex flex-col sm:flex-row sm:items-center justify-between gap-3.5 animate-in fade-in">
             <div className="flex items-start gap-3">
               <div className="p-2.5 rounded-2xl bg-amber-500/20 text-amber-600 dark:text-amber-400 border border-amber-500/30 shrink-0 mt-0.5">
                 <ShieldAlert className="w-5 h-5" />
               </div>
               <div className="space-y-1">
-                <div className="flex flex-wrap items-center gap-2">
-                  <h3 className="text-xs sm:text-sm font-black text-amber-950 dark:text-amber-200">
-                    🔑 사용자 Gemini API 키가 있어야 이용할 수 있습니다 (현재 미등록)
-                  </h3>
-                  <span className="px-2 py-0.5 rounded-full bg-amber-500 text-slate-950 text-[10px] font-black">
-                    API 키 필수
-                  </span>
-                </div>
+                <h3 className="text-xs sm:text-sm font-black text-amber-950 dark:text-amber-200">
+                  🔑 현재 &apos;개인 Gemini 키 전용(BYOK)&apos; 모드입니다
+                </h3>
                 <p className="text-[11px] sm:text-xs text-amber-800 dark:text-amber-300/90 leading-relaxed">
-                  <strong>'Gemini AI 대화형 롤플레잉 (AI Roleplay) · 실전 상황별 원어민 AI 롤플레잉'</strong>은 사용자의 개인 Gemini API 키를 확인하여 동작합니다. 원어민 AI와 실시간 대화를 시작하려면 먼저 <strong>사용자 API 키</strong>를 등록해 주세요.
+                  Gemini 키를 등록하거나, 설정에서 <strong>무료 AI 자동 체인</strong>으로 전환하면 API 키 없이 즉시 대화할 수 있습니다.
                 </p>
               </div>
             </div>
@@ -586,7 +602,7 @@ export const AIRoleplayView: React.FC<AIRoleplayViewProps> = ({
                 className="w-full sm:w-auto px-4 py-2.5 rounded-2xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs flex items-center justify-center gap-1.5 shadow-md shadow-amber-500/20 transition-all active:scale-95"
               >
                 <Key className="w-3.5 h-3.5" />
-                <span>사용자 API 키 등록 / 확인하기</span>
+                <span>무료 AI 전환 / 키 설정</span>
               </button>
             </div>
           </div>
@@ -595,24 +611,24 @@ export const AIRoleplayView: React.FC<AIRoleplayViewProps> = ({
             <div className="flex items-center gap-2 text-emerald-800 dark:text-emerald-300 font-bold">
               <ShieldCheck className="w-4 h-4 text-emerald-500 shrink-0" />
               <span>
-                ✅ 사용자 Gemini API 키가 확인되었습니다. 아래에서 원하는 실전 상황 시나리오를 선택해 대화를 시작하세요!
+                🌐 <strong>{AI_ENGINE_LABELS[engineMode].title}</strong> 활성화됨 — API 키 없이 아래 시나리오를 클릭해 바로 대화를 시작하세요!
               </span>
             </div>
             {onOpenApiKeyModal && (
               <button
                 type="button"
                 onClick={onOpenApiKeyModal}
-                className="px-2.5 py-1 rounded-xl bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30 font-extrabold text-[11px] flex items-center gap-1 transition-all"
+                className="px-2.5 py-1 rounded-xl bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30 font-extrabold text-[11px] flex items-center gap-1 transition-all cursor-pointer"
               >
-                <Key className="w-3 h-3" />
-                <span>API 키 관리</span>
+                <Sliders className="w-3 h-3" />
+                <span>AI 엔진 변경</span>
               </button>
             )}
           </div>
         )}
 
-        {/* User API Key Requirement Popup Modal (Shown on Selection or Start without Key) */}
-        {showApiKeyRequiredModal && !hasUserApiKey && (
+        {/* Optional BYOK Prompt Modal (Shown only when user explicitly selected gemini_byok without key) */}
+        {showApiKeyRequiredModal && needsByokKey && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/75 backdrop-blur-sm animate-in fade-in">
             <div className="w-full max-w-md bg-white dark:bg-slate-900 rounded-3xl p-5 sm:p-6 border border-amber-500/40 shadow-2xl space-y-4">
               <div className="flex items-start justify-between gap-3 border-b border-slate-100 dark:border-slate-800 pb-3.5">
@@ -662,16 +678,16 @@ export const AIRoleplayView: React.FC<AIRoleplayViewProps> = ({
                 <div className="p-3.5 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-amber-900 dark:text-amber-200 space-y-1.5">
                   <p className="font-extrabold flex items-center gap-1.5 text-amber-700 dark:text-amber-300">
                     <ShieldAlert className="w-4 h-4 shrink-0" />
-                    <span>API 키 확인 결과: 등록된 사용자 API 키가 없습니다</span>
+                    <span>현재 &apos;개인 Gemini 키 전용(BYOK)&apos; 모드가 선택되어 있습니다</span>
                   </p>
                   <p className="text-[11px] sm:text-xs leading-relaxed">
-                    실전 상황별 원어민 AI 롤플레잉(실시간 음성 대화, 표현 첨삭, 미션 진단 리포트)을 이용하시려면 <strong>사용자에게 개인 Gemini API 키(API Key)가 있어야 합니다.</strong>
+                    개인 Gemini 키를 등록하거나, 아래 버튼으로 <strong>무료 AI 자동 체인</strong>으로 즉시 전환하면 API 키 없이 곧바로 롤플레잉을 시작할 수 있습니다.
                   </p>
                 </div>
 
                 <div className="p-3 rounded-2xl bg-indigo-50/60 dark:bg-indigo-950/30 border border-indigo-200/60 dark:border-indigo-800/50 flex items-center justify-between gap-2">
                   <div className="text-[11px] text-indigo-900 dark:text-indigo-200">
-                    <p className="font-bold">아직 API 키가 없으신가요?</p>
+                    <p className="font-bold">개인 Gemini 키를 사용하시겠습니까?</p>
                     <p className="text-[10px] text-indigo-600 dark:text-indigo-300">
                       Google AI Studio에서 1분 만에 무료 발급 가능
                     </p>
@@ -682,36 +698,50 @@ export const AIRoleplayView: React.FC<AIRoleplayViewProps> = ({
                     rel="noopener noreferrer"
                     className="px-2.5 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-[11px] flex items-center gap-1 shrink-0 transition-colors"
                   >
-                    <span>무료 키 발급</span>
+                    <span>키 발급</span>
                     <ExternalLink className="w-3 h-3" />
                   </a>
                 </div>
               </div>
 
-              <div className="pt-2 flex flex-col sm:flex-row items-center justify-end gap-2 border-t border-slate-100 dark:border-slate-800">
+              <div className="pt-2 flex flex-col gap-2 border-t border-slate-100 dark:border-slate-800">
                 <button
                   type="button"
                   onClick={() => {
+                    setAiEngineMode('auto_free');
+                    setEngineMode('auto_free');
                     setShowApiKeyRequiredModal(false);
-                    setPendingScenario(null);
                   }}
-                  className="w-full sm:w-auto px-4 py-2.5 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 font-bold text-xs transition-colors"
+                  className="w-full px-5 py-2.5 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-slate-950 font-black text-xs flex items-center justify-center gap-1.5 shadow-lg shadow-emerald-500/20 transition-all active:scale-95 cursor-pointer"
                 >
-                  시나리오 먼저 둘러보기
+                  <Globe className="w-3.5 h-3.5" />
+                  <span>무료 AI 자동 체인으로 즉시 전환 (키 불필요)</span>
                 </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setShowApiKeyRequiredModal(false);
-                    if (onOpenApiKeyModal) {
-                      onOpenApiKeyModal();
-                    }
-                  }}
-                  className="w-full sm:w-auto px-5 py-2.5 rounded-xl bg-gradient-to-r from-amber-500 to-emerald-500 hover:from-amber-400 hover:to-emerald-400 text-slate-950 font-black text-xs flex items-center justify-center gap-1.5 shadow-lg shadow-amber-500/20 transition-all active:scale-95"
-                >
-                  <Key className="w-3.5 h-3.5" />
-                  <span>지금 사용자 API 키 등록하기</span>
-                </button>
+                <div className="flex flex-col sm:flex-row items-center justify-end gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowApiKeyRequiredModal(false);
+                      setPendingScenario(null);
+                    }}
+                    className="w-full sm:w-auto px-4 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 font-bold text-xs transition-colors"
+                  >
+                    시나리오 둘러보기
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowApiKeyRequiredModal(false);
+                      if (onOpenApiKeyModal) {
+                        onOpenApiKeyModal();
+                      }
+                    }}
+                    className="w-full sm:w-auto px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs flex items-center justify-center gap-1.5 transition-all active:scale-95"
+                  >
+                    <Key className="w-3.5 h-3.5" />
+                    <span>개인 API 키 등록</span>
+                  </button>
+                </div>
               </div>
             </div>
           </div>
@@ -944,21 +974,21 @@ export const AIRoleplayView: React.FC<AIRoleplayViewProps> = ({
               <div className="pt-4 mt-2 border-t border-slate-100 dark:border-slate-800">
                 <button
                   onClick={() => handleStartScenario(scenario)}
-                  className={`w-full py-2.5 rounded-2xl font-black text-xs flex items-center justify-center gap-1.5 shadow-md transition-all active:scale-95 ${
-                    hasUserApiKey
-                      ? 'bg-emerald-500 hover:bg-emerald-400 text-slate-950 shadow-emerald-500/20'
-                      : 'bg-amber-500 hover:bg-amber-400 text-slate-950 shadow-amber-500/20'
+                  className={`w-full py-2.5 rounded-2xl font-black text-xs flex items-center justify-center gap-1.5 shadow-md transition-all active:scale-95 cursor-pointer ${
+                    needsByokKey
+                      ? 'bg-amber-500 hover:bg-amber-400 text-slate-950 shadow-amber-500/20'
+                      : 'bg-emerald-500 hover:bg-emerald-400 text-slate-950 shadow-emerald-500/20'
                   }`}
                 >
-                  {hasUserApiKey ? (
-                    <>
-                      <MessageSquare className="w-3.5 h-3.5" />
-                      <span>롤플레잉 대화 시작하기</span>
-                    </>
-                  ) : (
+                  {needsByokKey ? (
                     <>
                       <Key className="w-3.5 h-3.5" />
                       <span>롤플레잉 대화 시작 (API 키 확인)</span>
+                    </>
+                  ) : (
+                    <>
+                      <MessageSquare className="w-3.5 h-3.5" />
+                      <span>롤플레잉 대화 시작하기 (무료)</span>
                     </>
                   )}
                 </button>
@@ -1099,7 +1129,19 @@ export const AIRoleplayView: React.FC<AIRoleplayViewProps> = ({
   const progressPercent = Math.round((completedCount / totalMissionsCount) * 100);
 
   return (
-    <div className="max-w-4xl mx-auto flex flex-col h-[calc(100vh-8.5rem)] md:h-[calc(100vh-9.5rem)] min-h-[500px]">
+    <div className="max-w-4xl mx-auto flex flex-col h-[calc(100vh-8.5rem)] md:h-[calc(100vh-9.5rem)] min-h-[500px] relative">
+      {roleplayNotice && (
+        <div className="mb-2 px-4 py-2 rounded-2xl bg-amber-500/95 text-slate-950 font-bold text-xs shadow-lg flex items-center justify-between gap-2 animate-in fade-in duration-150">
+          <span>⚠️ {roleplayNotice}</span>
+          <button
+            type="button"
+            onClick={() => setRoleplayNotice(null)}
+            className="text-slate-900/70 hover:text-slate-950 font-black px-1"
+          >
+            ✕
+          </button>
+        </div>
+      )}
       {/* Top Header Bar */}
       <div className="p-3.5 sm:p-4 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm flex items-center justify-between gap-2 shrink-0">
         <div className="flex items-center gap-3 min-w-0">
@@ -1121,6 +1163,11 @@ export const AIRoleplayView: React.FC<AIRoleplayViewProps> = ({
                 <span className="hidden sm:inline-block text-[10px] font-black px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30 shrink-0">
                   {activeScenario.partnerName}
                 </span>
+                {activeAiProvider && (
+                  <span className="hidden md:inline-block text-[10px] font-bold px-2 py-0.5 rounded-full bg-indigo-500/10 text-indigo-600 dark:text-indigo-300 border border-indigo-500/20 shrink-0">
+                    {activeAiProvider}
+                  </span>
+                )}
               </div>
               <p className="text-[11px] text-slate-400 truncate">
                 {activeScenario.situationContext}
@@ -1521,7 +1568,7 @@ export const AIRoleplayView: React.FC<AIRoleplayViewProps> = ({
                   <span>잘하신 점 (Strengths)</span>
                 </h5>
                 <ul className="space-y-1 text-slate-700 dark:text-slate-300">
-                  {report.strengths.map((str, i) => (
+                  {(Array.isArray(report.strengths) ? report.strengths : []).map((str, i) => (
                     <li key={i}>• {str}</li>
                   ))}
                 </ul>
@@ -1533,7 +1580,7 @@ export const AIRoleplayView: React.FC<AIRoleplayViewProps> = ({
                   <span>개선 포인트 (Actionable Tips)</span>
                 </h5>
                 <ul className="space-y-1 text-slate-700 dark:text-slate-300">
-                  {report.improvements.map((imp, i) => (
+                  {(Array.isArray(report.improvements) ? report.improvements : []).map((imp, i) => (
                     <li key={i}>• {imp}</li>
                   ))}
                 </ul>
@@ -1541,7 +1588,7 @@ export const AIRoleplayView: React.FC<AIRoleplayViewProps> = ({
             </div>
 
             {/* Highlighted Expressions to Bookmark */}
-            {report.highlightPhrases && report.highlightPhrases.length > 0 && (
+            {Array.isArray(report.highlightPhrases) && report.highlightPhrases.length > 0 && (
               <div className="space-y-3 pt-2">
                 <div className="flex items-center justify-between">
                   <h4 className="font-extrabold text-sm text-slate-900 dark:text-white flex items-center gap-1.5">

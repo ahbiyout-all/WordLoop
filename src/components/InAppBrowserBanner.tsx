@@ -5,6 +5,7 @@ export const InAppBrowserBanner: React.FC = () => {
   const [isInAppBrowser, setIsInAppBrowser] = useState(false);
   const [browserType, setBrowserType] = useState<'kakaotalk' | 'other' | null>(null);
   const [isDismissed, setIsDismissed] = useState(true);
+  const [copiedNotice, setCopiedNotice] = useState(false);
 
   useEffect(() => {
     if (typeof window === 'undefined' || typeof navigator === 'undefined') return;
@@ -26,7 +27,7 @@ export const InAppBrowserBanner: React.FC = () => {
     }
   }, []);
 
-  const handleOpenExternal = () => {
+  const handleOpenExternal = async () => {
     if (typeof window === 'undefined') return;
 
     const currentUrl = window.location.href;
@@ -40,9 +41,12 @@ export const InAppBrowserBanner: React.FC = () => {
       const cleanUrl = currentUrl.replace(/https?:\/\//i, '');
       window.location.href = `intent://${cleanUrl}#Intent;scheme=https;package=com.android.chrome;end`;
     } else {
-      // Fallback: prompt copy URL or alert
-      navigator.clipboard?.writeText(currentUrl);
-      alert('주소가 복사되었습니다. Safari 또는 Chrome 브라우저 주소창에 붙여넣어 주세요.');
+      // Fallback: non-blocking clipboard copy feedback
+      try {
+        await navigator.clipboard?.writeText(currentUrl);
+      } catch {}
+      setCopiedNotice(true);
+      setTimeout(() => setCopiedNotice(false), 3500);
     }
   };
 
@@ -68,12 +72,20 @@ export const InAppBrowserBanner: React.FC = () => {
             <Volume2 className="w-3.5 h-3.5" />
           </div>
           <div className="truncate">
-            <span className="font-bold">
-              {browserType === 'kakaotalk' ? '카카오톡 인앱 브라우저 감지' : '인앱 브라우저 접속 안내'}
-            </span>
-            <span className="hidden sm:inline text-amber-700 dark:text-amber-300 ml-1.5">
-              - 원활한 음성 합성 및 마이크 발음 평가를 위해 Chrome이나 기본 브라우저 사용을 권장합니다.
-            </span>
+            {copiedNotice ? (
+              <span className="font-bold text-emerald-700 dark:text-emerald-300">
+                주소가 복사되었습니다. Safari 또는 Chrome 브라우저 주소창에 붙여넣어 주세요.
+              </span>
+            ) : (
+              <>
+                <span className="font-bold">
+                  {browserType === 'kakaotalk' ? '카카오톡 인앱 브라우저 감지' : '인앱 브라우저 접속 안내'}
+                </span>
+                <span className="hidden sm:inline text-amber-700 dark:text-amber-300 ml-1.5">
+                  - 원활한 음성 합성 및 마이크 발음 평가를 위해 Chrome이나 기본 브라우저 사용을 권장합니다.
+                </span>
+              </>
+            )}
           </div>
         </div>
 
@@ -84,7 +96,7 @@ export const InAppBrowserBanner: React.FC = () => {
             className="flex items-center gap-1 px-2.5 py-1 rounded-md bg-amber-600 hover:bg-amber-700 active:scale-95 text-white font-medium text-xs shadow-sm transition-all"
           >
             <Compass className="w-3.5 h-3.5" />
-            <span>Chrome/기본 브라우저로 열기</span>
+            <span>{copiedNotice ? '주소 복사됨 ✓' : 'Chrome/기본 브라우저로 열기'}</span>
             <ExternalLink className="w-3 h-3" />
           </button>
           <button

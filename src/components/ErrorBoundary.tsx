@@ -36,17 +36,26 @@ export class ErrorBoundary extends React.Component<Props, State> {
 
   private handleClearCacheAndReload = () => {
     try {
-      // Clear app state that might be corrupted while keeping api keys
+      // Clear app state that might be corrupted while keeping api keys & AI engine setting
       const apiKey = localStorage.getItem('wordloop_gemini_api_key');
+      const aiEngineMode = localStorage.getItem('wordloop_ai_engine_mode');
       localStorage.removeItem('wordloop_vocab');
       localStorage.removeItem('wordloop_sentences');
       localStorage.removeItem('wordloop_goals');
       localStorage.removeItem('wordloop_history');
+      localStorage.removeItem('wordloop_total_repeats');
       localStorage.removeItem('wordloop_user_profile');
+      localStorage.removeItem('wordloop_user_profile_backup');
       localStorage.removeItem('wordloop_home_view');
       localStorage.removeItem('wordloop_emergency_snapshot');
+      localStorage.removeItem('wordloop_emergency_exit_snapshot');
+      localStorage.removeItem('wordloop_atomic_safety_ledger');
+      localStorage.removeItem('wordloop_pre_import_rollback');
       if (apiKey) {
         localStorage.setItem('wordloop_gemini_api_key', apiKey);
+      }
+      if (aiEngineMode) {
+        localStorage.setItem('wordloop_ai_engine_mode', aiEngineMode);
       }
     } catch (e) {
       console.error('Cache clear error:', e);

@@ -1,7 +1,10 @@
 import React, { useState } from 'react';
 import { Sparkles, Loader2, Plus, Check, BookOpen, Target, Lightbulb } from 'lucide-react';
 import { VocabItem, Goal } from '../types';
-import { getAuthHeaders } from '../services/apiClient';
+import {
+  generateVocabWithFreeAi,
+  recommendGoalsWithFreeAi,
+} from '../services/freeAiService';
 
 interface AIGeneratorProps {
   onAddGeneratedItems: (items: VocabItem[]) => void;
@@ -19,12 +22,14 @@ export const AIGenerator: React.FC<AIGeneratorProps> = ({
   const [errorMsg, setErrorMsg] = useState('');
   const [generatedItems, setGeneratedItems] = useState<VocabItem[]>([]);
   const [addedIds, setAddedIds] = useState<Set<number>>(new Set());
+  const [vocabProvider, setVocabProvider] = useState<string>('');
 
   // Goal Recommendation state
   const [interestTopic, setInterestTopic] = useState('영어 회화 & 습관 형성');
   const [goalLoading, setGoalLoading] = useState(false);
   const [recommendedGoals, setRecommendedGoals] = useState<any[]>([]);
   const [addedGoalIdxs, setAddedGoalIdxs] = useState<Set<number>>(new Set());
+  const [goalProvider, setGoalProvider] = useState<string>('');
 
   const handleGenerateVocab = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -34,18 +39,10 @@ export const AIGenerator: React.FC<AIGeneratorProps> = ({
     setErrorMsg('');
     setGeneratedItems([]);
     setAddedIds(new Set());
+    setVocabProvider('');
 
     try {
-      const res = await fetch('/api/ai/generate-vocab', {
-        method: 'POST',
-        headers: getAuthHeaders(),
-        body: JSON.stringify({ topic, count, difficulty }),
-      });
-
-      const data = await res.json();
-      if (!res.ok || !data.success) {
-        throw new Error(data.error || 'AI Vocab 생성 실패');
-      }
+      const data = await generateVocabWithFreeAi({ topic, count, difficulty });
 
       // Map to VocabItem array
       const itemsWithId: VocabItem[] = (data.items || []).map((item: any, idx: number) => ({
@@ -62,9 +59,10 @@ export const AIGenerator: React.FC<AIGeneratorProps> = ({
       }));
 
       setGeneratedItems(itemsWithId);
+      setVocabProvider(data.aiProvider || '무료 AI 엔진');
     } catch (err: any) {
       console.error(err);
-      setErrorMsg(err?.message || 'Gemini AI 서비스 연결 실패. 잠시 후 다시 시도해 주세요.');
+      setErrorMsg(err?.message || '무료 AI 서비스 연결 실패. 잠시 후 다시 시도해 주세요.');
     } finally {
       setLoading(false);
     }
@@ -83,15 +81,9 @@ export const AIGenerator: React.FC<AIGeneratorProps> = ({
   const handleGenerateGoals = async () => {
     setGoalLoading(true);
     try {
-      const res = await fetch('/api/ai/recommend-goals', {
-        method: 'POST',
-        headers: getAuthHeaders(),
-        body: JSON.stringify({ interest: interestTopic }),
-      });
-      const data = await res.json();
-      if (data.success) {
-        setRecommendedGoals(data.goals || []);
-      }
+      const data = await recommendGoalsWithFreeAi({ interest: interestTopic });
+      setRecommendedGoals(data.goals || []);
+      setGoalProvider(data.aiProvider || '');
     } catch (e) {
       console.error(e);
     } finally {
@@ -123,10 +115,10 @@ export const AIGenerator: React.FC<AIGeneratorProps> = ({
           </div>
           <div>
             <h2 className="text-xl font-extrabold tracking-tight">
-              Gemini AI 맞춤 단어 & 문장 생성기
+              무료 AI 맞춤 단어 & 문장 생성기 (API 키 불필요)
             </h2>
             <p className="text-xs text-purple-200 mt-1 max-w-xl">
-              원하는 주제(예: "카페 주문", "공항 체크인", "IT 개발 회의", "영화 감상평")를 입력하면 AI가 실용적인 표현과 예문, IPA 발음기호를 즉시 생성해 드립니다.
+              별도 API 키 없이도 Pollinations · Cloudflare Workers AI · DeepSeek가 실용적인 표현과 예문, IPA 발음기호를 즉시 무료로 생성해 드립니다.
             </p>
           </div>
         </div>
@@ -187,11 +179,18 @@ export const AIGenerator: React.FC<AIGeneratorProps> = ({
       {/* Generated Vocab Results */}
       {generatedItems.length > 0 && (
         <div className="space-y-4">
-          <div className="flex items-center justify-between">
-            <h3 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
-              <BookOpen className="w-4 h-4 text-purple-500" />
-              <span>AI가 생성한 {generatedItems.length}개의 맞춤 표현</span>
-            </h3>
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div className="flex items-center gap-2 flex-wrap">
+              <h3 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                <BookOpen className="w-4 h-4 text-purple-500" />
+                <span>AI가 생성한 {generatedItems.length}개의 맞춤 표현</span>
+              </h3>
+              {vocabProvider && (
+                <span className="text-[11px] font-bold px-2.5 py-0.5 rounded-lg bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30">
+                  {vocabProvider}
+                </span>
+              )}
+            </div>
 
             <button
               onClick={handleAddAllItems}
@@ -264,11 +263,16 @@ export const AIGenerator: React.FC<AIGeneratorProps> = ({
       {/* Goal Recommendation Section */}
       <div className="rounded-3xl p-6 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm space-y-4">
         <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
             <Target className="w-5 h-5 text-indigo-500" />
             <h3 className="font-bold text-base text-slate-900 dark:text-white">
               AI 습관 & 목표 추천
             </h3>
+            {goalProvider && (
+              <span className="text-[10.5px] font-bold px-2 py-0.5 rounded-lg bg-emerald-500/15 text-emerald-700 dark:text-emerald-300">
+                {goalProvider}
+              </span>
+            )}
           </div>
 
           <button

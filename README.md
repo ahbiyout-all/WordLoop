@@ -1,6 +1,6 @@
-# 🔤 WordLoop (v3.38.0)
+# 🔤 WordLoop (v4.5.0)
 
-**WordLoop**는 초·중·고·수능 및 비즈니스 영어 어휘(교육부 필수 3,210단어)와 500+ 실전 예문, 실제 엄마·아빠 사진 등록 및 성취도(저조/우수)에 따라 화면 전면 가득 출현하여 텍스트 없이 실제 목소리로만 잔소리/칭찬을 쏟아붓는 풀스크린 코믹 엄빠 잔소리(Surprise Parent Nagging) 음성 코치, 마일스톤 달성 인터랙티브 스케일업 Mastery Growth 바, 어휘 암기 단계 분포(Vocabulary Mastery Distribution) Recharts 바 차트, 취약 어휘 완전 정복 예상 시간(Predicted Mastery Time) 예측 위젯, '1000 Repeats Milestone' Recharts 마커 어노테이션 추이 차트, 시각적 마일스톤 업적 배지 시스템(Milestone Badge System), 일일 목표 요약(Daily Goal Summary) 서머리 카드, 주간 학습 기여도 히트맵(Weekly Contribution Heatmap), 일일 목표 연속 달성(Daily Goal Completion Streak) 인디케이터, 주간 총 반복 학습(Total Repeats) 향상도 Recharts 시각화 차트, 5대 순수 창작 고속 네이티브 DLL(AudioEngine, FastDB, SRSNeuralEngine, MorphEngine, TrayHook), 14종 인터랙티브 단어·문장 게임, 취약 어휘(0~1단계) 맞춤 복습 퀴즈, 8종 스마트 퀴즈 모드, 실시간 음성 파형 발음 측정, 그리고 초·중·고 교육과정 연계 원어민 AI 대화형 롤플레잉을 결합한 올인원 영어 학습 & 자기계발 플랫폼입니다.
+**WordLoop**는 초·중·고·수능 3,210개 필수 어휘(학년별 맞춤형 실전 예문 포함)와 **API 키 없는 전 세계 무료 오픈 AI 7중 워터폴 엔진(OVHcloud 70B · Kilo 550B · Pollinations · Cloudflare Workers AI · LLM7 · MLVoca · 온디바이스 Chrome Gemini Nano)**, **TodayHub 3분 집중 루틴**, **SM-2 간격 반복(SRS)**, **AI 음소(Phoneme) 단위 발음 교정 리포트 & 구강 조음 위치 시각화**, **Compact v2 델타 로컬 저장 엔진(<5% 용량 점유)**, **12종+ 단어·문장 게임**, 그리고 **원어민 AI 대화형 롤플레잉**을 하나로 통합한 1인 전용 온디바이스 영어 학습 플랫폼입니다.
 
 - **🌐 웹 애플리케이션 바로가기 (GitHub Pages):** [https://ahbiyout-all.github.io/WordLoop/](https://ahbiyout-all.github.io/WordLoop/)
 - **📁 GitHub Repository:** [https://github.com/ahbiyout-all/WordLoop](https://github.com/ahbiyout-all/WordLoop)
@@ -10,76 +10,26 @@
 
 ## ✨ 핵심 기능 (Core Features)
 
-- **🎯 취약 어휘 맞춤 집중 복습 퀴즈 (Review Quiz - v3.11.0)**:
-  - 마스터 레벨 0단계(미암기) 및 1단계(학습중) 단어만을 정밀 타겟팅하여 정답 시 실시간 등급 승급(0➔1➔2단계 마스터)
-  - 오답 시 단어·발음기호·뜻·예문 피드백 카드 제공 및 0단계 유지로 약점 집중 훈련
-- **🔄 GitHub Releases 실시간 자동 업데이트 시스템**:
-  - 앱 시작 시 최신 릴리스 자동 확인, 네비게이션 알림 배지 및 원클릭 기기별 설치파일(PC, Android APK, iOS, Web) 직접 다운로드
-- **🎒 초·중·고 교육과정 연계 실전 원어민 AI 롤플레잉**:
-  - 초등 필수 800어휘, 중학 1,200어휘, 고등/수능 2,000어휘 연계 30여 개 실전 대화 시나리오 탑재
-- **🎙️ 실시간 음성 파형(Audio Waveform) 비교 & 발음 측정**:
-  - 원어민 발음 파형과 내 발음 파형 1:1 오버레이 비교, 음절별 정확도 진단 및 부정확 구간 즉시 재청취
-- **🎮 14종 게이미피케이션 (단어 9종 + 문장 5종)**:
-  - 플래시카드 4지선다 리콜, 단어 짝맞추기, 크로스워드, 스와이프 매칭, 버블팝, 25초 스피드, 문장 어순 블록 조립, 청취 빈칸 채우기 등
-- **💾 100% 온디바이스 로컬 저장 & 95%+ 오프라인 작동**:
-  - 외부 서버 없이 기기 내 로컬 스토리지 & IndexedDB 자동 저장 및 JSON 백업/복원
-- **🛡️ 풀스택 보안 표준 준수**:
-  - API Rate Limiting, 헤더 전용 API 키 검증(`x-gemini-api-key`), JSON 프로토타입 오염 방어, CSV 수식 인젝션 방지
-
----
-
-## 🚀 깃허브(GitHub) 자동 업로드 & 배포 파이프라인
-
-WordLoop는 **다단 동적 버전 추출 메커니즘(Single Source of Truth)**을 통해 버전을 단일 소스로 관리하며, 스크립트 실행 한 번으로 깃허브 푸시, 태그 생성, 릴리스 빌드가 자동으로 이루어집니다.
-
-### 📌 깃허브 원클릭 자동 동기화 스크립트 실행
-- **Windows (권장)**:
-  ```cmd
-  github-sync.bat
-  # 또는
-  call scripts\github-sync.bat
-  ```
-- **macOS / Linux**:
-  ```bash
-  chmod +x scripts/github-sync.sh
-  ./github-sync.sh
-  ```
-
-> 💡 **버전 자동 연동 메커니즘**:
-> 1. `package.json`의 `"version"` 값 자동 추출 (1차 기준)
-> 2. `docs/PATCH_NOTES.md` 최상단 헤더 정규식 파싱 (2차 Fallback)
-> 3. Git 커밋 메시지(`chore(release): WordLoop vX.Y.Z`), 릴리스 태그(`vX.Y.Z`), 콘솔 타이틀이 완전히 자동으로 연동되어 GitHub로 푸시됩니다.
-> 4. GitHub Actions가 자동으로 트리거되어 PC (.exe), Android (.apk), iOS 패키지, Web 번들을 빌드하고 GitHub Releases에 자동 등록합니다.
-
----
-
-## 💻 기기별 빌드 및 설치 안내 (PC, Android, iOS)
-
-### 1. 💻 Windows PC 데스크톱 앱 (.exe)
-```cmd
-build-pc.bat
-# 또는
-npm run build:pc
-```
-- 산출물: `dist_electron/WordLoop-v3.11.0-Windows-Setup.exe` (인스톨러) 및 Portable 실행파일
-
-### 2. 📱 안드로이드 모바일 앱 (.apk)
-```cmd
-build-android.bat
-# 또는
-npm run build:android
-```
-- 콘솔 직접 빌드: `cd android && gradlew.bat assembleDebug`
-- 산출물: `android/app/build/outputs/apk/debug/app-debug.apk`
-
-### 3. 🍎 아이폰(iOS) & 아이패드
-```cmd
-build-ios.bat
-# 또는 (macOS 환경)
-npm run build:web && npx cap sync ios && npx cap open ios
-```
-- **아이폰 간편 1초 설치 (인증서 불필요)**:
-  - Safari 브라우저에서 WordLoop 접속 후 공유 아이콘 ➔ **'홈 화면에 추가(Add to Home Screen)'**를 누르면 App Store 앱과 완전히 동일한 전체화면 Standalone 웹앱으로 동작합니다.
+- **🧭 미니멀 `TodayHub` & `FocusRoutinePlayer` 3분 루틴 (v4.1.0+)**:
+  - 복잡한 다중 위젯 대신 **'오늘의 3분 루틴 시작'** CTA와 5개 우선순위 단어 스트립 중심으로 진입 동선을 단순화했습니다.
+  - `듣고 뜻 확인 → 4지선다 회상 → 발음/자가 평가(SM-2)` 3단계 루틴을 방해 없이 완주하며, 루틴 시작 시점의 큐 스냅샷을 유지해 진행 도중 카드가 건너뛰지 않습니다.
+- **🧠 클라이언트 SM-2 간격 반복 엔진 (`srsEngineService.ts`)**:
+  - 기존 `masteryLevel (0/1/2)`과 무손실 호환되는 SM-2 알고리즘(`Again / Hard / Good / Easy`)으로 오늘 복습이 필요한 단어와 다음 복습 일정을 자동 스케줄링합니다.
+- **📚 전 학년 맞춤형 3,210개 커리큘럼 어휘 & 실전 예문 (v4.2.0+)**:
+  - 상용구 안내 문구를 전면 제거하고 초등·중학·고등/수능 눈높이에 맞춘 3,210개 고유 영어 예문 및 한국어 번역을 탑재했습니다.
+- **🎙️ AI 음소(Phoneme) 단위 발음 교정 리포트 & 구강 SVG 시각화 (v4.3.0+)**:
+  - 단순 0~100점 숫자 대신 각 음소의 IPA 변화(`/θ/→/s/`, `/r/→/l/`, 어말 자음 탈락 등), 구강 단면도 SVG 조음 위치(혀/치아/입술), 내 녹음 구간 슬라이스 재생, 최소대립쌍(`think ↔ sink`) 비교 드릴을 제공합니다.
+  - API 키 없이 무료 AI 음소 교정을 기본 지원하며, 개인 Gemini 키 등록 시 녹음 오디오 직접 청취 멀티모달 분석(`/api/ai/pronunciation-report`)까지 지원합니다.
+- **🌐 API 키 없는 전 세계 무료 AI 7중 자동 워터폴 엔진 (v4.4.0 ~ v4.5.0)**:
+  - 회원가입·API 키 없이 **OVHcloud EU AI (DeepSeek V4.1 · Llama 3.3 70B · Mistral 24B · GPT-OSS 20B · Gemma 4)**, **Kilo AI Gateway (최대 550B Nemotron Ultra · 서버 프록시)**, **Pollinations AI**, **Cloudflare Workers AI**, **LLM7 Open Gateway**, **MLVoca Ollama (DeepSeek R1 · TinyLlama)**, 그리고 **Chrome 내장 온디바이스 Gemini Nano**까지 총 7중 워터폴 체인이 자동 동작합니다.
+  - AI 원어민 롤플레잉, AI 단어/목표 생성, AI 뉘앙스 해설, 오픈사전 한국어 분석, 발음 음소 교정 리포트, 부모님 맞춤 대본 생성을 모두 API 키 ZERO 상태로 바로 이용할 수 있습니다.
+- **🗜️ Compact v2 델타 저장소 & Schema v2 JSON 스마트 병합 (v4.1.0 ~ v4.3.2)**:
+  - 3,210개 내장 정적 데이터를 반복 저장하지 않고 학습 진도와 사용자 추가·수정 항목만 델타 압축 저장해 5MB `localStorage` 사용률을 **95.2% → 5% 미만**으로 절감합니다.
+  - **JSON 백업 후 캐시 정리** 원클릭 도구, 내보내기 체크섬 무결성 검증, 자동 롤백 스냅샷 기반 스마트 병합(Smart Merge)을 지원합니다.
+- **⚡ `React.lazy` 온디맨드 코드 분할 & 12종+ 게이미피케이션**:
+  - 초기 진입 시 `TodayHub`와 오디오 루프만 즉시 로드하고, 3탭 `StatsDashboard`, 미니게임, 사전, AI 롤플레이 및 모달을 지연 로딩 청크로 분리했습니다.
+- **🛡️ 온디바이스 프라이버시 & 풀스택 보안 표준 준수**:
+  - 100% 기기 로컬 저장, 비차단 온스크린 토스트 표준화(`alert()` 제거), API Rate Limiting, Origin/Referer 검증, `safeJsonParse` 프로토타입 오염 방어 및 XSS 살균 처리를 적용했습니다.
 
 ---
 
@@ -92,12 +42,23 @@ npm install
 # 2. 개발 서버 실행 (Port 3000)
 npm run dev
 
-# 3. 린트 및 타입 검사
+# 3. 타입 검사 (Strict Lint)
 npm run lint
 
-# 4. 웹 프로덕션 빌드
+# 4. 웹 + 서버 프로덕션 빌드
 npm run build
 ```
+
+---
+
+## 💻 기기별 빌드 및 GitHub 자동 배포 파이프라인
+
+WordLoop는 `package.json`, `src/constants/version.ts`, `metadata.json`, `docs/PATCH_NOTES.md`, `src/data/patchNotesData.ts`를 단일 버전 기준(`4.5.0`)으로 동기화합니다.
+
+- **Windows PC 데스크톱 앱 (`.exe`)**: `npm run build:pc` 또는 `build-pc.bat`
+- **안드로이드 모바일 앱 (`.apk`)**: `npm run build:android` 또는 `build-android.bat`
+- **아이폰 / iOS PWA & 패키지**: Safari **'홈 화면에 추가'** 즉시 설치 또는 `npm run build:web && npx cap sync ios`
+- **GitHub 자동 동기화**: `github-sync.bat` (Windows) / `./github-sync.sh` (macOS/Linux)
 
 ---
 
@@ -105,39 +66,26 @@ npm run build
 
 ```
 WordLoop/
-├── .github/workflows/         # GitHub Actions CI/CD (멀티플랫폼 자동 빌드 & 릴리스)
-│   └── release.yml
-├── docs/                      # 프로젝트 표준 문서
-│   ├── PATCH_NOTES.md         # 버전별 패치 내역 (Single Source of Truth)
-│   ├── SECURITY_REPORT.md     # 보안 점검 보고서
-│   ├── DLL_SPECS.md           # 모듈 및 네이티브 패키지 명세서
-│   ├── LICENSE_KR.md          # 다국어 라이선스 (한국어)
-│   ├── LICENSE_EN.md          # 다국어 라이선스 (English)
-│   ├── WorkLog.md             # 개발 및 배포 작업 로그
-│   └── ARCHITECTURE.md        # 아키텍처 상세 설계서
-├── electron/                  # PC 데스크톱 네이티브 래퍼
-│   ├── main.cjs
-│   └── preload.cjs
-├── scripts/                   # 빌드 및 깃허브 자동화 스크립트
-│   ├── github-sync.bat        # Windows 깃허브 자동 동기화 & 릴리스
-│   ├── github-sync.sh         # Bash 깃허브 자동 동기화 & 릴리스
-│   ├── build-electron.js      # PC 패키징 스크립트
-│   ├── sync-android.js        # 안드로이드 동기화 스크립트
-│   ├── sync-ios.js            # iOS 동기화 스크립트
-│   └── build-web.js           # Vite 웹 번들러
-├── src/                       # 애플리케이션 소스 코드
-│   ├── components/            # UI 컴포넌트 (QuizMode, GitHubUpdateModal 등)
-│   ├── services/              # 코어 서비스 (githubUpdateService, speech 등)
-│   ├── data/                  # 3,210개 교육과정 어휘, 롤플레잉 시나리오 데이터
-│   ├── types.ts               # 공통 타입 정의
-│   └── App.tsx                # 메인 애플리케이션 진입점
-├── github-sync.bat            # 깃허브 원클릭 푸시 배치파일
-├── build-pc.bat               # PC 앱 원클릭 빌드 배치파일
-├── build-android.bat          # 안드로이드 앱 원클릭 빌드 배치파일
-├── build-ios.bat              # iOS 앱 원클릭 빌드 배치파일
-├── capacitor.config.json      # 모바일 앱 메타데이터 설정
-├── package.json               # 프로젝트 의존성 및 버전 정보 (v3.11.0)
-└── .gitignore                 # 깃허브 클린 업로드 필터 규칙
+├── .github/workflows/          # GitHub Actions CI/CD (Web/PC/Android/iOS 자동 빌드)
+├── docs/                       # 프로젝트 표준 문서
+│   ├── README.md               # 프로젝트 핵심 기능 및 스택 요약
+│   ├── ARCHITECTURE.md         # v4.5.0 클라이언트/서버/7중 무료 AI 아키텍처
+│   ├── USER_GUIDE.md           # 오늘 학습 · 무료 AI · 발음 교정 · 저장소 관리 가이드
+│   ├── SECURITY_REPORT.md      # 보안 점검 및 강화 보고서
+│   ├── SELF_REFLECTION_AUDIT.md# 자아성찰 및 심층 감사 보고서
+│   ├── PATCH_NOTES.md          # 버전별 패치 노트
+│   └── WorkLog.md              # 마일스톤 작업 이력
+├── electron/                   # PC 데스크톱 Electron 래퍼 (main.cjs, preload.cjs)
+├── scripts/                    # 멀티플랫폼 빌드 및 GitHub 동기화 스크립트
+├── src/
+│   ├── components/             # TodayHub, FocusRoutinePlayer, PronunciationCorrectionReport, StatsDashboard 등
+│   ├── constants/              # version.ts (Single Source of Truth)
+│   ├── data/                   # 3,210개 교육과정 어휘, 시나리오, 패치노트 데이터
+│   ├── services/               # freeAiService, deviceStorageService, srsEngineService, speechService 등
+│   ├── utils/                  # phonemeAnalysisUtils, audioWaveformUtils, meaningUtils 등
+│   └── App.tsx                 # 메인 라우트 및 전역 상태/영속성 조율
+├── server.ts                   # Express 프록시 (/api/dictionary, /api/ai/*, 무료 AI 6중 체인 + Origin/Rate-Limit 보안)
+└── package.json                # 의존성 및 버전 정보 (v4.5.0)
 ```
 
 ---

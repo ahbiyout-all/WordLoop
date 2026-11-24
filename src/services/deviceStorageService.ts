@@ -243,9 +243,346 @@ const KEY_LABELS: Record<string, string> = {
   wordloop_goals: '자기계발 목표',
   wordloop_user_profile: '사용자 프로필 · 사진',
   wordloop_user_profile_backup: '프로필 백업 사본',
-  wordloop_emergency_snapshot: '종료 직전 긴급 스냅샷',
+  wordloop_emergency_exit_snapshot: '종료 직전 긴급 스냅샷',
+  wordloop_emergency_snapshot: '구버전 긴급 스냅샷',
+  wordloop_atomic_safety_ledger: '안전 저장 원장',
   wordloop_pre_import_rollback: '가져오기 직전 롤백 본',
+  wordloop_ai_engine_mode: 'AI 엔진 모드',
 };
+
+export interface CompactVocabProgress {
+  m?: 0 | 1 | 2; // masteryLevel
+  l?: boolean; // isLearned
+  b?: boolean; // isBookmarked
+  r?: number; // repeatCount
+  s?: VocabItem['srs']; // SM-2 srs
+}
+
+export interface CompactVocabStorageV2 {
+  v: 2;
+  defaultCount: number;
+  progress: Record<string, CompactVocabProgress>;
+  custom: VocabItem[];
+}
+
+export interface CompactSentenceProgress {
+  m?: 0 | 1 | 2;
+  l?: boolean;
+  b?: boolean;
+  r?: number;
+}
+
+export interface CompactSentenceStorageV2 {
+  v: 2;
+  defaultCount: number;
+  progress: Record<string, CompactSentenceProgress>;
+  custom: SentenceItem[];
+}
+
+const BUILT_IN_VOCAB_ID_PREFIXES = ['edu3000-v-', 'edu3000-', 'curr-', 'vocab-'];
+const BUILT_IN_SENTENCE_ID_PREFIXES = [
+  'elem-sent-',
+  'mid-sent-',
+  'prac-sent-',
+  'sat-sent-',
+  'curr-sentence-',
+  'edu3000-s-',
+  'sent-',
+];
+
+function isKnownBuiltInVocabId(id?: string): boolean {
+  if (!id) return false;
+  return BUILT_IN_VOCAB_ID_PREFIXES.some((prefix) => id.startsWith(prefix));
+}
+
+function isKnownBuiltInSentenceId(id?: string): boolean {
+  if (!id) return false;
+  return BUILT_IN_SENTENCE_ID_PREFIXES.some((prefix) => id.startsWith(prefix));
+}
+
+/**
+ * Compacts vocabList by stripping static built-in curriculum fields that already ship in DEFAULT_VOCAB,
+ * retaining 100% of user progress (masteryLevel, isLearned, isBookmarked, repeatCount, srs) & custom/edited items.
+ */
+export function serializeCompactVocab(
+  vocabList: VocabItem[],
+  defaultVocab?: VocabItem[]
+): CompactVocabStorageV2 {
+  const defaultMap = new Map<string, VocabItem>();
+  if (defaultVocab) {
+    for (const dv of defaultVocab) {
+      defaultMap.set(dv.word.trim().toLowerCase(), dv);
+    }
+  }
+
+  const progress: Record<string, CompactVocabProgress> = {};
+  const custom: VocabItem[] = [];
+  let builtInCount = 0;
+
+  for (const item of vocabList) {
+    if (!item?.word) continue;
+    const key = item.word.trim().toLowerCase();
+    const canonical = defaultMap.get(key);
+    const matchesBuiltIn =
+      !item.isCustom &&
+      (canonical
+        ? canonical.meaning === item.meaning &&
+          canonical.sentence === item.sentence &&
+          canonical.sentenceMeaning === item.sentenceMeaning
+        : isKnownBuiltInVocabId(item.id));
+
+    if (!matchesBuiltIn) {
+      custom.push(item);
+      continue;
+    }
+
+    builtInCount++;
+    const hasProgress =
+      (item.masteryLevel ?? 0) > 0 ||
+      Boolean(item.isLearned) ||
+      Boolean(item.isBookmarked) ||
+      (item.repeatCount ?? 0) > 0 ||
+      Boolean(item.srs);
+
+    if (hasProgress) {
+      const entry: CompactVocabProgress = {};
+      if ((item.masteryLevel ?? 0) > 0) entry.m = item.masteryLevel;
+      if (item.isLearned) entry.l = true;
+      if (item.isBookmarked) entry.b = true;
+      if ((item.repeatCount ?? 0) > 0) entry.r = item.repeatCount;
+      if (item.srs) entry.s = item.srs;
+      progress[key] = entry;
+    }
+  }
+
+  return {
+    v: 2,
+    defaultCount: defaultVocab ? defaultVocab.length : builtInCount,
+    progress,
+    custom,
+  };
+}
+
+/**
+ * Hydrates full VocabItem[] from either compact v2 delta storage or legacy array storage.
+ */
+export function hydrateCompactVocab(rawSaved: string, defaultVocab: VocabItem[]): VocabItem[] {
+  const parsed = safeJsonParse<any>(rawSaved);
+
+  if (parsed && typeof parsed === 'object' && parsed.v === 2 && parsed.progress) {
+    const progressMap = parsed.progress as Record<string, CompactVocabProgress>;
+    const hydratedBuiltIns = defaultVocab.map((dv) => {
+      const p = progressMap[dv.word.trim().toLowerCase()];
+      if (!p) return dv;
+      return {
+        ...dv,
+        masteryLevel: p.m ?? dv.masteryLevel ?? (p.l ? 2 : 0),
+        isLearned: p.l ?? (p.m ? p.m >= 2 : dv.isLearned),
+        isBookmarked: p.b ?? dv.isBookmarked,
+        repeatCount: p.r ?? dv.repeatCount,
+        srs: p.s ?? dv.srs,
+      };
+    });
+    const customItems = Array.isArray(parsed.custom) ? (parsed.custom as VocabItem[]) : [];
+    if (customItems.length === 0) return hydratedBuiltIns;
+
+    // Deduplicate custom/edited overrides so modified built-ins replace rather than duplicate
+    const customByKey = new Map<string, VocabItem>();
+    const customExtra: VocabItem[] = [];
+    const builtInKeySet = new Set(hydratedBuiltIns.map((v) => v.word.trim().toLowerCase()));
+
+    for (const ci of customItems) {
+      if (!ci?.word) continue;
+      const normKey = ci.word.trim().toLowerCase();
+      if (builtInKeySet.has(normKey)) {
+        customByKey.set(normKey, ci);
+      } else if (!customExtra.some((x) => x.word.trim().toLowerCase() === normKey)) {
+        customExtra.push(ci);
+      }
+    }
+
+    const mergedBuiltIns = hydratedBuiltIns.map((dv) => {
+      const override = customByKey.get(dv.word.trim().toLowerCase());
+      return override ? override : dv;
+    });
+
+    return [...customExtra, ...mergedBuiltIns];
+  }
+
+  if (Array.isArray(parsed)) {
+    const defaultVocabMap = new Map<string, VocabItem>();
+    defaultVocab.forEach((v) => defaultVocabMap.set(v.word.trim().toLowerCase(), v));
+
+    const repaired: VocabItem[] = parsed.map((item: VocabItem) => {
+      if (!item?.word) return item;
+      const canonical = defaultVocabMap.get(item.word.trim().toLowerCase());
+      const rawMeaning = item.meaning || '';
+      const rawSentence = item.sentence || '';
+      const rawSentenceMeaning = item.sentenceMeaning || '';
+
+      const needsMeaningRepair =
+        !/[\u3131-\u318E\uAC00-\uD7A3]/.test(rawMeaning) ||
+        rawMeaning.includes('관련 어휘') ||
+        rawMeaning.includes('파생 어휘') ||
+        rawMeaning.toLowerCase() === item.word.toLowerCase() ||
+        (/[a-zA-Z]/.test(rawMeaning) && !item.isCustom);
+
+      const needsExampleRepair =
+        !item.isCustom &&
+        (rawSentence.includes('essential vocabulary item') ||
+          rawSentence.includes('in formal English sentences') ||
+          rawSentenceMeaning.includes('대한민국 교육부') ||
+          rawSentenceMeaning.includes('수능 필수 어휘') ||
+          rawSentenceMeaning.includes('교육부 핵심 예문') ||
+          rawSentenceMeaning.includes('유용한 실용 예문') ||
+          rawSentenceMeaning.includes('파생 어휘'));
+
+      if ((needsMeaningRepair || needsExampleRepair) && canonical) {
+        return {
+          ...item,
+          meaning: needsMeaningRepair ? canonical.meaning : item.meaning,
+          sentence: canonical.sentence || item.sentence,
+          sentenceMeaning: canonical.sentenceMeaning || item.sentenceMeaning,
+          ipa: canonical.ipa || item.ipa,
+        };
+      }
+      return item;
+    });
+
+    const existingWordSet = new Set(repaired.map((item) => (item?.word || '').toLowerCase()));
+    const missingDefaults = defaultVocab.filter((item) => !existingWordSet.has(item.word.toLowerCase()));
+    return missingDefaults.length > 0 ? [...repaired, ...missingDefaults] : repaired;
+  }
+
+  return defaultVocab;
+}
+
+/**
+ * Compacts sentenceList by stripping static DEFAULT_SENTENCES payloads while preserving progress & custom sentences.
+ */
+export function serializeCompactSentences(
+  sentenceList: SentenceItem[],
+  defaultSentences?: SentenceItem[]
+): CompactSentenceStorageV2 {
+  const defaultMap = new Map<string, SentenceItem>();
+  if (defaultSentences) {
+    for (const ds of defaultSentences) {
+      defaultMap.set(ds.text.trim().toLowerCase(), ds);
+    }
+  }
+
+  const progress: Record<string, CompactSentenceProgress> = {};
+  const custom: SentenceItem[] = [];
+  let builtInCount = 0;
+
+  for (const item of sentenceList) {
+    if (!item?.text) continue;
+    const key = item.text.trim().toLowerCase();
+    const canonical = defaultMap.get(key);
+    const matchesBuiltIn =
+      !item.isCustom &&
+      (canonical ? canonical.meaning === item.meaning : isKnownBuiltInSentenceId(item.id));
+
+    if (!matchesBuiltIn) {
+      custom.push(item);
+      continue;
+    }
+
+    builtInCount++;
+    const hasProgress =
+      (item.masteryLevel ?? 0) > 0 ||
+      Boolean(item.isLearned) ||
+      Boolean(item.isBookmarked) ||
+      (item.repeatCount ?? 0) > 0;
+
+    if (hasProgress) {
+      const entry: CompactSentenceProgress = {};
+      if ((item.masteryLevel ?? 0) > 0) entry.m = item.masteryLevel;
+      if (item.isLearned) entry.l = true;
+      if (item.isBookmarked) entry.b = true;
+      if ((item.repeatCount ?? 0) > 0) entry.r = item.repeatCount;
+      progress[key] = entry;
+    }
+  }
+
+  return {
+    v: 2,
+    defaultCount: defaultSentences ? defaultSentences.length : builtInCount,
+    progress,
+    custom,
+  };
+}
+
+/**
+ * Hydrates full SentenceItem[] from either compact v2 storage or legacy array storage.
+ */
+export function hydrateCompactSentences(rawSaved: string, defaultSentences: SentenceItem[]): SentenceItem[] {
+  const parsed = safeJsonParse<any>(rawSaved);
+
+  if (parsed && typeof parsed === 'object' && parsed.v === 2 && parsed.progress) {
+    const progressMap = parsed.progress as Record<string, CompactSentenceProgress>;
+    const hydratedBuiltIns = defaultSentences.map((ds) => {
+      const p = progressMap[ds.text.trim().toLowerCase()];
+      if (!p) return ds;
+      return {
+        ...ds,
+        masteryLevel: p.m ?? ds.masteryLevel ?? (p.l ? 2 : 0),
+        isLearned: p.l ?? (p.m ? p.m >= 2 : ds.isLearned),
+        isBookmarked: p.b ?? ds.isBookmarked,
+        repeatCount: p.r ?? ds.repeatCount,
+      };
+    });
+    const customItems = Array.isArray(parsed.custom) ? (parsed.custom as SentenceItem[]) : [];
+    if (customItems.length === 0) return hydratedBuiltIns;
+
+    // Deduplicate custom/edited overrides against built-in sentences
+    const customByKey = new Map<string, SentenceItem>();
+    const customExtra: SentenceItem[] = [];
+    const builtInKeySet = new Set(hydratedBuiltIns.map((s) => s.text.trim().toLowerCase()));
+
+    for (const ci of customItems) {
+      if (!ci?.text) continue;
+      const normKey = ci.text.trim().toLowerCase();
+      if (builtInKeySet.has(normKey)) {
+        customByKey.set(normKey, ci);
+      } else if (!customExtra.some((x) => x.text.trim().toLowerCase() === normKey)) {
+        customExtra.push(ci);
+      }
+    }
+
+    const mergedBuiltIns = hydratedBuiltIns.map((ds) => {
+      const override = customByKey.get(ds.text.trim().toLowerCase());
+      return override ? override : ds;
+    });
+
+    return [...customExtra, ...mergedBuiltIns];
+  }
+
+  if (Array.isArray(parsed)) {
+    const cleanedParsed = parsed.filter(
+      (item: SentenceItem) =>
+        item?.text &&
+        !item.text.includes('is an essential vocabulary item in the English curriculum') &&
+        !item.text.includes('in formal English sentences') &&
+        !item.text.includes('alongside') &&
+        item.meaning &&
+        !item.meaning.includes('대한민국 교육부') &&
+        !item.meaning.includes('교육부 핵심 예문') &&
+        !item.meaning.includes('유용한 실용 예문') &&
+        !item.meaning.includes('파생 어휘') &&
+        !item.meaning.includes('필수 어휘') &&
+        /[\u3131-\u318E\uAC00-\uD7A3]/.test(item.meaning)
+    );
+    const existingTextSet = new Set(cleanedParsed.map((item: SentenceItem) => item.text.trim().toLowerCase()));
+    const missingDefaults = defaultSentences.filter(
+      (item) => !existingTextSet.has(item.text.trim().toLowerCase())
+    );
+    const combined = missingDefaults.length > 0 ? [...cleanedParsed, ...missingDefaults] : cleanedParsed;
+    return combined.length > 0 ? combined : defaultSentences;
+  }
+
+  return defaultSentences;
+}
 
 /**
  * Calculate total device storage consumption, per-key breakdown, and backup reminder status
@@ -302,14 +639,28 @@ export function getDeviceStorageStats(): DeviceStorageStats {
     const rawVocab = localStorage.getItem(STORAGE_KEYS.VOCAB);
     if (rawVocab) {
       try {
-        itemCounts.vocabCount = JSON.parse(rawVocab).length;
+        const parsedVocab = JSON.parse(rawVocab);
+        if (Array.isArray(parsedVocab)) {
+          itemCounts.vocabCount = parsedVocab.length;
+        } else if (parsedVocab && parsedVocab.v === 2) {
+          itemCounts.vocabCount =
+            (Number(parsedVocab.defaultCount) || 0) +
+            (Array.isArray(parsedVocab.custom) ? parsedVocab.custom.length : 0);
+        }
       } catch {}
     }
 
     const rawSentences = localStorage.getItem(STORAGE_KEYS.SENTENCES);
     if (rawSentences) {
       try {
-        itemCounts.sentenceCount = JSON.parse(rawSentences).length;
+        const parsedSent = JSON.parse(rawSentences);
+        if (Array.isArray(parsedSent)) {
+          itemCounts.sentenceCount = parsedSent.length;
+        } else if (parsedSent && parsedSent.v === 2) {
+          itemCounts.sentenceCount =
+            (Number(parsedSent.defaultCount) || 0) +
+            (Array.isArray(parsedSent.custom) ? parsedSent.custom.length : 0);
+        }
       } catch {}
     }
 
@@ -370,17 +721,23 @@ export function getDeviceStorageStats(): DeviceStorageStats {
 }
 
 /**
- * Safely prune redundant temporary snapshots & voice history logs when quota is high,
- * without deleting active vocab, sentences, goals, history, or primary profile.
+ * Safely prune redundant temporary snapshots & compact legacy full-dictionary storage blobs,
+ * without deleting active vocab progress, sentences, goals, history, or primary profile.
  */
-export function cleanupRedundantStorageCache(): { freedBytes: number; removedKeys: string[] } {
+export function cleanupRedundantStorageCache(liveData?: {
+  vocabList?: VocabItem[];
+  sentenceList?: SentenceItem[];
+}): { freedBytes: number; removedKeys: string[]; compactedKeys: string[] } {
   const candidateKeys = [
     STORAGE_KEYS.PRE_IMPORT_ROLLBACK,
+    'wordloop_emergency_exit_snapshot',
     'wordloop_emergency_snapshot',
+    'wordloop_atomic_safety_ledger',
     STORAGE_KEYS.USER_PROFILE_BACKUP,
   ];
   let freedBytes = 0;
   const removedKeys: string[] = [];
+  const compactedKeys: string[] = [];
 
   for (const key of candidateKeys) {
     try {
@@ -393,7 +750,53 @@ export function cleanupRedundantStorageCache(): { freedBytes: number; removedKey
     } catch {}
   }
 
-  return { freedBytes, removedKeys };
+  // Compact legacy uncompressed vocab array (~2.1MB -> ~5KB)
+  try {
+    const rawVocab = localStorage.getItem(STORAGE_KEYS.VOCAB);
+    if (rawVocab) {
+      const parsed = safeJsonParse<any>(rawVocab);
+      if (Array.isArray(parsed)) {
+        const beforeBytes = (STORAGE_KEYS.VOCAB.length + rawVocab.length) * 2;
+        const compactObj = serializeCompactVocab(
+          liveData?.vocabList && liveData.vocabList.length > 0 ? liveData.vocabList : parsed
+        );
+        const nextRaw = JSON.stringify(compactObj);
+        const afterBytes = (STORAGE_KEYS.VOCAB.length + nextRaw.length) * 2;
+        if (afterBytes < beforeBytes) {
+          localStorage.setItem(STORAGE_KEYS.VOCAB, nextRaw);
+          freedBytes += beforeBytes - afterBytes;
+          compactedKeys.push(STORAGE_KEYS.VOCAB);
+        }
+      }
+    }
+  } catch {}
+
+  // Compact legacy uncompressed sentences array
+  try {
+    const rawSent = localStorage.getItem(STORAGE_KEYS.SENTENCES);
+    if (rawSent) {
+      const parsed = safeJsonParse<any>(rawSent);
+      if (Array.isArray(parsed)) {
+        const beforeBytes = (STORAGE_KEYS.SENTENCES.length + rawSent.length) * 2;
+        const compactObj = serializeCompactSentences(
+          liveData?.sentenceList && liveData.sentenceList.length > 0 ? liveData.sentenceList : parsed
+        );
+        const nextRaw = JSON.stringify(compactObj);
+        const afterBytes = (STORAGE_KEYS.SENTENCES.length + nextRaw.length) * 2;
+        if (afterBytes < beforeBytes) {
+          localStorage.setItem(STORAGE_KEYS.SENTENCES, nextRaw);
+          freedBytes += beforeBytes - afterBytes;
+          compactedKeys.push(STORAGE_KEYS.SENTENCES);
+        }
+      }
+    }
+  } catch {}
+
+  if (typeof window !== 'undefined' && (removedKeys.length > 0 || compactedKeys.length > 0)) {
+    window.dispatchEvent(new CustomEvent('wordloop_storage_updated'));
+  }
+
+  return { freedBytes, removedKeys, compactedKeys };
 }
 
 /**

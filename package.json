@@ -1,8 +1,8 @@
 {
   "name": "react-example",
   "private": true,
-  "version": "4.2.0",
-  "description": "WordLoop English Vocabulary & Sentence Learning App with Offline Audio Loop and Gamification",
+  "version": "4.5.0",
+  "description": "WordLoop English Vocabulary & Sentence Learning App with 7-Layer Keyless Free Worldwide AI, On-Device Gemini Nano, Offline Audio Loop, and Gamification",
   "author": "WordLoop Team",
   "type": "module",
   "main": "electron/main.cjs",

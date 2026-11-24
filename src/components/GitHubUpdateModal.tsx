@@ -57,7 +57,17 @@ export const GitHubUpdateModal: React.FC<GitHubUpdateModalProps> = ({
     }
   });
 
-  // Handle Keyboard Escape key to close modal
+  const apkIntervalRef = React.useRef<ReturnType<typeof setInterval> | null>(null);
+  const apkTimeoutRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Handle Keyboard Escape key to close modal and clean up timers on unmount
+  React.useEffect(() => {
+    return () => {
+      if (apkIntervalRef.current) clearInterval(apkIntervalRef.current);
+      if (apkTimeoutRef.current) clearTimeout(apkTimeoutRef.current);
+    };
+  }, []);
+
   React.useEffect(() => {
     if (!isOpen) return;
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -76,23 +86,36 @@ export const GitHubUpdateModal: React.FC<GitHubUpdateModalProps> = ({
     } catch {}
   };
 
+  const getSafeApkDownloadUrl = (candidate?: string): string => {
+    if (typeof candidate !== 'string') return '/api/download/apk';
+    const trimmed = candidate.trim();
+    if (trimmed.startsWith('/') || trimmed.startsWith('https://')) {
+      return trimmed;
+    }
+    return '/api/download/apk';
+  };
+
   // Direct Mobile APK Download Handler with In-Modal Progress Synthesizer
   const handleStartApkDownload = () => {
-    const downloadTargetUrl = updateData?.downloadUrlApk || '/api/download/apk';
+    if (apkIntervalRef.current) clearInterval(apkIntervalRef.current);
+    if (apkTimeoutRef.current) clearTimeout(apkTimeoutRef.current);
+
+    const downloadTargetUrl = getSafeApkDownloadUrl(updateData?.downloadUrlApk);
     setIsDownloadingApk(true);
     setApkDownloadProgress(5);
     setApkDownloadStatus('서버 패키지 무결성 연결 중...');
 
     let current = 5;
-    const interval = setInterval(() => {
+    apkIntervalRef.current = setInterval(() => {
       current += Math.floor(Math.random() * 18) + 12;
       if (current >= 95) {
         current = 95;
-        clearInterval(interval);
+        if (apkIntervalRef.current) clearInterval(apkIntervalRef.current);
+        apkIntervalRef.current = null;
         setApkDownloadProgress(95);
         setApkDownloadStatus('패키지 검증 완료! 모바일 설치자를 실행합니다...');
 
-        setTimeout(() => {
+        apkTimeoutRef.current = setTimeout(() => {
           setApkDownloadProgress(100);
           setApkDownloadStatus('🎉 다운로드 완료! 브라우저 다운로드 항목을 확인하세요.');
           setIsDownloadingApk(false);

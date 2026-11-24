@@ -20,6 +20,7 @@ import { speechService } from '../services/speechService';
 import { UserProfile, NagTonePreset, NagLanguageMode } from '../types';
 import { DEFAULT_MOM_PHOTO, DEFAULT_DAD_PHOTO } from '../utils/parentPhotoUtils';
 import { toneBgmSynthEngine } from '../utils/toneBgmSynthEngine';
+import { safeJsonParse, sanitizeDeepObject } from '../services/deviceStorageService';
 
 export type SurpriseNagType = 'low_achievement' | 'high_achievement' | 'study_start' | 'study_complete' | 'study_delay' | 'continuous_study_break';
 
@@ -407,9 +408,9 @@ export const SurpriseParentNagPopup: React.FC<SurpriseParentNagPopupProps> = ({
     try {
       const saved = localStorage.getItem('wordloop_custom_nag_scripts');
       if (saved) {
-        const parsed = JSON.parse(saved);
+        const parsed = sanitizeDeepObject(safeJsonParse<any>(saved));
         const text = parsed?.[situation]?.[spk]?.[tone];
-        if (text && text.trim().length > 0) {
+        if (typeof text === 'string' && text.trim().length > 0) {
           return text
             .replace(/\$\{userName\}/g, userName)
             .replace(/\$\{dailyGoal\}/g, String(dailyGoal))

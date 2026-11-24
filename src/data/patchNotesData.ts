@@ -14,9 +14,111 @@ export { APP_VERSION };
 
 export const PATCH_NOTES_DATA: PatchNoteVersion[] = [
   {
-    version: '4.2.0',
+    version: '4.5.0',
     date: '2026-11',
     isLatest: true,
+    tagline: '전 세계 API 키 없는 무료 AI 4종 대규모 추가 발굴·검증 (OVHcloud 70B · Kilo 550B · LLM7 · Chrome 온디바이스 Gemini Nano) — 총 7중 무료 AI 워터폴 체인 완성',
+    highlights: [
+      {
+        category: '🌍 신규 발굴·라이브 검증 완료: API 키 없는 글로벌 무료 AI 4종 추가 탑재',
+        items: [
+          '🚀 [Kilo AI Gateway (최대 550B Nemotron Ultra 무료 프록시)]: kilo-auto/free → nvidia/nemotron-3.5-lightning:free 자동 폴백과 시간당 약 200회의 넉넉한 무료 할당량을 Express 서버 프록시로 안전하게 연동했습니다.',
+          '🇪🇺 [OVHcloud EU AI Endpoints (다중 모델 5종 자동 순환 · 브라우저 직결)]: DeepSeek V4.1 Flash, Mistral Small 3.2 24B, Meta Llama 3.3 70B, GPT-OSS 20B, Gemma 4 26B를 모델별 65초 쿨다운 맵과 함께 순환 호출해 2 RPM 제한 환경에서도 끊김 없이 응답합니다.',
+          '🌐 [LLM7 Open Gateway & MLVoca 이중 폴백]: 브라우저 직결 LLM7 Open Gateway(default / gpt-oss:20b / mistral-Nemo-Instruct-2407)와 서버 MLVoca(DeepSeek R1 1.5B → TinyLlama) 폴백을 추가했습니다.',
+          '💻 [Chrome / Edge 내장 온디바이스 AI (Gemini Nano Prompt API)]: 지원 브라우저에서 네트워크·요청 한도 없이 기기 내부에서 즉시 추론하는 온디바이스 모드를 지원하며, 미지원 환경에서는 클라우드 무료 체인으로 자동 전환됩니다.',
+          '🎛️ [9종 AI 엔진 선택기 & 전 기능 연동]: ApiKeyModal에 연결 방식 배지(브라우저 직결 · 서버 프록시 · 기기 내장 온디바이스 · 개인 키 전용)를 추가하고 롤플레잉·단어 생성·발음 음소 교정 리포트·사전 검색까지 모든 무료 엔진을 통합했습니다.',
+        ],
+      },
+    ],
+  },
+  {
+    version: '4.4.1',
+    date: '2026-11',
+    isLatest: false,
+    tagline: '전방위 심층 감사(Deep Audit) · BYOK/API 키 테스트 검증 정밀화 · 무료 AI 응답 정규화 · 데이터 정화 및 헬스/APK 메타 현행화',
+    highlights: [
+      {
+        category: '🛡️ AI 엔진 격리 · 키 검증 무결성 & 무료 AI 응답 안정화',
+        items: [
+          '🔑 [Gemini 키 테스트 거짓 양성(False Positive) 수정 & BYOK 모드 격리]: ApiKeyModal의 키 테스트가 사전 API 폴백 성공을 유효 키로 오인하던 결함을 교정하고, gemini_byok 모드에서 개인 키 누락·인증 실패(401/429) 시 서버 공용 키나 가짜 성공으로 우회하지 않도록 엄격히 분리했습니다.',
+          '📦 [무료 AI 래핑 JSON 배열 언래핑 & 스키마 정규화]: Pollinations/Workers AI 등이 { items/words/goals: [...] } 형태로 감싸 응답하더라도 안정적으로 언래핑하며, 롤플레잉·음소 드릴·어휘/목표 필드를 안전 문자열·허용 열거형으로 정규화했습니다.',
+          '🔄 [롤플레잉 1-클릭 무료 AI 전환 & 모달 상태 동기화]: BYOK 키 미등록 안내 모달에 1-클릭 무료 AI 자동 체인 전환 버튼을 추가하고, 설정 모달 재오픈 시 상태 동기화 및 타이머·방어 가드를 보강했습니다.',
+          '🧹 [입력/저장 정화 및 서버 버전/APK 메타 현행화]: 커스텀 대본 로컬 스토리지 JSON 파싱 정화, APK 다운로드 URL 검증, ErrorBoundary AI 모드 보존, /api/health 및 /api/apk/info의 4.4.1 실시간 메타 동기화를 완료했습니다.',
+        ],
+      },
+    ],
+  },
+  {
+    version: '4.4.0',
+    date: '2026-11',
+    isLatest: false,
+    tagline: '전 세계 API 키 없는 무료 오픈 AI(Pollinations · Cloudflare Workers AI · MLVoca DeepSeek R1) 다중 워터폴 엔진 전면 탑재',
+    highlights: [
+      {
+        category: '🌐 API 키 없는 전 세계 무료 오픈 AI 자동 체인 (Dual-Layer Waterfall)',
+        items: [
+          '🆓 [API 키 ZERO 즉시 사용]: 별도 회원가입이나 Gemini API 키 없이도 AI 원어민 롤플레잉, AI 단어장 생성, AI 뉘앙스 해설, 오픈사전 한국어 번역, 음소 발음 리포트, 부모님 맞춤 대본 생성을 즉시 무료로 이용할 수 있습니다.',
+          '⚡ [브라우저 직결 + 서버 프록시 3단 자동 페일오버]: Pollinations AI(GPT-OSS 20B) → Cloudflare Workers AI(Llama 3.2 3B) → 서버 MLVoca(DeepSeek R1 1.5B) 순으로 자동 전환되어 단일 IP 속도 제한(45초 쿨다운)을 우회하고 연속 대화를 끊김 없이 보장합니다.',
+          '🎛️ [5종 AI 엔진 선택기 & 실시간 연결 테스트]: 상단 [무료 AI 엔진 · API 키] 설정 모달에서 자동 체인/개별 무료 모델/선택적 개인 Gemini 키(BYOK)를 즉시 전환하고 지연 시간(ms)을 실시간으로 검증할 수 있습니다.',
+          '🔓 [AI 롤플레잉 API 키 잠금 해제]: 기존 필수 API 키 차단 모달을 제거하고 무료 AI로 시나리오·커스텀 상황 대화를 원클릭으로 시작하도록 개편했습니다.',
+        ],
+      },
+    ],
+  },
+  {
+    version: '4.3.2',
+    date: '2026-11',
+    isLatest: false,
+    tagline: '시스템 심층 감사(Deep Audit) · Compact v2/음성 평가 레이스 컨디션 해결 · 비차단 토스트 표준화 & 문서 현행화',
+    highlights: [
+      {
+        category: '🛠️ 핵심 버그 수정 · 레이스 컨디션 & 스토리지 정합성 강화',
+        items: [
+          '🗜️ [Compact v2 프리픽스 & 중복 방지]: edu3000/curr 커리큘럼 ID 프리픽스 인식 및 복원(hydrate) 시 제자리 병합을 적용해 예기치 않은 용량 팽창과 중복 단어 생성을 차단했습니다.',
+          '🎙️ [발음 분석 레이스 컨디션 & 메모리 누수 해결]: PronunciationCorrectionReport의 오디오 도착 이중 요청을 AbortController로 차단하고, ShadowingQuizView/PronunciationModal 타이머·ObjectURL·오디오 메타데이터 즉시 재생 분기를 보강했습니다.',
+          '🎯 [3분 루틴 큐 스냅샷 & 비차단 토스트 표준화]: FocusRoutinePlayer 진행 중 카드 밀림을 방지하고, 앱 전체 잔여 alert() 호출을 온스크린 토스트로 교체했습니다.',
+          '🤖 [Gemini 공식 모델 라인업 & 문서 v4.3.2 동기화]: server.ts 모델을 gemini-4-hydrogen / gemini-3.1-flash-lite로 현행화하고 README/아키텍처/보안/감사 문서를 전면 업데이트했습니다.',
+        ],
+      },
+    ],
+  },
+  {
+    version: '4.3.1',
+    date: '2026-11',
+    isLatest: false,
+    tagline: '로컬 저장소 95.2% 포화 근본 해결 · Compact v2 델타 압축 저장 · 원클릭 JSON 백업 후 캐시 정리',
+    highlights: [
+      {
+        category: '💾 로컬 저장소 5MB 점유율 95% → 5% 미만 대폭 경량화 & 캐시 정리',
+        items: [
+          '🗜️ [Compact v2 델타 압축 저장]: 기본 3,210단어 정적 데이터를 중복 저장하지 않고 학습 진도(SRS·숙련도·북마크)와 사용자 추가 단어만 분리 저장해 4MB 이상을 즉시 절감했습니다.',
+          '🔧 [긴급 스냅샷 중복 & 정리 키 버그 수정]: wordloop_emergency_exit_snapshot의 2중 복제 저장을 경량화하고, 캐시 정리 시 실제 스냅샷 키 정리 및 구버전 배열 자동 압축을 수행합니다.',
+          '⚡ [원클릭 JSON 백업 후 캐시 정리]: JSON 무결성 백업과 불필요 캐시 정리를 한 번에 실행하고 화면 경고를 즉시 해소합니다.',
+        ],
+      },
+    ],
+  },
+  {
+    version: '4.3.0',
+    date: '2026-11',
+    isLatest: false,
+    tagline: '음소(Phoneme) 단위 발음 교정 리포트 · 구강 조음 위치 SVG 시각화 · Gemini 오디오 정밀 진단 도입',
+    highlights: [
+      {
+        category: '🎙️ 음소(Phoneme) 단위 발음 교정 리포트 & 구강 조음 위치 시각화',
+        items: [
+          '🔬 [음소 단위 치환·탈락·약세 진단]: 80점 미만뿐 아니라 전 점수대에서 /θ/→/s/, /r/→/l/, /v/→/b/, 어말 자음 탈락 등 틀린 음소와 IPA 차이를 즉시 시각화합니다.',
+          '👄 [구강 단면도 SVG 조음 가이드]: 선택한 음소의 혀·치아·입술·잇몸 위치와 기류 방향을 그래픽으로 안내하고 구체적인 교정 팁을 제공합니다.',
+          '🎧 [구간 재생 & 최소대립쌍(Minimal Pair) 비교]: 내 녹음의 해당 음소 구간만 잘라 듣기와 원어민 대립쌍(think ↔ sink 등) 연속 비교 재생을 지원합니다.',
+          '🤖 [Gemini AI 오디오 청취 음소 분석]: 실제 녹음 오디오를 기반으로 서버 사이드 AI 음소 교정 리포트 및 맞춤 비교 드릴을 생성합니다.',
+        ],
+      },
+    ],
+  },
+  {
+    version: '4.2.0',
+    date: '2026-11',
+    isLatest: false,
     tagline: '전 학년(초등·중학·고등/수능) 맞춤형 3,021개 신규 단어 예문 전면 교체 및 기존 캐시 자동 업그레이드',
     highlights: [
       {

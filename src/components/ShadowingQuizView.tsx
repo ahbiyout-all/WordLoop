@@ -34,9 +34,11 @@ import {
 } from '../utils/audioWaveformUtils';
 import {
   analyzeSentencePhonemesAndWaveform,
+  buildLocalPronunciationCorrectionReport,
   PhonemeDiagnostic,
   WaveformBarPhonemeColor,
 } from '../utils/phonemeAnalysisUtils';
+import { PronunciationCorrectionReport } from './PronunciationCorrectionReport';
 import { recordPronunciationDone } from '../services/habitQuestService';
 import { unlockPronunciationMasterBadge } from '../services/badgeService';
 
@@ -78,6 +80,7 @@ export const ShadowingQuizView: React.FC<ShadowingQuizViewProps> = ({
   const [latencyMs, setLatencyMs] = useState<number | null>(null);
   const [isPlayingUserAudio, setIsPlayingUserAudio] = useState<boolean>(false);
   const [userAudioUrl, setUserAudioUrl] = useState<string | null>(null);
+  const [userAudioBlob, setUserAudioBlob] = useState<Blob | null>(null);
   const [userWaveform, setUserWaveform] = useState<number[]>([]);
   const [selectedPhonemeId, setSelectedPhonemeId] = useState<string | null>(null);
 
@@ -89,13 +92,26 @@ export const ShadowingQuizView: React.FC<ShadowingQuizViewProps> = ({
   const speechStartTimeRef = useRef<number>(0);
   const recognitionRef = useRef<any>(null);
   const activeAudioPlayerRef = useRef<HTMLAudioElement | null>(null);
+  const countdownTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const evalTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const phaseRef = useRef(phase);
+  phaseRef.current = phase;
+  const transcriptRef = useRef(transcript);
+  transcriptRef.current = transcript;
+  const interimTranscriptRef = useRef(interimTranscript);
+  interimTranscriptRef.current = interimTranscript;
   const currentQuizTextRef = useRef<string>(quizText);
   currentQuizTextRef.current = quizText;
+  const userAudioUrlRef = useRef<string | null>(null);
+  userAudioUrlRef.current = userAudioUrl;
 
   // Cleanup on unmount
   useEffect(() => {
     return () => {
       cleanupAudioSession();
+      if (userAudioUrlRef.current) {
+        URL.revokeObjectURL(userAudioUrlRef.current);
+      }
       if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
         window.speechSynthesis.cancel();
       }
@@ -104,6 +120,14 @@ export const ShadowingQuizView: React.FC<ShadowingQuizViewProps> = ({
 
   const cleanupAudioSession = () => {
     speechService.stop();
+    if (countdownTimerRef.current) {
+      clearInterval(countdownTimerRef.current);
+      countdownTimerRef.current = null;
+    }
+    if (evalTimerRef.current) {
+      clearTimeout(evalTimerRef.current);
+      evalTimerRef.current = null;
+    }
     if (silenceDetectorRef.current) {
       silenceDetectorRef.current.stop();
       silenceDetectorRef.current = null;
@@ -181,6 +205,17 @@ export const ShadowingQuizView: React.FC<ShadowingQuizViewProps> = ({
     );
   }, [quizText, syllableDiagnostics, userWaveform, referenceProfile.samples]);
 
+  const phonemeCorrectionReport = useMemo(() => {
+    if (phase !== 'result') return null;
+    return buildLocalPronunciationCorrectionReport({
+      targetText: quizText,
+      recognizedText: transcript || interimTranscript,
+      syllableDiagnostics,
+      userWaveform: userWaveform.length > 0 ? userWaveform : new Array(50).fill(0.2),
+      aiWaveform: referenceProfile.samples,
+    });
+  }, [phase, quizText, transcript, interimTranscript, syllableDiagnostics, userWaveform, referenceProfile.samples]);
+
   // Active inspected phoneme in quiz result
   const activePhoneme = useMemo(() => {
     if (selectedPhonemeId) {
@@ -203,10 +238,12 @@ export const ShadowingQuizView: React.FC<ShadowingQuizViewProps> = ({
     setQuizScore(null);
     setUserWaveform([]);
     setUserAudioUrl(null);
+    setUserAudioBlob(null);
     setSelectedPhonemeId(null);
     setLatencyMs(null);
 
     // Phase 1: Native Speaker Audio Playback
+    phaseRef.current = 'listening_ai';
     setPhase('listening_ai');
 
     speechService.speakWithCallbacks(quizText, {
@@ -223,18 +260,26 @@ export const ShadowingQuizView: React.FC<ShadowingQuizViewProps> = ({
   };
 
   const triggerCountdown = () => {
+    if (countdownTimerRef.current) {
+      clearInterval(countdownTimerRef.current);
+      countdownTimerRef.current = null;
+    }
+    phaseRef.current = 'countdown';
     setPhase('countdown');
     let count = 3;
     setCountdownNum(count);
     playTone(660, 'sine', 0.12);
 
-    const timer = setInterval(() => {
+    countdownTimerRef.current = setInterval(() => {
       count -= 1;
       if (count > 0) {
         setCountdownNum(count);
         playTone(660, 'sine', 0.12);
       } else {
-        clearInterval(timer);
+        if (countdownTimerRef.current) {
+          clearInterval(countdownTimerRef.current);
+          countdownTimerRef.current = null;
+        }
         playTone(990, 'sine', 0.25);
         startRecordingUserShadowing();
       }
@@ -243,6 +288,7 @@ export const ShadowingQuizView: React.FC<ShadowingQuizViewProps> = ({
 
   // Phase 3: Start live microphone recording & realtime STT
   const startRecordingUserShadowing = async () => {
+    phaseRef.current = 'recording_user';
     setPhase('recording_user');
     speechStartTimeRef.current = Date.now();
 
@@ -260,6 +306,7 @@ export const ShadowingQuizView: React.FC<ShadowingQuizViewProps> = ({
           for (let i = event.resultIndex; i < event.results.length; i++) {
             liveText += event.results[i][0].transcript;
           }
+          interimTranscriptRef.current = liveText;
           setInterimTranscript(liveText);
 
           // Calculate latency on first spoken token
@@ -269,6 +316,7 @@ export const ShadowingQuizView: React.FC<ShadowingQuizViewProps> = ({
           }
 
           if (event.results[0].isFinal) {
+            transcriptRef.current = liveText;
             setTranscript(liveText);
             stopAndEvaluateQuiz(liveText);
           }
@@ -315,7 +363,12 @@ export const ShadowingQuizView: React.FC<ShadowingQuizViewProps> = ({
         recorder.onstop = () => {
           if (audioChunksRef.current.length > 0) {
             const blob = new Blob(audioChunksRef.current, { type: recorder.mimeType || 'audio/webm' });
+            setUserAudioBlob(blob);
+            if (userAudioUrlRef.current) {
+              URL.revokeObjectURL(userAudioUrlRef.current);
+            }
             const url = URL.createObjectURL(blob);
+            userAudioUrlRef.current = url;
             setUserAudioUrl(url);
 
             decodeAndExtractVoiceSegment(blob, 50)
@@ -338,7 +391,8 @@ export const ShadowingQuizView: React.FC<ShadowingQuizViewProps> = ({
 
   // Stop recording and compute phoneme accuracy & quiz score
   const stopAndEvaluateQuiz = (finalText?: string) => {
-    if (phase !== 'recording_user') return;
+    if (phaseRef.current !== 'recording_user') return;
+    phaseRef.current = 'evaluating';
     setPhase('evaluating');
 
     if (silenceDetectorRef.current) {
@@ -362,8 +416,14 @@ export const ShadowingQuizView: React.FC<ShadowingQuizViewProps> = ({
       recognitionRef.current = null;
     }
 
-    setTimeout(() => {
-      const spoken = (finalText || transcript || interimTranscript || '').trim();
+    if (evalTimerRef.current) {
+      clearTimeout(evalTimerRef.current);
+    }
+
+    evalTimerRef.current = setTimeout(() => {
+      evalTimerRef.current = null;
+      const spoken = (finalText || transcriptRef.current || interimTranscriptRef.current || '').trim();
+      transcriptRef.current = spoken;
       setTranscript(spoken);
 
       // Evaluate pronunciation score
@@ -401,6 +461,7 @@ export const ShadowingQuizView: React.FC<ShadowingQuizViewProps> = ({
         setIsNewBadgeUnlocked(false);
       }
 
+      phaseRef.current = 'result';
       setPhase('result');
     }, 600);
   };
@@ -744,11 +805,23 @@ export const ShadowingQuizView: React.FC<ShadowingQuizViewProps> = ({
                     </span>
                   </div>
                   <p className="text-slate-300 text-[10px] leading-relaxed">
-                    💡 조음 코칭: {activePhoneme.coachingTip}
+                    조음 코칭: {activePhoneme.coachingTip}
                   </p>
                 </div>
               )}
             </div>
+
+            {/* Unified Phoneme Correction Report */}
+            {phonemeCorrectionReport && (
+              <PronunciationCorrectionReport
+                localReport={phonemeCorrectionReport}
+                targetText={quizText}
+                recognizedText={transcript || interimTranscript || ''}
+                audioBlob={userAudioBlob}
+                hasUserAudio={Boolean(userAudioUrl)}
+                compact={true}
+              />
+            )}
 
             {/* Result Action Buttons */}
             <div className="flex flex-wrap items-center justify-between gap-2 pt-2">

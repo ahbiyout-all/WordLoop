@@ -970,28 +970,59 @@ class SpeechService {
     const cleanRecognized = recognizedText.toLowerCase().replace(/[^a-z0-9\s]/g, '');
 
     const targetWords = cleanTarget.split(/\s+/).filter(Boolean);
-    const recognizedWords = new Set(cleanRecognized.split(/\s+/).filter(Boolean));
+    const recognizedList = cleanRecognized.split(/\s+/).filter(Boolean);
+    const recognizedWords = new Set(recognizedList);
 
-    let matchedCount = 0;
-    const wordMatches: WordMatch[] = targetWords.map(w => {
+    const charSimilarity = (a: string, b: string): number => {
+      if (a === b) return 1;
+      if (!a || !b) return 0;
+      const dp: number[][] = Array.from({ length: a.length + 1 }, () =>
+        new Array(b.length + 1).fill(0)
+      );
+      for (let i = 0; i <= a.length; i++) dp[i][0] = i;
+      for (let j = 0; j <= b.length; j++) dp[0][j] = j;
+      for (let i = 1; i <= a.length; i++) {
+        for (let j = 1; j <= b.length; j++) {
+          const cost = a[i - 1] === b[j - 1] ? 0 : 1;
+          dp[i][j] = Math.min(dp[i - 1][j] + 1, dp[i][j - 1] + 1, dp[i - 1][j - 1] + cost);
+        }
+      }
+      return 1 - dp[a.length][b.length] / Math.max(a.length, b.length);
+    };
+
+    let weightedMatchSum = 0;
+    const wordMatches: WordMatch[] = targetWords.map((w) => {
       const matched = recognizedWords.has(w);
-      if (matched) matchedCount++;
+      if (matched) {
+        weightedMatchSum += 1;
+      } else if (recognizedList.length > 0) {
+        let bestSim = 0;
+        for (const rw of recognizedList) {
+          const sim = charSimilarity(w, rw);
+          if (sim > bestSim) bestSim = sim;
+        }
+        // Grant bounded phonetic partial credit (max 0.72) when almost matched (e.g. right vs light)
+        if (bestSim >= 0.5) {
+          weightedMatchSum += Math.min(0.72, bestSim * 0.85);
+        }
+      }
       return { word: w, matched };
     });
 
-    const score = targetWords.length > 0 
-      ? Math.round((matchedCount / targetWords.length) * 100) 
-      : 0;
+    const score =
+      targetWords.length > 0
+        ? Math.min(100, Math.round((weightedMatchSum / targetWords.length) * 100))
+        : 0;
 
     let feedback = '';
     if (score >= 90) {
-      feedback = '🎉 훌륭합니다! 원어민에 가까운 매우 정확한 발음입니다.';
+      feedback = '훌륭합니다! 원어민에 가까운 매우 정확한 발음입니다.';
     } else if (score >= 70) {
-      feedback = '👍 잘하셨습니다! 대부분의 단어가 명확하게 전달되었습니다.';
+      feedback = '잘하셨습니다! 아래 발음 교정 리포트에서 세부 음소를 다듬어 보세요.';
     } else if (score >= 50) {
-      feedback = '🙂 양호합니다. 반복 들기를 통해 약한 단어를 더 또렷이 연습해 보세요.';
+      feedback = '핵심 음소는 전달되었으나 일부 자음·모음 치환이 감지되었습니다. 아래 교정 리포트를 확인하세요.';
     } else {
-      feedback = '💡 소리를 다시 여러 번 반복해서 듣고, 템포에 맞춰 천천히 정갈하게 따라해 보세요.';
+      feedback = '원어민 소리를 다시 듣고 아래 붉은색 음소 구간 위주로 천천히 따라해 보세요.';
     }
 
     return {

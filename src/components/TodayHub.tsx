@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import {
   Play,
   BookOpen,
@@ -81,7 +81,20 @@ export const TodayHub: React.FC<TodayHubProps> = ({
   );
 
   const completedGoalsCount = goals.filter((g) => g.isCompleted).length;
-  const storageStats = useMemo(() => getDeviceStorageStats(), [vocabList.length, totalRepeatsCount]);
+  const [storageVersion, setStorageVersion] = useState(0);
+  useEffect(() => {
+    const refresh = () => setStorageVersion((v) => v + 1);
+    window.addEventListener('wordloop_storage_updated', refresh);
+    window.addEventListener('wordloop_device_saved', refresh);
+    return () => {
+      window.removeEventListener('wordloop_storage_updated', refresh);
+      window.removeEventListener('wordloop_device_saved', refresh);
+    };
+  }, []);
+  const storageStats = useMemo(
+    () => getDeviceStorageStats(),
+    [vocabList.length, totalRepeatsCount, storageVersion]
+  );
 
   const exploreItems = [
     {

@@ -2,8 +2,11 @@ import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { X, Mic, MicOff, Volume2, RotateCcw, CheckCircle2, AlertCircle, Award, History, Play, Pause, Trash2, Activity, Sparkles, Zap, BarChart3, TrendingUp, HelpCircle, Laptop, Smartphone, Settings, ShieldAlert, RefreshCw, Check, ChevronRight } from 'lucide-react';
 import { speechService } from '../services/speechService';
 import { PronunciationResult, VocabItem, SentenceItem, UserProfile } from '../types';
+import { DEFAULT_VOCAB, DEFAULT_SENTENCES } from '../data/defaultVocab';
+import { hydrateCompactVocab, hydrateCompactSentences } from '../services/deviceStorageService';
 import { AudioWaveform } from './AudioWaveform';
-import { PronunciationDeficiencyHighlighter } from './PronunciationDeficiencyHighlighter';
+import { PronunciationCorrectionReport } from './PronunciationCorrectionReport';
+import { buildLocalPronunciationCorrectionReport } from '../utils/phonemeAnalysisUtils';
 import { ShadowingQuizView } from './ShadowingQuizView';
 import { ShadowAudioRecorder } from './ShadowAudioRecorder';
 import { recordPronunciationDone } from '../services/habitQuestService';
@@ -71,7 +74,7 @@ export function getFavoriteItemsList(): { text: string; source: 'bookmark' | 'fa
   try {
     const rawVocab = localStorage.getItem('wordloop_vocab');
     if (rawVocab) {
-      const vocabItems: VocabItem[] = JSON.parse(rawVocab);
+      const vocabItems: VocabItem[] = hydrateCompactVocab(rawVocab, DEFAULT_VOCAB);
       vocabItems.forEach((v) => {
         if (v.isBookmarked) {
           if (v.word) list.push({ text: v.word, source: 'bookmark', type: 'word' });
@@ -82,7 +85,7 @@ export function getFavoriteItemsList(): { text: string; source: 'bookmark' | 'fa
 
     const rawSentences = localStorage.getItem('wordloop_sentences');
     if (rawSentences) {
-      const sentenceItems: SentenceItem[] = JSON.parse(rawSentences);
+      const sentenceItems: SentenceItem[] = hydrateCompactSentences(rawSentences, DEFAULT_SENTENCES);
       sentenceItems.forEach((s) => {
         if (s.isBookmarked && s.text) {
           list.push({ text: s.text, source: 'bookmark', type: 'sentence' });
@@ -100,7 +103,7 @@ export function getFavoriteItemsList(): { text: string; source: 'bookmark' | 'fa
   try {
     const rawVocab = localStorage.getItem('wordloop_vocab');
     if (rawVocab) {
-      const vocabItems: VocabItem[] = JSON.parse(rawVocab);
+      const vocabItems: VocabItem[] = hydrateCompactVocab(rawVocab, DEFAULT_VOCAB);
       vocabItems.forEach((v) => {
         if (v.word) list.push({ text: v.word, source: 'fallback', type: 'word' });
       });
@@ -186,6 +189,7 @@ export const PronunciationModal: React.FC<PronunciationModalProps> = ({
   const [browserSupported, setBrowserSupported] = useState(true);
   const [activeMediaStream, setActiveMediaStream] = useState<MediaStream | null>(null);
   const [latestRecordedAudioUrl, setLatestRecordedAudioUrl] = useState<string | null>(null);
+  const [latestAudioBlob, setLatestAudioBlob] = useState<Blob | null>(null);
   const [trimmedAudioUrl, setTrimmedAudioUrl] = useState<string | null>(null);
   const [userVoiceSegment, setUserVoiceSegment] = useState<VoiceSegmentResult | null>(null);
   const [isPlayingLatestAudio, setIsPlayingLatestAudio] = useState(false);
@@ -216,6 +220,7 @@ export const PronunciationModal: React.FC<PronunciationModalProps> = ({
   const activeAudioPlayerRef = useRef<HTMLAudioElement | null>(null);
   const silenceDetectorRef = useRef<LiveSilenceDetector | null>(null);
   const syllableSegmentTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const flipTimersRef = useRef<ReturnType<typeof setTimeout>[]>([]);
 
   const latestTranscriptRef = useRef<string>('');
   const latestScoreRef = useRef<number | undefined>(undefined);
@@ -360,8 +365,11 @@ export const PronunciationModal: React.FC<PronunciationModalProps> = ({
     setActiveTab('practice');
     setIsFlipping(true);
 
+    flipTimersRef.current.forEach((t) => clearTimeout(t));
+    flipTimersRef.current = [];
+
     // Halfway through 3D flip (280ms): swap target text & update toast banner
-    setTimeout(() => {
+    const t1 = setTimeout(() => {
       setCurrentTargetText(picked.text);
       setRandomQuizToast({
         text: picked.text,
@@ -370,10 +378,11 @@ export const PronunciationModal: React.FC<PronunciationModalProps> = ({
     }, 280);
 
     // After full flip completes (580ms): end flip state and start listening
-    setTimeout(() => {
+    const t2 = setTimeout(() => {
       setIsFlipping(false);
       handleStartListening();
     }, 580);
+    flipTimersRef.current.push(t1, t2);
   };
 
   // Restore last recorded voice from IndexedDB whenever modal opens or currentTargetText changes
@@ -381,6 +390,7 @@ export const PronunciationModal: React.FC<PronunciationModalProps> = ({
     if (!isOpen || !currentTargetText) return;
     let cancelled = false;
     setLatestRecordedAudioUrl(null);
+    setLatestAudioBlob(null);
     setTrimmedAudioUrl(null);
     setUserVoiceSegment(null);
     setRestoredWaveformData([]);
@@ -463,6 +473,27 @@ export const PronunciationModal: React.FC<PronunciationModalProps> = ({
   const hasEvaluatedReport = Boolean(
     result || alignedUserSamples.length > 0 || (transcript && !isListening)
   );
+
+  const phonemeCorrectionReport = useMemo(() => {
+    if (!hasEvaluatedReport) return null;
+    const waveSamples =
+      alignedUserSamples.length > 0 ? alignedUserSamples : restoredWaveformData;
+    return buildLocalPronunciationCorrectionReport({
+      targetText: currentTargetText,
+      recognizedText: transcript,
+      syllableDiagnostics,
+      userWaveform: waveSamples,
+      aiWaveform: referenceProfile.samples,
+    });
+  }, [
+    hasEvaluatedReport,
+    alignedUserSamples,
+    restoredWaveformData,
+    currentTargetText,
+    transcript,
+    syllableDiagnostics,
+    referenceProfile.samples,
+  ]);
 
   // Determine whether a syllable is inaccurate and should be highlighted in red
   const isSyllableInaccurate = (syl: SyllableDiagnostic): boolean => {
@@ -588,6 +619,8 @@ export const PronunciationModal: React.FC<PronunciationModalProps> = ({
         clearTimeout(syllableSegmentTimerRef.current);
         syllableSegmentTimerRef.current = null;
       }
+      flipTimersRef.current.forEach((t) => clearTimeout(t));
+      flipTimersRef.current = [];
       if (activeAudioPlayerRef.current) {
         activeAudioPlayerRef.current.pause();
       }
@@ -732,6 +765,7 @@ export const PronunciationModal: React.FC<PronunciationModalProps> = ({
     setUserVoiceSegment(null);
     setRestoredWaveformData([]);
     setLatestRecordedAudioUrl(null);
+    setLatestAudioBlob(null);
     setIsListening(true);
 
     // Move existing latest recording in history to previousVoiceSnapshot so user can compare right away
@@ -793,13 +827,14 @@ export const PronunciationModal: React.FC<PronunciationModalProps> = ({
             const mimeType = mediaRecorder.mimeType || 'audio/webm';
             const audioBlob = new Blob(audioChunksRef.current, { type: mimeType });
             latestAudioBlobRef.current = audioBlob;
+            setLatestAudioBlob(audioBlob);
             const audioUrl = URL.createObjectURL(audioBlob);
             // Always store the native MediaRecorder URL as the guaranteed playable source
             setLatestRecordedAudioUrl(audioUrl);
 
             if (capturedValidTrimmedWav) {
               saveVoiceRecordingForTarget({
-                targetText: currentTargetText,
+                targetText: currentTargetTextRef.current,
                 audioBlob,
                 voiceSegment: latestVoiceSegmentRef.current,
                 score: latestScoreRef.current,
@@ -824,7 +859,7 @@ export const PronunciationModal: React.FC<PronunciationModalProps> = ({
                     }
                   }
                   saveVoiceRecordingForTarget({
-                    targetText: currentTargetText,
+                    targetText: currentTargetTextRef.current,
                     audioBlob,
                     voiceSegment: decodedSeg,
                     score: latestScoreRef.current,
@@ -1034,7 +1069,12 @@ export const PronunciationModal: React.FC<PronunciationModalProps> = ({
     setPlayingSyllableId(syl.id);
     setIsPlayingLatestAudio(true);
 
+    let sliceStarted = false;
     const startSlicePlayback = () => {
+      if (sliceStarted) return;
+      sliceStarted = true;
+      audio.onloadedmetadata = null;
+
       const fallbackDur =
         userVoiceSegment?.activeDurationSec ||
         userVoiceSegment?.durationSec ||
@@ -1069,7 +1109,106 @@ export const PronunciationModal: React.FC<PronunciationModalProps> = ({
         });
     };
 
-    audio.onloadedmetadata = startSlicePlayback;
+    if (audio.readyState >= 1) {
+      startSlicePlayback();
+    } else {
+      audio.onloadedmetadata = startSlicePlayback;
+    }
+    audio.onended = () => {
+      if (syllableSegmentTimerRef.current) {
+        clearTimeout(syllableSegmentTimerRef.current);
+        syllableSegmentTimerRef.current = null;
+      }
+      setPlayingSyllableId(null);
+      setIsPlayingLatestAudio(false);
+    };
+    audio.onerror = () => {
+      setPlayingSyllableId(null);
+      setIsPlayingLatestAudio(false);
+    };
+  };
+
+  /**
+   * Plays an arbitrary percentage window of the user's recorded audio (used by Phoneme Correction Report)
+   */
+  const handlePlayTimeSlice = (startPercent: number, endPercent: number, idKey: string) => {
+    const audioSrc = trimmedAudioUrl || latestRecordedAudioUrl;
+    if (!audioSrc) return;
+
+    if (syllableSegmentTimerRef.current) {
+      clearTimeout(syllableSegmentTimerRef.current);
+      syllableSegmentTimerRef.current = null;
+    }
+
+    if (playingSyllableId === idKey) {
+      if (activeAudioPlayerRef.current) {
+        activeAudioPlayerRef.current.pause();
+      }
+      setPlayingSyllableId(null);
+      setIsPlayingLatestAudio(false);
+      return;
+    }
+
+    speechService.stop();
+    if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+      window.speechSynthesis.cancel();
+    }
+    setIsPlayingTargetAudio(false);
+
+    if (activeAudioPlayerRef.current) {
+      activeAudioPlayerRef.current.pause();
+    }
+
+    const audio = new Audio(audioSrc);
+    activeAudioPlayerRef.current = audio;
+    setPlayingSyllableId(idKey);
+    setIsPlayingLatestAudio(true);
+
+    let sliceStarted = false;
+    const startSlicePlayback = () => {
+      if (sliceStarted) return;
+      sliceStarted = true;
+      audio.onloadedmetadata = null;
+
+      const fallbackDur =
+        userVoiceSegment?.activeDurationSec ||
+        userVoiceSegment?.durationSec ||
+        referenceProfile.estimatedDurationSec ||
+        1.2;
+      const totalDur =
+        Number.isFinite(audio.duration) && audio.duration > 0.15 ? audio.duration : fallbackDur;
+
+      const rawStartSec = (startPercent / 100) * totalDur;
+      const rawEndSec = (endPercent / 100) * totalDur;
+      const startSec = Math.max(0, rawStartSec - 0.06);
+      const endSec = Math.min(totalDur, Math.max(startSec + 0.28, rawEndSec + 0.1));
+      const sliceDurationMs = Math.max(280, Math.round((endSec - startSec) * 1000));
+
+      try {
+        audio.currentTime = startSec;
+      } catch (e) {}
+
+      audio
+        .play()
+        .then(() => {
+          syllableSegmentTimerRef.current = setTimeout(() => {
+            audio.pause();
+            setPlayingSyllableId(null);
+            setIsPlayingLatestAudio(false);
+            syllableSegmentTimerRef.current = null;
+          }, sliceDurationMs);
+        })
+        .catch(() => {
+          setPlayingSyllableId(null);
+          setIsPlayingLatestAudio(false);
+        });
+    };
+
+    if (audio.readyState >= 1) {
+      startSlicePlayback();
+    } else {
+      audio.onloadedmetadata = startSlicePlayback;
+    }
     audio.onended = () => {
       if (syllableSegmentTimerRef.current) {
         clearTimeout(syllableSegmentTimerRef.current);
@@ -1120,7 +1259,7 @@ export const PronunciationModal: React.FC<PronunciationModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 bg-slate-900/80 backdrop-blur-sm flex items-center justify-center p-2.5 sm:p-4 animate-in fade-in duration-200">
-      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl sm:rounded-3xl max-w-lg w-full max-h-[92dvh] flex flex-col shadow-2xl relative overflow-hidden">
+      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl sm:rounded-3xl max-w-2xl w-full max-h-[92dvh] flex flex-col shadow-2xl relative overflow-hidden">
         
         {/* Sticky Top Header & Tab Switcher */}
         <div className="shrink-0 px-4 pt-3.5 sm:px-6 sm:pt-5 bg-white dark:bg-slate-900 z-10">
@@ -1610,30 +1749,16 @@ export const PronunciationModal: React.FC<PronunciationModalProps> = ({
                 </div>
               )}
 
-              {/* 80% 미만 부족 발음 구간 시각화 & 집중 교정 컴포넌트 */}
-              {result && result.score < 80 && (
-                <PronunciationDeficiencyHighlighter
-                  score={result.score}
+              {/* 음소(Phoneme) 단위 발음 교정 리포트 (모든 점수대에서 표시) */}
+              {hasEvaluatedReport && phonemeCorrectionReport && (
+                <PronunciationCorrectionReport
+                  localReport={phonemeCorrectionReport}
                   targetText={currentTargetText}
-                  transcript={transcript || ''}
-                  syllableDiagnostics={syllableDiagnostics}
-                  wordMatches={result.wordMatches}
-                  userAudioUrl={trimmedAudioUrl || latestRecordedAudioUrl}
-                  userWaveformData={
-                    alignedUserSamples.length > 0
-                      ? alignedUserSamples
-                      : (userVoiceSegment?.normalizedWaveform || restoredWaveformData)
-                  }
-                  referenceWaveformData={referenceProfile.samples}
-                  totalDurationSec={
-                    userVoiceSegment?.activeDurationSec ||
-                    userVoiceSegment?.durationSec ||
-                    referenceProfile.estimatedDurationSec ||
-                    1.5
-                  }
-                  playingSyllableId={playingSyllableId}
-                  onPlaySyllableSegment={handlePlaySyllableSegment}
-                  onStartMicRecording={handleStartListening}
+                  recognizedText={transcript || ''}
+                  audioBlob={latestAudioBlob}
+                  hasUserAudio={Boolean(trimmedAudioUrl || latestRecordedAudioUrl)}
+                  onPlayTimeSlice={handlePlayTimeSlice}
+                  playingSliceKey={playingSyllableId}
                 />
               )}
 

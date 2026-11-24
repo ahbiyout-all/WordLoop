@@ -21,7 +21,7 @@ import { APP_VERSION } from './constants/version';
 import { calculateStudentLevel } from './services/studentGamificationService';
 import { getLocalDateString } from './utils/dateUtils';
 import { GitHubUpdateService, UpdateCheckResult } from './services/githubUpdateService';
-import { getAuthHeaders } from './services/apiClient';
+import { explainTextWithFreeAi } from './services/freeAiService';
 import {
   saveUserProfileToDevice,
   loadUserProfileFromDevice,
@@ -29,6 +29,12 @@ import {
   exportVersionedAllDataToFile,
   parseAndPreviewJsonBackup,
   applyBackupImport,
+  serializeCompactVocab,
+  hydrateCompactVocab,
+  serializeCompactSentences,
+  hydrateCompactSentences,
+  safeJsonParse,
+  sanitizeDeepObject,
 } from './services/deviceStorageService';
 import {
   setupAppTerminationSafeguards,
@@ -239,56 +245,14 @@ export default function App() {
     return !saved; // If no profile saved, show onboarding on first launch
   });
 
-  // Data State with LocalStorage Persistence & Smart Default Merging (with auto-repair for Korean meanings)
+  // Data State with Compact v2 LocalStorage Persistence & Auto-Repair
   const [vocabList, setVocabList] = useState<VocabItem[]>(() => {
-    const defaultVocabMap = new Map<string, VocabItem>();
-    DEFAULT_VOCAB.forEach((v) => defaultVocabMap.set(v.word.toLowerCase(), v));
-
     const saved = localStorage.getItem('wordloop_vocab');
     if (!saved) return DEFAULT_VOCAB;
     try {
-      const parsed: VocabItem[] = JSON.parse(saved);
-      // Auto-repair any items where meaning or example sentences use legacy templates
-      const repaired: VocabItem[] = parsed.map((item) => {
-        const canonical = defaultVocabMap.get(item.word.toLowerCase());
-        const rawMeaning = item.meaning || '';
-        const rawSentence = item.sentence || '';
-        const rawSentenceMeaning = item.sentenceMeaning || '';
-
-        const needsMeaningRepair =
-          !/[\u3131-\u318E\uAC00-\uD7A3]/.test(rawMeaning) ||
-          rawMeaning.includes('관련 어휘') ||
-          rawMeaning.includes('파생 어휘') ||
-          rawMeaning.toLowerCase() === item.word.toLowerCase() ||
-          (/[a-zA-Z]/.test(rawMeaning) && !item.isCustom);
-
-        const needsExampleRepair =
-          !item.isCustom &&
-          (rawSentence.includes('essential vocabulary item') ||
-            rawSentence.includes('in formal English sentences') ||
-            rawSentenceMeaning.includes('대한민국 교육부') ||
-            rawSentenceMeaning.includes('수능 필수 어휘') ||
-            rawSentenceMeaning.includes('교육부 핵심 예문') ||
-            rawSentenceMeaning.includes('유용한 실용 예문') ||
-            rawSentenceMeaning.includes('파생 어휘'));
-
-        if ((needsMeaningRepair || needsExampleRepair) && canonical) {
-          return {
-            ...item,
-            meaning: needsMeaningRepair ? canonical.meaning : item.meaning,
-            sentence: canonical.sentence || item.sentence,
-            sentenceMeaning: canonical.sentenceMeaning || item.sentenceMeaning,
-            ipa: canonical.ipa || item.ipa,
-          };
-        }
-        return item;
-      });
-
-      const existingWordSet = new Set(repaired.map((item) => item.word.toLowerCase()));
-      const missingDefaults = DEFAULT_VOCAB.filter((item) => !existingWordSet.has(item.word.toLowerCase()));
-      const result = missingDefaults.length > 0 ? [...repaired, ...missingDefaults] : repaired;
+      const result = hydrateCompactVocab(saved, DEFAULT_VOCAB);
       try {
-        localStorage.setItem('wordloop_vocab', JSON.stringify(result));
+        localStorage.setItem('wordloop_vocab', JSON.stringify(serializeCompactVocab(result, DEFAULT_VOCAB)));
       } catch {}
       return result;
     } catch {
@@ -300,28 +264,12 @@ export default function App() {
     const saved = localStorage.getItem('wordloop_sentences');
     if (!saved) return DEFAULT_SENTENCES;
     try {
-      const parsed: SentenceItem[] = JSON.parse(saved);
-      // Clean out any legacy generic template or corrupted non-Korean sentences
-      const cleanedParsed = parsed.filter(
-        (item) =>
-          item.text &&
-          !item.text.includes('is an essential vocabulary item in the English curriculum') &&
-          !item.text.includes('in formal English sentences') &&
-          !item.text.includes('alongside') &&
-          item.meaning &&
-          !item.meaning.includes('대한민국 교육부') &&
-          !item.meaning.includes('교육부 핵심 예문') &&
-          !item.meaning.includes('유용한 실용 예문') &&
-          !item.meaning.includes('파생 어휘') &&
-          !item.meaning.includes('필수 어휘') &&
-          /[\u3131-\u318E\uAC00-\uD7A3]/.test(item.meaning)
-      );
-      const existingTextSet = new Set(cleanedParsed.map((item) => item.text.trim().toLowerCase()));
-      const missingDefaults = DEFAULT_SENTENCES.filter((item) => !existingTextSet.has(item.text.trim().toLowerCase()));
-      const combined = missingDefaults.length > 0 ? [...cleanedParsed, ...missingDefaults] : cleanedParsed;
-      const result = combined.length > 0 ? combined : DEFAULT_SENTENCES;
+      const result = hydrateCompactSentences(saved, DEFAULT_SENTENCES);
       try {
-        localStorage.setItem('wordloop_sentences', JSON.stringify(result));
+        localStorage.setItem(
+          'wordloop_sentences',
+          JSON.stringify(serializeCompactSentences(result, DEFAULT_SENTENCES))
+        );
       } catch {}
       return result;
     } catch {
@@ -557,6 +505,15 @@ export default function App() {
 
   // 100% Zero-Data-Loss Termination Safeguards (beforeunload, pagehide, visibilitychange, freeze)
   useEffect(() => {
+    // Reclaim any oversized legacy full-dictionary emergency snapshot from prior versions
+    try {
+      const legacySnap = localStorage.getItem('wordloop_emergency_exit_snapshot');
+      if (legacySnap && legacySnap.length > 200_000) {
+        flushEmergencyAppState(latestStateRef.current);
+      }
+      localStorage.removeItem('wordloop_emergency_snapshot');
+    } catch {}
+
     const unbindSafeguards = setupAppTerminationSafeguards(() => latestStateRef.current);
     
     // Check if recovery snapshot exists on fresh boot
@@ -596,28 +553,41 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    localStorage.setItem('wordloop_vocab', JSON.stringify(vocabList));
-    // Atomic flush to emergency snapshot
-    flushEmergencyAppState(latestStateRef.current);
+    try {
+      localStorage.setItem(
+        'wordloop_vocab',
+        JSON.stringify(serializeCompactVocab(vocabList, DEFAULT_VOCAB))
+      );
+      window.dispatchEvent(new CustomEvent('wordloop_storage_updated'));
+    } catch {}
   }, [vocabList]);
 
   useEffect(() => {
-    localStorage.setItem('wordloop_sentences', JSON.stringify(sentenceList));
-    flushEmergencyAppState(latestStateRef.current);
+    try {
+      localStorage.setItem(
+        'wordloop_sentences',
+        JSON.stringify(serializeCompactSentences(sentenceList, DEFAULT_SENTENCES))
+      );
+      window.dispatchEvent(new CustomEvent('wordloop_storage_updated'));
+    } catch {}
   }, [sentenceList]);
 
   useEffect(() => {
-    localStorage.setItem('wordloop_goals', JSON.stringify(goals));
-    flushEmergencyAppState(latestStateRef.current);
+    try {
+      localStorage.setItem('wordloop_goals', JSON.stringify(goals));
+    } catch {}
   }, [goals]);
 
   useEffect(() => {
-    localStorage.setItem('wordloop_history', JSON.stringify(history));
-    flushEmergencyAppState(latestStateRef.current);
+    try {
+      localStorage.setItem('wordloop_history', JSON.stringify(history));
+    } catch {}
   }, [history]);
 
   useEffect(() => {
-    localStorage.setItem('wordloop_total_repeats', totalRepeatsCount.toString());
+    try {
+      localStorage.setItem('wordloop_total_repeats', totalRepeatsCount.toString());
+    } catch {}
   }, [totalRepeatsCount]);
 
   // Subscribe to speechService updates & auto-link repeat playback to English goals!
@@ -821,11 +791,17 @@ export default function App() {
   // Reset All Data
   const handleResetAllData = useCallback(() => {
     localStorage.removeItem('wordloop_user_profile');
+    localStorage.removeItem('wordloop_user_profile_backup');
     localStorage.removeItem('wordloop_vocab');
     localStorage.removeItem('wordloop_sentences');
     localStorage.removeItem('wordloop_goals');
     localStorage.removeItem('wordloop_history');
     localStorage.removeItem('wordloop_total_repeats');
+    localStorage.removeItem('wordloop_emergency_exit_snapshot');
+    localStorage.removeItem('wordloop_emergency_snapshot');
+    localStorage.removeItem('wordloop_atomic_safety_ledger');
+    localStorage.removeItem('wordloop_pre_import_rollback');
+    localStorage.removeItem('wordloop_last_device_sync_time');
     setUserProfile(null);
     setVocabList(DEFAULT_VOCAB);
     setSentenceList(DEFAULT_SENTENCES);
@@ -882,34 +858,38 @@ export default function App() {
     }
   }, [vocabList, sentenceList, goals, handleExportAllData]);
 
-  // Import Data (JSON / CSV)
+  // Import Data (JSON / CSV) using Prototype-Pollution-safe parsing & non-blocking toast notifications
   const handleImportData = useCallback(async (file: File) => {
     try {
       const text = await file.text();
       if (file.name.endsWith('.json')) {
-        const parsed = JSON.parse(text);
-        if (parsed.userProfile) {
+        const rawParsed = safeJsonParse<any>(text);
+        const rawPayload = rawParsed?.schemaVersion === 2 && rawParsed?.payload ? rawParsed.payload : rawParsed;
+        const parsed = sanitizeDeepObject<any>(rawPayload);
+        if (parsed?.userProfile) {
           setUserProfile(parsed.userProfile);
         }
-        if (Array.isArray(parsed.vocabList)) {
+        if (Array.isArray(parsed?.vocabList)) {
           setVocabList((prev) => {
             const existingIds = new Set(prev.map((i) => i.id));
-            const newItems = parsed.vocabList.filter((i: VocabItem) => !existingIds.has(i.id));
+            const newItems = parsed.vocabList.filter((i: VocabItem) => i?.id && !existingIds.has(i.id));
             return [...newItems, ...prev];
           });
         }
-        if (Array.isArray(parsed.sentenceList)) {
+        if (Array.isArray(parsed?.sentenceList)) {
           setSentenceList((prev) => {
             const existingIds = new Set(prev.map((i) => i.id));
-            const newItems = parsed.sentenceList.filter((i: SentenceItem) => !existingIds.has(i.id));
+            const newItems = parsed.sentenceList.filter((i: SentenceItem) => i?.id && !existingIds.has(i.id));
             return [...newItems, ...prev];
           });
         }
-        alert('JSON 데이터 복원이 완료되었습니다!');
+        setRecoveryToast('JSON 데이터 복원이 안전하게 완료되었습니다!');
+        setTimeout(() => setRecoveryToast(null), 3500);
       } else {
         const lines = text.split('\n').filter((l) => l.trim().length > 0);
         if (lines.length <= 1) {
-          alert('가져올 데이터가 없는 빈 CSV 파일입니다.');
+          setRecoveryToast('가져올 데이터가 없는 빈 CSV 파일입니다.');
+          setTimeout(() => setRecoveryToast(null), 3500);
           return;
         }
 
@@ -940,13 +920,15 @@ export default function App() {
 
         if (newVocabItems.length > 0) {
           setVocabList((prev) => [...newVocabItems, ...prev]);
-          alert(`${importedVocabCount}개의 단어를 성공적으로 가져왔습니다!`);
+          setRecoveryToast(`${importedVocabCount}개의 단어를 성공적으로 가져왔습니다!`);
         } else {
-          alert('올바른 CSV 형식이 아닙니다.');
+          setRecoveryToast('올바른 CSV 형식이 아닙니다.');
         }
+        setTimeout(() => setRecoveryToast(null), 3500);
       }
     } catch (e: any) {
-      alert('파일 가져오기 실패: ' + (e?.message || '파일 형식을 확인해주세요.'));
+      setRecoveryToast('파일 가져오기 실패: ' + (e?.message || '파일 형식을 확인해주세요.'));
+      setTimeout(() => setRecoveryToast(null), 4000);
     }
   }, []);
 
@@ -1137,18 +1119,10 @@ export default function App() {
     setAIExplanationLoading(true);
 
     try {
-      const res = await fetch('/api/ai/explain', {
-        method: 'POST',
-        headers: getAuthHeaders(),
-        body: JSON.stringify({ text }),
-      });
-      const data = await res.json();
-      if (data.success) {
-        setAIExplanationContent(data.explanation);
-      } else {
-        setAIExplanationContent(data.error || '해설을 불러오지 못했습니다.');
-      }
-    } catch (e: any) {
+      const data = await explainTextWithFreeAi({ text });
+      const providerHeader = data.aiProvider ? `[엔진: ${data.aiProvider}]\n\n` : '';
+      setAIExplanationContent(`${providerHeader}${data.explanation}`);
+    } catch {
       setAIExplanationContent('AI 서비스 연결 실패. 잠시 후 다시 시도하세요.');
     } finally {
       setAIExplanationLoading(false);
@@ -1579,7 +1553,7 @@ export default function App() {
 
               {aiExplanationLoading ? (
                 <div className="p-8 text-center text-xs text-slate-400">
-                  ✨ Gemini AI가 원어민 뉘앙스와 발음 팁을 분석하고 있습니다...
+                  ✨ 무료 AI가 원어민 뉘앙스와 발음 팁을 분석하고 있습니다...
                 </div>
               ) : (
                 <div className="prose prose-sm dark:prose-invert text-xs leading-relaxed space-y-2 whitespace-pre-wrap text-slate-700 dark:text-slate-300">

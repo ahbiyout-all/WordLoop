@@ -34,8 +34,12 @@ app.use((_req, res, next) => {
   next();
 });
 
-// Strict JSON body payload limit (256KB) to prevent payload DoS
-app.use(express.json({ limit: "256kb" }));
+// Route-scoped 3MB JSON limit for audio pronunciation analysis, strict 256KB elsewhere
+app.use("/api/ai/pronunciation-report", express.json({ limit: "3mb" }));
+app.use((req, res, next) => {
+  if (req.path === "/api/ai/pronunciation-report") return next();
+  return express.json({ limit: "256kb" })(req, res, next);
+});
 
 // Origin & CSRF validation middleware for /api/* to prevent cross-site request abuse
 app.use("/api", (req, res, next) => {
@@ -186,6 +190,36 @@ function extractSafeHeaderApiKey(req: express.Request): string {
   return trimmed;
 }
 
+type ServerAiEngine =
+  | "auto_free"
+  | "kilo_free"
+  | "ovhcloud_free"
+  | "pollinations"
+  | "cloudflare_free"
+  | "llm7_free"
+  | "mlvoca"
+  | "chrome_builtin"
+  | "gemini_byok";
+
+const VALID_SERVER_AI_ENGINES = new Set<ServerAiEngine>([
+  "auto_free",
+  "kilo_free",
+  "ovhcloud_free",
+  "pollinations",
+  "cloudflare_free",
+  "llm7_free",
+  "mlvoca",
+  "chrome_builtin",
+  "gemini_byok",
+]);
+
+function extractSafeAiEngine(req: express.Request): ServerAiEngine {
+  const raw = req.headers["x-ai-engine"];
+  if (typeof raw !== "string") return "auto_free";
+  const v = raw.trim() as ServerAiEngine;
+  return VALID_SERVER_AI_ENGINES.has(v) ? v : "auto_free";
+}
+
 function sanitizeHttpsUrl(url: unknown): string {
   if (typeof url !== "string" || !url.trim()) return "";
   try {
@@ -217,11 +251,9 @@ try {
   console.warn("Failed to load curriculumLookup in server.ts:", e);
 }
 
-// Target Gemini models with automatic fallback candidate chain (official supported models)
+// Target Gemini models with automatic fallback candidate chain (official supported models per Gemini API guidelines)
 const GEMINI_MODELS = [
-  "gemini-2.5-flash",
-  "gemini-3.8-flash",
-  "gemini-flash-latest",
+  "gemini-4-hydrogen",
   "gemini-3.1-flash-lite",
 ];
 
@@ -251,6 +283,433 @@ async function generateGeminiContent(ai: GoogleGenAI, params: any) {
     }
   }
   throw lastError;
+}
+
+// ============================================================================
+// Worldwide Keyless Free AI Waterfall (6 Providers: Kilo 550B -> OVHcloud 70B -> Pollinations -> Cloudflare Workers -> LLM7 -> MLVoca)
+// Security: Hardcoded HTTPS allowlisted endpoints only; zero user-supplied URLs, zero secrets sent.
+// ============================================================================
+const FREE_KILO_GATEWAY_URL = "https://api.kilo.ai/api/gateway/chat/completions";
+const FREE_OVHCLOUD_URL = "https://oai.endpoints.kepler.ai.cloud.ovh.net/v1/chat/completions";
+const FREE_POLLINATIONS_URL = "https://text.pollinations.ai/";
+const FREE_CLOUDFLARE_WORKERS_URL = "https://devtoolbox-api.devtoolbox-api.workers.dev/ai/generate";
+const FREE_LLM7_URL = "https://api.llm7.io/v1/chat/completions";
+const FREE_MLVOCA_URL = "https://mlvoca.com/api/generate";
+
+const SERVER_KILO_MODELS = ["kilo-auto/free", "nvidia/nemotron-3.5-lightning:free"];
+const SERVER_OVHCLOUD_MODELS = [
+  "DeepSeek-V4.1-Flash-1017",
+  "Mistral-Small-3.2-24B-Instruct-2506",
+  "Meta-Llama-3_3-70B-Instruct",
+  "gpt-oss-20b",
+  "gemma-4-26b-a4b",
+];
+const SERVER_LLM7_MODELS = ["default", "gpt-oss:20b", "mistral-Nemo-Instruct-2407"];
+const SERVER_MLVOCA_MODELS = ["deepseek-r1:1.5b", "tinyllama"];
+
+let serverKiloCooldownUntil = 0;
+let serverPollinationsCooldownUntil = 0;
+let serverLlm7CooldownUntil = 0;
+const serverOvhCooldownUntil = new Map<string, number>();
+
+type ServerFreeProviderId =
+  | "kilo_free"
+  | "ovhcloud_free"
+  | "pollinations"
+  | "cloudflare_free"
+  | "llm7_free"
+  | "mlvoca";
+
+function extractJsonFromAiText<T = any>(rawText: string): T | null {
+  if (!rawText || typeof rawText !== "string") return null;
+  const cleaned = rawText
+    .replace(/<think>[\s\S]*?<\/think>/gi, "")
+    .replace(/```json\s*/gi, "")
+    .replace(/```\s*/g, "")
+    .trim();
+
+  const parseSafe = (str: string): T | null => {
+    try {
+      const parsed = JSON.parse(str, (k, v) =>
+        k === "__proto__" || k === "constructor" || k === "prototype" ? undefined : v
+      );
+      return parsed && typeof parsed === "object" ? sanitizeObjectDeep(parsed) : null;
+    } catch {
+      return null;
+    }
+  };
+
+  const direct = parseSafe(cleaned);
+  if (direct) return direct;
+
+  const firstBrace = cleaned.indexOf("{");
+  const firstBracket = cleaned.indexOf("[");
+  let start = -1;
+  let openChar = "{";
+  let closeChar = "}";
+
+  if (firstBracket !== -1 && (firstBrace === -1 || firstBracket < firstBrace)) {
+    start = firstBracket;
+    openChar = "[";
+    closeChar = "]";
+  } else if (firstBrace !== -1) {
+    start = firstBrace;
+  }
+  if (start === -1) return null;
+
+  const lastClose = cleaned.lastIndexOf(closeChar);
+  if (lastClose > start) {
+    const slice = parseSafe(cleaned.slice(start, lastClose + 1));
+    if (slice) return slice;
+  }
+
+  let depth = 0;
+  let inString = false;
+  let escaped = false;
+  for (let i = start; i < cleaned.length; i++) {
+    const ch = cleaned[i];
+    if (inString) {
+      if (escaped) escaped = false;
+      else if (ch === "\\") escaped = true;
+      else if (ch === '"') inString = false;
+      continue;
+    }
+    if (ch === '"') inString = true;
+    else if (ch === openChar) depth++;
+    else if (ch === closeChar) {
+      depth--;
+      if (depth === 0) {
+        return parseSafe(cleaned.slice(start, i + 1));
+      }
+    }
+  }
+  return null;
+}
+
+async function callServerKiloFree(prompt: string, systemInstruction: string) {
+  if (Date.now() < serverKiloCooldownUntil) {
+    throw new Error("Kilo Gateway cooldown active");
+  }
+  let lastError: any = null;
+  for (const model of SERVER_KILO_MODELS) {
+    try {
+      const res = await fetch(FREE_KILO_GATEWAY_URL, {
+        method: "POST",
+        signal: AbortSignal.timeout(13000),
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          model,
+          messages: [
+            ...(systemInstruction ? [{ role: "system", content: systemInstruction }] : []),
+            { role: "user", content: prompt },
+          ],
+          max_tokens: 1024,
+          temperature: 0.35,
+        }),
+      });
+      if (res.status === 429) {
+        serverKiloCooldownUntil = Date.now() + 60_000;
+        throw new Error(`Kilo Gateway rate limited (429)`);
+      }
+      if (!res.ok) {
+        lastError = new Error(`Kilo Gateway ${model} HTTP ${res.status}`);
+        continue;
+      }
+      const data: any = await res.json();
+      const clean = String(data?.choices?.[0]?.message?.content || "")
+        .replace(/<think>[\s\S]*?<\/think>/gi, "")
+        .trim();
+      if (!clean) {
+        lastError = new Error(`Kilo Gateway ${model} empty`);
+        continue;
+      }
+      const resolvedModel = sanitizeInputText(data?.model || model, 48);
+      return { text: clean, providerName: `Kilo AI Gateway (${resolvedModel} · 무료)` };
+    } catch (err: any) {
+      lastError = err;
+      if (String(err?.message || "").includes("429")) break;
+    }
+  }
+  throw lastError || new Error("Kilo AI Gateway unavailable");
+}
+
+async function callServerOvhCloudFree(prompt: string, systemInstruction: string) {
+  const now = Date.now();
+  let lastError: any = null;
+  for (const model of SERVER_OVHCLOUD_MODELS) {
+    const cooldown = serverOvhCooldownUntil.get(model) || 0;
+    if (now < cooldown) continue;
+    try {
+      const res = await fetch(FREE_OVHCLOUD_URL, {
+        method: "POST",
+        signal: AbortSignal.timeout(11000),
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          model,
+          messages: [
+            ...(systemInstruction ? [{ role: "system", content: systemInstruction }] : []),
+            { role: "user", content: prompt },
+          ],
+          max_tokens: 1024,
+          temperature: 0.35,
+        }),
+      });
+      if (res.status === 429) {
+        serverOvhCooldownUntil.set(model, Date.now() + 65_000);
+        lastError = new Error(`OVHcloud ${model} rate limited (429)`);
+        continue;
+      }
+      if (!res.ok) {
+        lastError = new Error(`OVHcloud ${model} HTTP ${res.status}`);
+        continue;
+      }
+      const data: any = await res.json();
+      const clean = String(data?.choices?.[0]?.message?.content || "")
+        .replace(/<think>[\s\S]*?<\/think>/gi, "")
+        .trim();
+      if (!clean) {
+        lastError = new Error(`OVHcloud ${model} empty`);
+        continue;
+      }
+      return { text: clean, providerName: `OVHcloud EU AI (${model} · 무료)` };
+    } catch (err: any) {
+      lastError = err;
+    }
+  }
+  throw lastError || new Error("OVHcloud EU AI unavailable");
+}
+
+async function callServerPollinations(prompt: string, systemInstruction: string) {
+  if (Date.now() < serverPollinationsCooldownUntil) {
+    throw new Error("Pollinations cooldown active");
+  }
+  const res = await fetch(FREE_POLLINATIONS_URL, {
+    method: "POST",
+    signal: AbortSignal.timeout(12000),
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      model: "openai",
+      private: true,
+      messages: [
+        { role: "system", content: systemInstruction },
+        { role: "user", content: prompt },
+      ],
+    }),
+  });
+  const text = await res.text();
+  if (!res.ok || text.includes("Free limit reached") || text.includes("FREE_LIMIT")) {
+    if (res.status === 402 || res.status === 429 || text.includes("Free limit reached")) {
+      serverPollinationsCooldownUntil = Date.now() + 46_000;
+    }
+    throw new Error(`Pollinations unavailable (${res.status})`);
+  }
+  const clean = text.trim();
+  if (!clean) throw new Error("Pollinations empty");
+  return { text: clean, providerName: "Pollinations AI (GPT-OSS 20B · 무료)" };
+}
+
+async function callServerCloudflareFree(prompt: string, systemInstruction: string) {
+  const combined = systemInstruction ? `${systemInstruction}\n\n${prompt}` : prompt;
+  const res = await fetch(FREE_CLOUDFLARE_WORKERS_URL, {
+    method: "POST",
+    signal: AbortSignal.timeout(11000),
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ prompt: combined }),
+  });
+  if (!res.ok) throw new Error(`Cloudflare Workers AI HTTP ${res.status}`);
+  const data: any = await res.json();
+  const rawOutput =
+    typeof data?.response === "string"
+      ? data.response
+      : data?.response && typeof data.response === "object"
+      ? JSON.stringify(data.response)
+      : "";
+  const clean = rawOutput.trim();
+  if (!clean) throw new Error("Cloudflare Workers AI empty");
+  return {
+    text: clean,
+    providerName: `Cloudflare Workers AI (${sanitizeInputText(data?.model || "Llama 3.2", 40)} · 무료)`,
+  };
+}
+
+async function callServerLlm7Free(prompt: string, systemInstruction: string) {
+  if (Date.now() < serverLlm7CooldownUntil) {
+    throw new Error("LLM7 cooldown active");
+  }
+  let lastError: any = null;
+  for (const model of SERVER_LLM7_MODELS) {
+    try {
+      const res = await fetch(FREE_LLM7_URL, {
+        method: "POST",
+        signal: AbortSignal.timeout(11000),
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: "Bearer unused",
+        },
+        body: JSON.stringify({
+          model,
+          messages: [
+            ...(systemInstruction ? [{ role: "system", content: systemInstruction }] : []),
+            { role: "user", content: prompt },
+          ],
+        }),
+      });
+      if (res.status === 429) {
+        serverLlm7CooldownUntil = Date.now() + 120_000;
+        throw new Error("LLM7 free quota reached (429)");
+      }
+      if (!res.ok) {
+        lastError = new Error(`LLM7 ${model} HTTP ${res.status}`);
+        continue;
+      }
+      const data: any = await res.json();
+      const clean = String(data?.choices?.[0]?.message?.content || "")
+        .replace(/<think>[\s\S]*?<\/think>/gi, "")
+        .trim();
+      if (!clean) {
+        lastError = new Error(`LLM7 ${model} empty`);
+        continue;
+      }
+      return {
+        text: clean,
+        providerName: `LLM7 Open AI (${sanitizeInputText(data?.model || model, 32)} · 무료)`,
+      };
+    } catch (err: any) {
+      lastError = err;
+      if (String(err?.message || "").includes("quota")) break;
+    }
+  }
+  throw lastError || new Error("LLM7 Open Gateway unavailable");
+}
+
+async function callServerMlvoca(prompt: string, systemInstruction: string) {
+  const combined = systemInstruction ? `${systemInstruction}\n\n${prompt}` : prompt;
+  let lastError: any = null;
+  for (const model of SERVER_MLVOCA_MODELS) {
+    try {
+      const res = await fetch(FREE_MLVOCA_URL, {
+        method: "POST",
+        signal: AbortSignal.timeout(13000),
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          model,
+          prompt: combined,
+          stream: false,
+        }),
+      });
+      if (!res.ok) {
+        lastError = new Error(`MLVoca ${model} HTTP ${res.status}`);
+        continue;
+      }
+      const data: any = await res.json();
+      const clean = String(data?.response || "")
+        .replace(/<think>[\s\S]*?<\/think>/gi, "")
+        .trim();
+      if (!clean) {
+        lastError = new Error(`MLVoca ${model} empty`);
+        continue;
+      }
+      const label = model.includes("deepseek") ? "DeepSeek R1 1.5B" : "TinyLlama";
+      return { text: clean, providerName: `MLVoca Open Ollama (${label} · 무료)` };
+    } catch (err: any) {
+      lastError = err;
+    }
+  }
+  throw lastError || new Error("MLVoca unavailable");
+}
+
+function getFreeProviderOrder(engine: ServerAiEngine): ServerFreeProviderId[] {
+  switch (engine) {
+    case "kilo_free":
+      return ["kilo_free", "ovhcloud_free", "pollinations", "cloudflare_free", "llm7_free", "mlvoca"];
+    case "ovhcloud_free":
+      return ["ovhcloud_free", "kilo_free", "pollinations", "cloudflare_free", "llm7_free", "mlvoca"];
+    case "pollinations":
+      return ["pollinations", "ovhcloud_free", "kilo_free", "cloudflare_free", "llm7_free", "mlvoca"];
+    case "cloudflare_free":
+      return ["cloudflare_free", "ovhcloud_free", "kilo_free", "pollinations", "llm7_free", "mlvoca"];
+    case "llm7_free":
+      return ["llm7_free", "ovhcloud_free", "kilo_free", "pollinations", "cloudflare_free", "mlvoca"];
+    case "mlvoca":
+      return ["mlvoca", "kilo_free", "ovhcloud_free", "cloudflare_free", "pollinations", "llm7_free"];
+    case "chrome_builtin":
+    case "auto_free":
+    default:
+      return ["kilo_free", "ovhcloud_free", "pollinations", "cloudflare_free", "llm7_free", "mlvoca"];
+  }
+}
+
+async function callServerFreeProvider(
+  provider: ServerFreeProviderId,
+  prompt: string,
+  systemInstruction: string
+): Promise<{ text: string; providerName: string }> {
+  switch (provider) {
+    case "kilo_free":
+      return callServerKiloFree(prompt, systemInstruction);
+    case "ovhcloud_free":
+      return callServerOvhCloudFree(prompt, systemInstruction);
+    case "pollinations":
+      return callServerPollinations(prompt, systemInstruction);
+    case "cloudflare_free":
+      return callServerCloudflareFree(prompt, systemInstruction);
+    case "llm7_free":
+      return callServerLlm7Free(prompt, systemInstruction);
+    case "mlvoca":
+      return callServerMlvoca(prompt, systemInstruction);
+  }
+}
+
+async function generateFreeAiText(
+  prompt: string,
+  systemInstruction: string,
+  engine: ServerAiEngine
+): Promise<{ text: string; providerName: string }> {
+  const order = getFreeProviderOrder(engine);
+  let lastError: any = null;
+  for (const p of order) {
+    try {
+      return await callServerFreeProvider(p, prompt, systemInstruction);
+    } catch (err) {
+      lastError = err;
+    }
+  }
+  throw lastError || new Error("Free AI providers unavailable");
+}
+
+function unwrapArrayFromAiPayload<T = any>(parsed: any, candidateKeys: string[]): T[] | null {
+  if (Array.isArray(parsed)) return parsed;
+  if (parsed && typeof parsed === "object") {
+    for (const key of candidateKeys) {
+      if (Array.isArray((parsed as any)[key])) {
+        return (parsed as any)[key];
+      }
+    }
+  }
+  return null;
+}
+
+async function generateFreeAiJson<T>(
+  prompt: string,
+  systemInstruction: string,
+  engine: ServerAiEngine,
+  validate: (parsed: T) => boolean
+): Promise<{ data: T; providerName: string }> {
+  const order = getFreeProviderOrder(engine);
+  let lastError: any = null;
+  for (const p of order) {
+    try {
+      const res = await callServerFreeProvider(p, prompt, systemInstruction);
+      const parsed = extractJsonFromAiText<T>(res.text);
+      if (parsed && validate(parsed)) {
+        return { data: parsed, providerName: res.providerName };
+      }
+      lastError = new Error(`${p} returned invalid JSON schema`);
+    } catch (err) {
+      lastError = err;
+    }
+  }
+  throw lastError || new Error("Free AI JSON parsing failed");
 }
 
 // Rich offline linguistic analysis for resilient AI Nuance & Sentence explanation
@@ -325,28 +784,63 @@ function generateOfflineExplanation(text: string, context: string = ""): string 
   return md;
 }
 
-// Initialize Google Gen AI client lazy/safely with optional custom API Key (BYOK)
-function getGeminiClient(customApiKey?: string) {
-  const apiKey = (customApiKey && customApiKey.trim().length > 0) ? customApiKey.trim() : process.env.GEMINI_API_KEY;
+// Initialize Google Gen AI client safely; in gemini_byok mode never fall back to container env key
+function getGeminiClient(customApiKey?: string, strictUserKeyOnly: boolean = false) {
+  const trimmedCustom = (customApiKey || "").trim();
+  const apiKey = strictUserKeyOnly
+    ? trimmedCustom
+    : trimmedCustom.length > 0
+    ? trimmedCustom
+    : process.env.GEMINI_API_KEY;
   if (!apiKey) {
     return null;
   }
-  return new GoogleGenAI({ apiKey });
+  return new GoogleGenAI({
+    apiKey,
+    httpOptions: {
+      headers: {
+        "User-Agent": "aistudio-build",
+      },
+    },
+  });
 }
 
-// Health check endpoint
-app.get("/api/health", (_req, res) => {
-  res.json({ status: "ok", timestamp: new Date().toISOString() });
-});
+function getStrictGeminiForEngine(engineMode: ServerAiEngine, customKey: string) {
+  return getGeminiClient(customKey, engineMode === "gemini_byok");
+}
+
+function mapGeminiErrorStatus(error: any): { statusCode: number; message: string } {
+  const rawStatus = error?.status || error?.code;
+  const msg = String(error?.message || "").toLowerCase();
+  if (rawStatus === 401 || rawStatus === 403 || msg.includes("api_key_invalid") || msg.includes("api key not valid")) {
+    return { statusCode: 401, message: "Gemini API 키 인증에 실패했습니다. 키를 다시 확인해 주세요." };
+  }
+  if (rawStatus === 429 || msg.includes("resource_exhausted") || msg.includes("quota")) {
+    return { statusCode: 429, message: "Gemini API 요청 한도(429)가 초과되었습니다. 무료 AI 모드로 전환하거나 잠시 후 다시 시도해 주세요." };
+  }
+  return { statusCode: 502, message: "Gemini AI 서버 응답 중 일시적인 오류가 발생했습니다." };
+}
 
 // 📦 Android APK Download & Metadata Endpoints
 const APK_PUBLIC_DIR = path.join(process.cwd(), "public", "downloads");
-let SERVER_APP_VERSION = "3.71.0";
+let SERVER_APP_VERSION = "4.5.0";
 try {
   const pkgData = JSON.parse(fs.readFileSync(path.join(process.cwd(), "package.json"), "utf8"));
   if (pkgData.version) SERVER_APP_VERSION = pkgData.version;
 } catch {}
+const [vMaj = 4, vMin = 5, vPat = 0] = SERVER_APP_VERSION.split(".").map((n) => parseInt(n, 10) || 0);
+const SERVER_VERSION_CODE = vMaj * 10000 + vMin * 100 + vPat;
 const APK_FILENAME = `WordLoop-v${SERVER_APP_VERSION}.apk`;
+
+// Health check endpoint (exposes live package version & build code)
+app.get("/api/health", (_req, res) => {
+  res.json({
+    status: "ok",
+    version: SERVER_APP_VERSION,
+    versionCode: SERVER_VERSION_CODE,
+    timestamp: new Date().toISOString(),
+  });
+});
 
 // Serve /downloads statically with strict APK package MIME headers
 app.use(
@@ -413,7 +907,8 @@ app.get(["/api/download/apk", "/download/apk", "/WordLoop.apk"], (_req, res) => 
 
   if (apkPath && fs.existsSync(apkPath)) {
     const stat = fs.statSync(apkPath);
-    const downloadName = path.basename(apkPath).includes("v3.") ? path.basename(apkPath) : APK_FILENAME;
+    const baseName = path.basename(apkPath);
+    const downloadName = baseName.endsWith(".apk") ? baseName : APK_FILENAME;
     res.setHeader("Content-Type", "application/vnd.android.package-archive");
     res.setHeader("Content-Disposition", `attachment; filename="${downloadName}"`);
     res.setHeader("Content-Length", stat.size.toString());
@@ -426,22 +921,24 @@ app.get(["/api/download/apk", "/download/apk", "/WordLoop.apk"], (_req, res) => 
   // Fail-safe fallback: generate valid Android package metadata response or stub zip buffer
   res.setHeader("Content-Type", "application/vnd.android.package-archive");
   res.setHeader("Content-Disposition", `attachment; filename="${APK_FILENAME}"`);
-  res.send(Buffer.from("PK\x03\x04\x14\x00\x00\x00\x00\x00AndroidManifest.xmlWordLoop-v3.69.0"));
+  res.send(Buffer.from(`PK\x03\x04\x14\x00\x00\x00\x00\x00AndroidManifest.xmlWordLoop-v${SERVER_APP_VERSION}`));
 });
 
 // 2. APK Release Info Endpoint
 app.get("/api/apk/info", (_req, res) => {
+  const apkPath = findApkPath();
   const metaPath = path.join(APK_PUBLIC_DIR, "apk-release.json");
-  if (fs.existsSync(metaPath)) {
+  if (apkPath && fs.existsSync(metaPath)) {
     try {
       const data = JSON.parse(fs.readFileSync(metaPath, "utf8"));
-      return res.json(data);
+      if (data?.version === SERVER_APP_VERSION) {
+        return res.json(data);
+      }
     } catch {
-      // fallback
+      // fallback to dynamic version metadata
     }
   }
 
-  const apkPath = findApkPath();
   const exists = Boolean(apkPath && fs.existsSync(apkPath));
   const size = exists && apkPath ? fs.statSync(apkPath).size : 0;
 
@@ -449,7 +946,7 @@ app.get("/api/apk/info", (_req, res) => {
     appName: "WordLoop",
     packageName: "com.wordloop.app",
     version: SERVER_APP_VERSION,
-    versionCode: 37100,
+    versionCode: SERVER_VERSION_CODE,
     filename: APK_FILENAME,
     downloadUrl: "/api/download/apk",
     directUrl: `/downloads/${APK_FILENAME}`,
@@ -502,12 +999,19 @@ app.get("/api/dictionary/lookup", async (req, res) => {
     let phoneticsText = freeDictData?.phonetic || freeDictData?.phonetics?.find((p: any) => p.text)?.text || "";
     let audioUrl = sanitizeHttpsUrl(freeDictData?.phonetics?.find((p: any) => p.audio && p.audio.length > 0)?.audio || "");
 
-    // 5. Enhance & Translate via Gemini AI (Header-only BYOK for security)
+    // 5. Enhance & Translate via Gemini AI (when configured) or Keyless Worldwide Free AI Waterfall
     const customKey = extractSafeHeaderApiKey(req);
-    const ai = getGeminiClient(customKey);
+    const engineMode = extractSafeAiEngine(req);
+    const ai = getStrictGeminiForEngine(engineMode, customKey);
+    if (engineMode === "gemini_byok" && (!customKey || !ai)) {
+      return res.status(401).json({
+        error: "개인 Gemini API 키 전용 모드입니다. 유효한 API 키를 입력하거나 무료 AI 모드로 전환해 주세요.",
+      });
+    }
     let aiEnhancement: any = null;
+    let dictAiProviderLabel: string | null = null;
 
-    if (ai) {
+    if (ai && (engineMode === "gemini_byok" || engineMode === "auto_free")) {
       try {
         const prompt = `단어: "${word}"
 FreeDictionaryIPA: "${phoneticsText}"
@@ -552,9 +1056,32 @@ FreeDictionaryIPA: "${phoneticsText}"
         });
 
         const jsonText = response.text || "{}";
-        aiEnhancement = JSON.parse(jsonText);
+        aiEnhancement = sanitizeObjectDeep(JSON.parse(jsonText));
+        dictAiProviderLabel = "Gemini AI Language Engine";
       } catch (e: any) {
-        console.info("Gemini dictionary offline fallback served:", e?.status || e?.code || "offline mode");
+        if (engineMode === "gemini_byok") {
+          const { statusCode, message } = mapGeminiErrorStatus(e);
+          return res.status(statusCode).json({ error: message });
+        }
+        console.info("Gemini dictionary fallback to free AI:", e?.status || e?.code || "offline");
+      }
+    }
+
+    if (!aiEnhancement && engineMode !== "gemini_byok") {
+      try {
+        const freePrompt = `English word: "${word}" (IPA hint: "${phoneticsText}").
+Return strictly valid JSON only (no markdown):
+{"koreanMeaning":"순수 한국어 핵심 뜻","ipa":"/.../","partOfSpeech":"n.","examples":[{"en":"English example 1","ko":"자연스러운 한국어 번역 1"},{"en":"English example 2","ko":"자연스러운 한국어 번역 2"}],"nuanceTip":"짧은 한국어 발음·뉘앙스 팁"}`;
+        const { data, providerName } = await generateFreeAiJson<any>(
+          freePrompt,
+          "You are an English-Korean dictionary editor. Every Korean field must be written in natural Korean Hangul. Return JSON only.",
+          engineMode,
+          (p) => typeof p?.koreanMeaning === "string" && /[\uAC00-\uD7A3]/.test(p.koreanMeaning)
+        );
+        aiEnhancement = data;
+        dictAiProviderLabel = providerName;
+      } catch (e: any) {
+        console.info("Free AI dictionary lookup unavailable, using open dict fallback");
       }
     }
 
@@ -608,7 +1135,7 @@ FreeDictionaryIPA: "${phoneticsText}"
       sourcesUsed: [
         freeDictData ? "FreeDictionaryAPI (api.dictionaryapi.dev)" : null,
         wiktionaryData ? "Wiktionary Open Data" : null,
-        aiEnhancement ? "Gemini AI Language Engine" : null,
+        aiEnhancement ? (dictAiProviderLabel || "Free AI Language Engine") : null,
       ].filter(Boolean),
     });
   } catch (error: any) {
@@ -623,9 +1150,37 @@ app.post("/api/ai/generate-vocab", async (req, res) => {
   const count = Math.min(Math.max(Number(req.body?.count) || 6, 1), 20);
   const difficulty = sanitizeInputText(req.body?.difficulty ?? "Intermediate", 40) || "Intermediate";
   const customKey = extractSafeHeaderApiKey(req);
-  const ai = getGeminiClient(customKey);
+  const engineMode = extractSafeAiEngine(req);
+  const ai = getStrictGeminiForEngine(engineMode, customKey);
+  if (engineMode === "gemini_byok" && (!customKey || !ai)) {
+    return res.status(401).json({
+      error: "개인 Gemini API 키 전용 모드입니다. API 키를 등록하거나 무료 AI 모드로 전환해 주세요.",
+    });
+  }
 
-  if (ai) {
+  const normalizeVocabItems = (rawList: any[]) =>
+    rawList.map((item: any) => {
+      const wLower = String(item?.word || "").trim().toLowerCase();
+      let cleanMeaning = String(item?.meaning || "").trim();
+      if (!/[\u3131-\u318E\uAC00-\uD7A3]/.test(cleanMeaning) && curriculumLookup[wLower]) {
+        cleanMeaning = curriculumLookup[wLower];
+      }
+      let cleanSentenceMeaning = String(item?.sentenceMeaning || "").trim();
+      if (!/[\u3131-\u318E\uAC00-\uD7A3]/.test(cleanSentenceMeaning)) {
+        cleanSentenceMeaning = `"${cleanMeaning || item?.word || topic}"에 관련된 실용 예문입니다.`;
+      }
+      return {
+        word: sanitizeInputText(String(item?.word || ""), 120),
+        ipa: sanitizeInputText(String(item?.ipa || ""), 80),
+        meaning: sanitizeInputText(cleanMeaning, 200),
+        partOfSpeech: sanitizeInputText(String(item?.partOfSpeech || "n."), 30) || "n.",
+        sentence: sanitizeInputText(String(item?.sentence || ""), 350),
+        sentenceMeaning: sanitizeInputText(cleanSentenceMeaning, 350),
+        tip: item?.tip ? sanitizeInputText(String(item.tip), 200) : undefined,
+      };
+    }).filter((it) => it.word.length > 0);
+
+  if (ai && (engineMode === "gemini_byok" || engineMode === "auto_free")) {
     try {
       const response = await generateGeminiContent(ai, {
         contents: `사용자가 요청한 주제: "${topic}", 난이도: "${difficulty}".
@@ -656,32 +1211,44 @@ app.post("/api/ai/generate-vocab", async (req, res) => {
       });
 
       const jsonText = response.text || "[]";
-      const rawList = JSON.parse(jsonText);
-      // Sanitize generated list to guarantee Korean meanings
-      const vocabList = Array.isArray(rawList)
-        ? rawList.map((item: any) => {
-            const wLower = (item.word || '').trim().toLowerCase();
-            let cleanMeaning = item.meaning || '';
-            if (!/[\u3131-\u318E\uAC00-\uD7A3]/.test(cleanMeaning) && curriculumLookup[wLower]) {
-              cleanMeaning = curriculumLookup[wLower];
-            }
-            let cleanSentenceMeaning = item.sentenceMeaning || '';
-            if (!/[\u3131-\u318E\uAC00-\uD7A3]/.test(cleanSentenceMeaning)) {
-              cleanSentenceMeaning = `"${cleanMeaning || item.word}"에 관련된 실용 예문입니다.`;
-            }
-            return {
-              ...item,
-              meaning: cleanMeaning,
-              sentenceMeaning: cleanSentenceMeaning,
-            };
-          })
-        : [];
-
+      const rawList = sanitizeObjectDeep(JSON.parse(jsonText));
+      const vocabList = Array.isArray(rawList) ? normalizeVocabItems(rawList) : [];
       if (vocabList.length > 0) {
-        return res.json({ success: true, items: vocabList });
+        return res.json({ success: true, items: vocabList, aiProvider: "Gemini AI" });
       }
     } catch (error: any) {
-      console.info("Gemini AI Vocab offline fallback served:", error?.status || error?.code || "offline mode");
+      if (engineMode === "gemini_byok") {
+        const { statusCode, message } = mapGeminiErrorStatus(error);
+        return res.status(statusCode).json({ error: message });
+      }
+      console.info("Gemini AI Vocab fallback to free AI:", error?.status || error?.code || "offline mode");
+    }
+  }
+
+  if (engineMode !== "gemini_byok") {
+    try {
+      const freePrompt = `Topic: "${topic}", Difficulty: "${difficulty}".
+Generate ${count} practical English vocab expressions with Korean meanings and example sentences.
+Return strictly a raw JSON array:
+[{"word":"...","ipa":"/.../","meaning":"순수 한국어 뜻","partOfSpeech":"n.","sentence":"English sentence","sentenceMeaning":"자연스러운 한국어 번역","tip":"한국어 팁"}]`;
+      const { data, providerName } = await generateFreeAiJson<any>(
+        freePrompt,
+        "You are an English vocabulary teacher for Korean learners. Return ONLY a JSON array. Every meaning and sentenceMeaning must be written in Korean Hangul.",
+        engineMode,
+        (payload) => {
+          const arr = unwrapArrayFromAiPayload(payload, ["items", "words", "vocabulary", "vocab"]);
+          return Boolean(arr && arr.length > 0 && typeof arr[0]?.word === "string");
+        }
+      );
+      const unwrapped = unwrapArrayFromAiPayload(data, ["items", "words", "vocabulary", "vocab"]) || [];
+      return res.json({
+        success: true,
+        items: normalizeVocabItems(unwrapped.slice(0, count)),
+        aiProvider: providerName,
+        isFallback: false,
+      });
+    } catch (err: any) {
+      console.info("Free AI generate-vocab unavailable, serving curriculum fallback");
     }
   }
 
@@ -717,9 +1284,15 @@ app.post("/api/ai/explain", async (req, res) => {
   }
 
   const customKey = extractSafeHeaderApiKey(req);
-  const ai = getGeminiClient(customKey);
+  const engineMode = extractSafeAiEngine(req);
+  const ai = getStrictGeminiForEngine(engineMode, customKey);
+  if (engineMode === "gemini_byok" && (!customKey || !ai)) {
+    return res.status(401).json({
+      error: "개인 Gemini API 키 전용 모드입니다. API 키를 등록하거나 무료 AI 모드로 전환해 주세요.",
+    });
+  }
 
-  if (ai) {
+  if (ai && (engineMode === "gemini_byok" || engineMode === "auto_free")) {
     try {
       const response = await generateGeminiContent(ai, {
         contents: `문장/단어: "${text}"
@@ -732,10 +1305,29 @@ ${context ? `맥락: ${context}` : ""}
       });
 
       if (response?.text && response.text.trim().length > 0) {
-        return res.json({ success: true, explanation: response.text });
+        return res.json({ success: true, explanation: response.text, aiProvider: "Gemini AI" });
       }
     } catch (error: any) {
-      console.info("Gemini AI explanation offline fallback served:", error?.status || error?.code || "offline mode");
+      if (engineMode === "gemini_byok") {
+        const { statusCode, message } = mapGeminiErrorStatus(error);
+        return res.status(statusCode).json({ error: message });
+      }
+      console.info("Gemini AI explanation fallback to free AI:", error?.status || error?.code || "offline mode");
+    }
+  }
+
+  if (engineMode !== "gemini_byok") {
+    try {
+      const { text: freeText, providerName } = await generateFreeAiText(
+        `영어 표현/문장: "${text}"\n${context ? `맥락: ${context}\n` : ""}발음·연음 포인트, 원어민 뉘앙스, 문법 요소, 대체 표현 2가지를 친절하고 가독성 있는 한국어 마크다운으로 설명해 주세요.`,
+        "당신은 친절한 한국어 기반 영어 튜터입니다. 한국어 마크다운으로 명확하게 답변하세요.",
+        engineMode
+      );
+      if (/[\uAC00-\uD7A3]/.test(freeText)) {
+        return res.json({ success: true, explanation: freeText, aiProvider: providerName, isFallback: false });
+      }
+    } catch {
+      console.info("Free AI explain unavailable, using offline linguistic fallback");
     }
   }
 
@@ -749,9 +1341,15 @@ app.post("/api/ai/recommend-goals", async (req, res) => {
   const interest = sanitizeInputText(req.body?.interest ?? "영어 회화 & 자기계발", 120) || "영어 회화 & 자기계발";
   const timePerDay = sanitizeInputText(req.body?.timePerDay ?? "30분", 40) || "30분";
   const customKey = extractSafeHeaderApiKey(req);
-  const ai = getGeminiClient(customKey);
+  const engineMode = extractSafeAiEngine(req);
+  const ai = getStrictGeminiForEngine(engineMode, customKey);
+  if (engineMode === "gemini_byok" && (!customKey || !ai)) {
+    return res.status(401).json({
+      error: "개인 Gemini API 키 전용 모드입니다. API 키를 등록하거나 무료 AI 모드로 전환해 주세요.",
+    });
+  }
 
-  if (ai) {
+  if (ai && (engineMode === "gemini_byok" || engineMode === "auto_free")) {
     try {
       const response = await generateGeminiContent(ai, {
         contents: `학습자 관심사: "${interest}", 하루 투자 가능 시간: "${timePerDay}".
@@ -777,13 +1375,33 @@ app.post("/api/ai/recommend-goals", async (req, res) => {
       });
 
       const jsonText = response.text || "[]";
-      const parsed = JSON.parse(jsonText);
+      const parsed = sanitizeObjectDeep(JSON.parse(jsonText));
       if (Array.isArray(parsed) && parsed.length > 0) {
-        return res.json({ success: true, goals: parsed });
+        return res.json({ success: true, goals: parsed, aiProvider: "Gemini AI" });
       }
     } catch (error: any) {
-      console.info("Gemini Goal recommendation offline fallback served:", error?.status || error?.code || "offline mode");
+      if (engineMode === "gemini_byok") {
+        const { statusCode, message } = mapGeminiErrorStatus(error);
+        return res.status(statusCode).json({ error: message });
+      }
+      console.info("Gemini Goal recommendation fallback to free AI:", error?.status || error?.code || "offline mode");
     }
+  }
+
+  if (engineMode !== "gemini_byok") {
+    try {
+      const { data, providerName } = await generateFreeAiJson<any>(
+        `관심사: "${interest}", 하루 가능 시간: "${timePerDay}". 실천 가능한 영어/자기계발 목표 4개를 JSON 배열로만 출력하세요: [{"title":"목표(한국어)","category":"영어","targetCount":5,"unit":"개","description":"한국어 팁"}]`,
+        "Return ONLY a JSON array of 4 Korean study goals.",
+        engineMode,
+        (payload) => {
+          const arr = unwrapArrayFromAiPayload(payload, ["goals", "items", "recommendations"]);
+          return Boolean(arr && arr.length > 0 && typeof arr[0]?.title === "string");
+        }
+      );
+      const unwrapped = unwrapArrayFromAiPayload(data, ["goals", "items", "recommendations"]) || [];
+      return res.json({ success: true, goals: unwrapped.slice(0, 4), aiProvider: providerName, isFallback: false });
+    } catch {}
   }
 
   // Fallback curated goals
@@ -823,26 +1441,69 @@ app.post("/api/ai/recommend-goals", async (req, res) => {
 
 // AI Roleplay Conversation Turn Endpoint
 app.post("/api/ai/roleplay/chat", async (req, res) => {
-  const scenario = req.body?.scenario && typeof req.body.scenario === "object" ? req.body.scenario : null;
-  const messages = Array.isArray(req.body?.messages) ? req.body.messages.slice(-12) : [];
+  const rawScenario = req.body?.scenario && typeof req.body.scenario === "object" ? sanitizeObjectDeep(req.body.scenario) : null;
+  const messages = Array.isArray(req.body?.messages) ? sanitizeObjectDeep(req.body.messages.slice(-12)) : [];
   const userMessage = sanitizeInputText(req.body?.userMessage, 600);
-  const completedMissions = Array.isArray(req.body?.completedMissions) ? req.body.completedMissions.slice(0, 20) : [];
-  if (!scenario || !userMessage) {
+  const completedMissions = Array.isArray(req.body?.completedMissions)
+    ? req.body.completedMissions.slice(0, 20).map((id: any) => sanitizeInputText(String(id), 80)).filter(Boolean)
+    : [];
+  if (!rawScenario || !userMessage) {
     return res.status(400).json({ error: "시나리오 정보와 사용자 메시지가 필요합니다." });
   }
+  const scenario = {
+    id: sanitizeInputText(String(rawScenario.id || "custom"), 100) || "custom",
+    title: sanitizeInputText(String(rawScenario.title || "English Roleplay"), 160),
+    partnerName: sanitizeInputText(String(rawScenario.partnerName || "Partner"), 80),
+    partnerRole: sanitizeInputText(String(rawScenario.partnerRole || "Speaker"), 80),
+    userRole: sanitizeInputText(String(rawScenario.userRole || "Learner"), 80),
+    situationContext: sanitizeInputText(String(rawScenario.situationContext || ""), 400),
+    missions: Array.isArray(rawScenario.missions) ? rawScenario.missions.slice(0, 6) : [],
+    recommendedPhrases: Array.isArray(rawScenario.recommendedPhrases) ? rawScenario.recommendedPhrases.slice(0, 6) : [],
+  };
 
   const customKey = extractSafeHeaderApiKey(req);
-  const ai = getGeminiClient(customKey);
+  const engineMode = extractSafeAiEngine(req);
+  const ai = getStrictGeminiForEngine(engineMode, customKey);
+  if (engineMode === "gemini_byok" && (!customKey || !ai)) {
+    return res.status(401).json({
+      error: "개인 Gemini API 키 전용 모드입니다. API 키를 등록하거나 무료 AI 모드로 전환해 주세요.",
+    });
+  }
 
-  if (ai) {
+  const normalizeRoleplayTurn = (parsed: any) => ({
+    aiResponse: {
+      en: sanitizeInputText(String(parsed?.aiResponse?.en || ""), 500),
+      ko: sanitizeInputText(String(parsed?.aiResponse?.ko || ""), 500),
+    },
+    feedback: {
+      rephrasedBetter: sanitizeInputText(String(parsed?.feedback?.rephrasedBetter || userMessage), 400),
+      grammarNotes: sanitizeInputText(String(parsed?.feedback?.grammarNotes || "자연스러운 문장 구성입니다."), 400),
+      pronunciationTips: parsed?.feedback?.pronunciationTips
+        ? sanitizeInputText(String(parsed.feedback.pronunciationTips), 300)
+        : undefined,
+    },
+    newCompletedMissionIds: Array.isArray(parsed?.newCompletedMissionIds)
+      ? parsed.newCompletedMissionIds.map((id: any) => sanitizeInputText(String(id), 80)).filter(Boolean)
+      : [],
+    recommendedNextHints: Array.isArray(parsed?.recommendedNextHints)
+      ? parsed.recommendedNextHints
+          .slice(0, 2)
+          .filter((h: any) => h && typeof h.en === "string")
+          .map((h: any) => ({
+            en: sanitizeInputText(String(h.en), 200),
+            ko: sanitizeInputText(String(h.ko || ""), 200),
+          }))
+      : [],
+  });
+
+  if (ai && (engineMode === "gemini_byok" || engineMode === "auto_free")) {
     try {
-      // Build conversation dialogue context
       const formattedHistory = messages
         .slice(-8)
-        .map((m: any) => `${m.sender === "ai" ? scenario.partnerName : "User"}: "${m.text}"`)
+        .map((m: any) => `${m.sender === "ai" ? scenario.partnerName : "User"}: "${String(m.text || "")}"`)
         .join("\n");
 
-      const missionListStr = (scenario.missions || [])
+      const missionListStr = scenario.missions
         .map((m: any) => `- [ID: ${m.id}] ${m.text} (${m.description})`)
         .join("\n");
 
@@ -923,19 +1584,61 @@ ${formattedHistory || "(Start of conversation)"}
       });
 
       const jsonText = response.text || "{}";
-      const parsed = JSON.parse(jsonText);
+      const parsed = sanitizeObjectDeep(JSON.parse(jsonText));
       if (parsed?.aiResponse?.en) {
+        const normalized = normalizeRoleplayTurn(parsed);
         return res.json({
           success: true,
-          aiResponse: parsed.aiResponse,
-          feedback: parsed.feedback,
-          newCompletedMissionIds: parsed.newCompletedMissionIds || [],
-          recommendedNextHints: parsed.recommendedNextHints || [],
+          ...normalized,
+          aiProvider: "Gemini AI",
           isFallback: false,
         });
       }
     } catch (error: any) {
-      console.info("Gemini Roleplay chat offline fallback served:", error?.status || error?.code || "offline mode");
+      if (engineMode === "gemini_byok") {
+        const { statusCode, message } = mapGeminiErrorStatus(error);
+        return res.status(statusCode).json({ error: message });
+      }
+      console.info("Gemini Roleplay chat fallback to free AI:", error?.status || error?.code || "offline mode");
+    }
+  }
+
+  if (engineMode !== "gemini_byok") {
+    try {
+      const formattedHistory = messages
+        .slice(-6)
+        .map((m: any) => `${m.sender === "ai" ? scenario.partnerName : "User"}: "${String(m.text || "")}"`)
+        .join("\n");
+      const missionListStr = scenario.missions
+        .map((m: any) => `- ID "${m.id}": ${m.text} (${m.description})`)
+        .join("\n");
+
+      const freePrompt = `[Scenario] ${scenario.title} — You play "${scenario.partnerName}" (${scenario.partnerRole}). User plays "${scenario.userRole}".
+Context: ${scenario.situationContext}
+Missions:\n${missionListStr}
+Already completed IDs: ${JSON.stringify(completedMissions)}
+Recent dialogue:\n${formattedHistory || "(Start)"}
+User's latest line: "${userMessage}"
+
+Reply ONLY with raw valid JSON:
+{"aiResponse":{"en":"1-2 natural spoken English sentences","ko":"자연스러운 한국어 번역"},"feedback":{"rephrasedBetter":"more natural native alternative","grammarNotes":"1 Korean sentence tip","pronunciationTips":"short Korean pronunciation tip"},"newCompletedMissionIds":[],"recommendedNextHints":[{"en":"hint 1","ko":"한국어 1"},{"en":"hint 2","ko":"한국어 2"}]}`;
+
+      const { data, providerName } = await generateFreeAiJson<any>(
+        freePrompt,
+        "You are an English roleplay partner & Korean tutor. Output strictly valid JSON only.",
+        engineMode,
+        (p) => Boolean(p?.aiResponse?.en && p?.aiResponse?.ko && /[\uAC00-\uD7A3]/.test(String(p.aiResponse.ko)))
+      );
+
+      const normalized = normalizeRoleplayTurn(data);
+      return res.json({
+        success: true,
+        ...normalized,
+        aiProvider: providerName,
+        isFallback: false,
+      });
+    } catch {
+      console.info("Free AI roleplay chat unavailable, serving offline heuristic response");
     }
   }
 
@@ -1009,24 +1712,64 @@ ${formattedHistory || "(Start of conversation)"}
 
 // AI Roleplay Comprehensive Performance Report Endpoint
 app.post("/api/ai/roleplay/report", async (req, res) => {
-  const scenario = req.body?.scenario && typeof req.body.scenario === "object" ? req.body.scenario : null;
-  const messages = Array.isArray(req.body?.messages) ? req.body.messages.slice(-30) : [];
-  const completedMissions = Array.isArray(req.body?.completedMissions) ? req.body.completedMissions.slice(0, 20) : [];
-  if (!scenario || messages.length === 0) {
+  const rawScenario = req.body?.scenario && typeof req.body.scenario === "object" ? sanitizeObjectDeep(req.body.scenario) : null;
+  const messages = Array.isArray(req.body?.messages) ? sanitizeObjectDeep(req.body.messages.slice(-30)) : [];
+  const completedMissions = Array.isArray(req.body?.completedMissions)
+    ? req.body.completedMissions.slice(0, 20).map((id: any) => sanitizeInputText(String(id), 80)).filter(Boolean)
+    : [];
+  if (!rawScenario || messages.length === 0) {
     return res.status(400).json({ error: "시나리오 및 대화 기록이 필요합니다." });
   }
+  const scenario = {
+    id: sanitizeInputText(String(rawScenario.id || "custom"), 100) || "custom",
+    title: sanitizeInputText(String(rawScenario.title || "English Roleplay"), 160),
+    partnerName: sanitizeInputText(String(rawScenario.partnerName || "Partner"), 80),
+    partnerRole: sanitizeInputText(String(rawScenario.partnerRole || "Speaker"), 80),
+    userRole: sanitizeInputText(String(rawScenario.userRole || "Learner"), 80),
+    missions: Array.isArray(rawScenario.missions) ? rawScenario.missions.slice(0, 6) : [],
+    recommendedPhrases: Array.isArray(rawScenario.recommendedPhrases) ? rawScenario.recommendedPhrases.slice(0, 6) : [],
+  };
 
   const customKey = extractSafeHeaderApiKey(req);
-  const ai = getGeminiClient(customKey);
+  const engineMode = extractSafeAiEngine(req);
+  const ai = getStrictGeminiForEngine(engineMode, customKey);
+  if (engineMode === "gemini_byok" && (!customKey || !ai)) {
+    return res.status(401).json({
+      error: "개인 Gemini API 키 전용 모드입니다. API 키를 등록하거나 무료 AI 모드로 전환해 주세요.",
+    });
+  }
 
   const totalMissionsCount = scenario.missions?.length || 3;
   const completedCount = completedMissions.length;
   const missionScoreCalc = Math.round((completedCount / totalMissionsCount) * 100);
 
-  if (ai) {
+  const normalizeRoleplayReport = (data: any) => ({
+    scenarioId: scenario.id,
+    scenarioTitle: scenario.title,
+    overallScore: Math.max(0, Math.min(100, Math.round(Number(data?.overallScore) || 84))),
+    fluencyScore: Math.max(0, Math.min(100, Math.round(Number(data?.fluencyScore) || 82))),
+    accuracyScore: Math.max(0, Math.min(100, Math.round(Number(data?.accuracyScore) || 82))),
+    vocabularyScore: Math.max(0, Math.min(100, Math.round(Number(data?.vocabularyScore) || 85))),
+    missionScore: Math.max(0, Math.min(100, Math.round(Number(data?.missionScore) || missionScoreCalc))),
+    feedbackSummary: sanitizeInputText(String(data?.feedbackSummary || ""), 600),
+    strengths: Array.isArray(data?.strengths) ? data.strengths.slice(0, 4).map((s: any) => sanitizeInputText(String(s), 200)).filter(Boolean) : [],
+    improvements: Array.isArray(data?.improvements) ? data.improvements.slice(0, 4).map((s: any) => sanitizeInputText(String(s), 200)).filter(Boolean) : [],
+    highlightPhrases: Array.isArray(data?.highlightPhrases)
+      ? data.highlightPhrases
+          .slice(0, 4)
+          .filter((p: any) => p && typeof p.en === "string")
+          .map((p: any) => ({
+            en: sanitizeInputText(String(p.en), 200),
+            ko: sanitizeInputText(String(p.ko || ""), 200),
+            tip: sanitizeInputText(String(p.tip || ""), 200),
+          }))
+      : [],
+  });
+
+  if (ai && (engineMode === "gemini_byok" || engineMode === "auto_free")) {
     try {
       const fullTranscript = messages
-        .map((m: any) => `${m.sender === "ai" ? scenario.partnerName : "Learner"}: "${m.text}"`)
+        .map((m: any) => `${m.sender === "ai" ? scenario.partnerName : "Learner"}: "${String(m.text || "")}"`)
         .join("\n");
 
       const prompt = `You are a certified senior English speaking evaluator.
@@ -1109,28 +1852,42 @@ Return valid JSON adhering strictly to the schema.`;
       });
 
       const jsonText = response.text || "{}";
-      const parsed = JSON.parse(jsonText);
+      const parsed = sanitizeObjectDeep(JSON.parse(jsonText));
       if (parsed?.overallScore) {
         return res.json({
           success: true,
-          report: {
-            scenarioId: scenario.id,
-            scenarioTitle: scenario.title,
-            overallScore: parsed.overallScore,
-            fluencyScore: parsed.fluencyScore,
-            accuracyScore: parsed.accuracyScore,
-            vocabularyScore: parsed.vocabularyScore,
-            missionScore: parsed.missionScore || missionScoreCalc,
-            feedbackSummary: parsed.feedbackSummary,
-            strengths: parsed.strengths || [],
-            improvements: parsed.improvements || [],
-            highlightPhrases: parsed.highlightPhrases || [],
-          },
+          report: normalizeRoleplayReport(parsed),
+          aiProvider: "Gemini AI",
         });
       }
     } catch (error: any) {
-      console.info("Gemini Roleplay report offline fallback served:", error?.status || error?.code || "offline mode");
+      if (engineMode === "gemini_byok") {
+        const { statusCode, message } = mapGeminiErrorStatus(error);
+        return res.status(statusCode).json({ error: message });
+      }
+      console.info("Gemini Roleplay report fallback to free AI:", error?.status || error?.code || "offline mode");
     }
+  }
+
+  if (engineMode !== "gemini_byok") {
+    try {
+      const fullTranscript = messages
+        .slice(-20)
+        .map((m: any) => `${m.sender === "ai" ? scenario.partnerName : "Learner"}: "${String(m.text || "")}"`)
+        .join("\n");
+      const freePrompt = `Evaluate English roleplay "${scenario.title}" (missions ${completedCount}/${totalMissionsCount}):\n${fullTranscript}\nOutput strictly valid JSON: {"overallScore":85,"fluencyScore":84,"accuracyScore":83,"vocabularyScore":86,"missionScore":${missionScoreCalc},"feedbackSummary":"한국어 총평 2문장","strengths":["한국어 강점 1","한국어 강점 2"],"improvements":["한국어 개선 1","한국어 개선 2"],"highlightPhrases":[{"en":"key phrase","ko":"한국어 뜻","tip":"한국어 팁"}]}`;
+      const { data, providerName } = await generateFreeAiJson<any>(
+        freePrompt,
+        "Output strictly valid JSON only with encouraging Korean evaluation.",
+        engineMode,
+        (p) => typeof p?.overallScore === "number" && typeof p?.feedbackSummary === "string" && /[\uAC00-\uD7A3]/.test(p.feedbackSummary)
+      );
+      return res.json({
+        success: true,
+        report: normalizeRoleplayReport(data),
+        aiProvider: providerName,
+      });
+    } catch {}
   }
 
   // Resilient offline fallback report
@@ -1170,7 +1927,13 @@ Return valid JSON adhering strictly to the schema.`;
 app.post("/api/ai/generate-custom-nags", async (req, res) => {
   const direction = sanitizeInputText(req.body?.direction, 300) || "평범하지만 정감 가는 한국 부모님 스타일";
   const customKey = extractSafeHeaderApiKey(req);
-  const ai = getGeminiClient(customKey);
+  const engineMode = extractSafeAiEngine(req);
+  const ai = getStrictGeminiForEngine(engineMode, customKey);
+  if (engineMode === "gemini_byok" && (!customKey || !ai)) {
+    return res.status(401).json({
+      error: "개인 Gemini API 키 전용 모드입니다. API 키를 등록하거나 무료 AI 모드로 전환해 주세요.",
+    });
+  }
 
   const fallbackCustomScripts = {
     study_start: {
@@ -1211,7 +1974,7 @@ app.post("/api/ai/generate-custom-nags", async (req, res) => {
     }
   };
 
-  if (ai) {
+  if (ai && (engineMode === "gemini_byok" || engineMode === "auto_free")) {
     try {
       const prompt = `사용자의 지시사항/컨셉 방향: "${direction}"
       
@@ -1310,16 +2073,323 @@ app.post("/api/ai/generate-custom-nags", async (req, res) => {
       });
 
       const jsonText = response.text || "{}";
-      const generatedScripts = JSON.parse(jsonText);
+      const generatedScripts = sanitizeObjectDeep(JSON.parse(jsonText));
       if (generatedScripts?.study_start?.mom?.tsundere) {
-        return res.json({ success: true, scripts: generatedScripts });
+        return res.json({ success: true, scripts: generatedScripts, aiProvider: "Gemini AI" });
       }
     } catch (e: any) {
-      console.warn("Gemini custom nag scripts generation failed, using fallback:", e);
+      if (engineMode === "gemini_byok") {
+        const { statusCode, message } = mapGeminiErrorStatus(e);
+        return res.status(statusCode).json({ error: message });
+      }
+      console.warn("Gemini custom nag scripts failed, falling back to free AI:", e);
     }
   }
 
+  if (engineMode !== "gemini_byok") {
+    try {
+      const freePrompt = `컨셉: "${direction}"\n엄마(mom), 아빠(dad)의 3가지 톤(tsundere, strict, affectionate) 한국어 구어체 대본을 JSON으로만 반환:\n{"study_start":{"mom":{"tsundere":"...","strict":"...","affectionate":"..."},"dad":{"tsundere":"...","strict":"...","affectionate":"..."}},"study_complete":{"mom":{"tsundere":"...","strict":"...","affectionate":"..."},"dad":{"tsundere":"...","strict":"...","affectionate":"..."}},"study_delay":{"mom":{"tsundere":"...","strict":"...","affectionate":"..."},"dad":{"tsundere":"...","strict":"...","affectionate":"..."}}}`;
+      const { data, providerName } = await generateFreeAiJson<any>(
+        freePrompt,
+        "한국 부모님 컨셉 대본 작가. 자연스러운 한국어로 JSON만 반환하세요.",
+        engineMode,
+        (p) => Boolean(p?.study_start?.mom?.tsundere && p?.study_complete?.dad?.affectionate)
+      );
+      return res.json({ success: true, scripts: data, aiProvider: providerName });
+    } catch {}
+  }
+
   return res.json({ success: true, scripts: fallbackCustomScripts, isFallback: true });
+});
+
+// AI Phoneme-Level Pronunciation Correction Report Endpoint (gemini-4-hydrogen multimodal audio + text)
+app.post("/api/ai/pronunciation-report", async (req, res) => {
+  const targetText = sanitizeInputText(req.body?.targetText, 400);
+  const recognizedText = sanitizeInputText(req.body?.recognizedText ?? "", 400);
+  const localHints = sanitizeInputText(req.body?.localHints ?? "", 1200);
+  const rawAudioBase64 = typeof req.body?.audioBase64 === "string" ? req.body.audioBase64.trim() : "";
+  const rawAudioMime = typeof req.body?.audioMimeType === "string" ? req.body.audioMimeType.split(";")[0].trim().toLowerCase() : "";
+
+  if (!targetText) {
+    return res.status(400).json({ error: "분석할 목표 영어 단어 또는 문장(targetText)이 필요합니다." });
+  }
+
+  const ALLOWED_AUDIO_MIMES = new Set(["audio/webm", "audio/wav", "audio/mp4", "audio/ogg", "audio/mpeg", "audio/mp3"]);
+  let validAudioPart: { inlineData: { mimeType: string; data: string } } | null = null;
+
+  if (rawAudioBase64) {
+    if (!ALLOWED_AUDIO_MIMES.has(rawAudioMime)) {
+      return res.status(400).json({ error: "지원되지 않는 오디오 형식입니다." });
+    }
+    if (rawAudioBase64.length > 3_200_000 || !/^[A-Za-z0-9+/=]+$/.test(rawAudioBase64)) {
+      return res.status(400).json({ error: "오디오 데이터 크기가 너무 크거나 형식이 올바르지 않습니다." });
+    }
+    validAudioPart = {
+      inlineData: {
+        mimeType: rawAudioMime === "audio/mp3" ? "audio/mpeg" : rawAudioMime,
+        data: rawAudioBase64,
+      },
+    };
+  }
+
+  const customKey = extractSafeHeaderApiKey(req);
+  const engineMode = extractSafeAiEngine(req);
+  const ai = getStrictGeminiForEngine(engineMode, customKey);
+
+  if (engineMode === "gemini_byok" && (!customKey || !ai)) {
+    return res.status(401).json({
+      error: "개인 Gemini API 키 전용 모드입니다. API 키를 등록하거나 무료 AI 모드로 전환해 주세요.",
+    });
+  }
+
+  const promptText = `You are a specialist English phonetics & L1-Korean pronunciation coach.
+Evaluate the learner's pronunciation of the target English text down to the individual PHONEME level.
+
+[Target English Text]
+"${targetText}"
+
+[Browser Speech Recognition Transcript]
+"${recognizedText || "(none recognized)"}"
+
+[Acoustic / Phonological Pre-alignment Hints]
+${localHints || "(none)"}
+
+${validAudioPart ? "[Attached Audio]\nListen carefully to the learner's actual audio recording attached to this request. Identify real acoustic phoneme substitutions, omitted word endings, interdental /θ,ð/→/s,d/ substitutions, /r/↔/l/ confusions, /f,v/→/p,b/ confusions, vowel length/tenseness issues, or weak stress." : "[Text & Hint Mode]\nNo audio blob was attached; analyze phonetic differences between Target and Recognized Transcript plus Korean learner interference risks for the target graphemes."}
+
+Instructions:
+1. Break down the key phonemes across the target text (include every mispronounced/weak phoneme PLUS key anchor phonemes up to 14 items total so the report is focused and actionable).
+2. For each item:
+   - word: exact target English word
+   - grapheme: spelling letters for that phoneme (e.g., "th", "r", "v", "ee", "ed")
+   - expectedIpa: target IPA in slashes (e.g., "/θ/", "/r/", "/iː/")
+   - spokenIpa: perceived IPA in slashes (same as expectedIpa if accurate, or confused phoneme e.g. "/s/", "/l/", "/Ø/" for omission)
+   - errorType: one of "accurate" | "substitution" | "omission" | "distortion" | "weak_stress"
+   - severity: "good" (when accurate), "moderate" (weak stress or slight distortion), or "critical" (substitution or omission)
+   - accuracyScore: 0~100 integer
+   - diagnosis: 1 concise Korean sentence explaining what sounded off or why it was recognized well
+   - articulationCue: specific Korean physical tongue/lips/teeth/airflow instruction
+   - mouthFocus: one of "interdental" | "alveolar" | "lips_teeth" | "bilabial" | "velar" | "retroflex_r" | "vowel_open" | "vowel_spread" | "glottal"
+   - minimalPairWord: optional English contrast word to practice against (e.g., "sink" when target was "think")
+   - minimalPairIpa: optional IPA of the contrast phoneme (e.g., "/s/")
+3. Provide 1~3 minimal-pair practiceDrills focused on the weakest phonemes.
+4. Write overallSummary in encouraging, specific Korean (1~2 sentences naming the concrete phoneme strengths and fixes).
+Output strictly valid JSON matching the schema.`;
+
+  const ALLOWED_ERROR_TYPES = new Set(["accurate", "substitution", "omission", "distortion", "weak_stress"]);
+  const ALLOWED_SEVERITIES = new Set(["good", "moderate", "critical"]);
+  const ALLOWED_MOUTH_FOCUS = new Set([
+    "interdental",
+    "alveolar",
+    "lips_teeth",
+    "bilabial",
+    "velar",
+    "retroflex_r",
+    "vowel_open",
+    "vowel_spread",
+    "glottal",
+  ]);
+
+  const formatNormalizedReport = (parsed: any, providerName: string, idPrefix: string) => {
+    const rawItems =
+      (Array.isArray(parsed?.phonemeItems)
+        ? parsed.phonemeItems
+        : unwrapArrayFromAiPayload(parsed, ["phonemeItems", "phonemes", "items", "data"])) || [];
+    const items = rawItems.slice(0, 18).map((item: any, idx: number) => ({
+      id: `${idPrefix}-${idx}-${String(item?.grapheme || "x").replace(/[^a-z0-9]/gi, "")}`,
+      word: sanitizeInputText(String(item?.word || targetText), 80),
+      grapheme: sanitizeInputText(String(item?.grapheme || ""), 20),
+      expectedIpa: sanitizeInputText(String(item?.expectedIpa || "/?/"), 30),
+      spokenIpa: sanitizeInputText(String(item?.spokenIpa || item?.expectedIpa || "/?/"), 30),
+      errorType: ALLOWED_ERROR_TYPES.has(item?.errorType) ? item.errorType : "accurate",
+      severity: ALLOWED_SEVERITIES.has(item?.severity) ? item.severity : "good",
+      accuracyScore: Math.max(0, Math.min(100, Math.round(Number(item?.accuracyScore ?? 85)))),
+      diagnosis: sanitizeInputText(String(item?.diagnosis || ""), 300) || "해당 음소의 발음 특성을 분석했습니다.",
+      articulationCue:
+        sanitizeInputText(String(item?.articulationCue || ""), 300) ||
+        "혀 위치와 입 모양에 집중해 천천히 발음해 보세요.",
+      mouthFocus: ALLOWED_MOUTH_FOCUS.has(item?.mouthFocus) ? item.mouthFocus : "alveolar",
+      minimalPairWord: item?.minimalPairWord ? sanitizeInputText(String(item.minimalPairWord), 60) : undefined,
+      minimalPairIpa: item?.minimalPairIpa ? sanitizeInputText(String(item.minimalPairIpa), 30) : undefined,
+    }));
+
+    let practiceDrills = Array.isArray(parsed?.practiceDrills)
+      ? parsed.practiceDrills
+          .slice(0, 4)
+          .filter((d: any) => d && typeof d.pairA === "string" && typeof d.pairB === "string")
+          .map((d: any) => ({
+            pairA: sanitizeInputText(String(d.pairA), 60),
+            pairB: sanitizeInputText(String(d.pairB), 60),
+            focusIpa: sanitizeInputText(String(d.focusIpa || ""), 40),
+            tip: sanitizeInputText(String(d.tip || ""), 200) || "두 단어의 음소 차이를 구분하며 반복해 보세요.",
+          }))
+      : [];
+
+    if (practiceDrills.length === 0) {
+      practiceDrills = items
+        .filter((i: any) => i.minimalPairWord && i.word && i.minimalPairWord.toLowerCase() !== i.word.toLowerCase())
+        .slice(0, 3)
+        .map((i: any) => ({
+          pairA: i.word,
+          pairB: i.minimalPairWord,
+          focusIpa: `${i.expectedIpa} vs ${i.minimalPairIpa || i.spokenIpa}`,
+          tip: i.articulationCue || "목표 음소와 대조 음소의 조음 위치 차이에 집중해 보세요.",
+        }));
+    }
+
+    const criticalCount = items.filter((i: any) => i.severity === "critical").length;
+    const moderateCount = items.filter((i: any) => i.severity === "moderate").length;
+    const accurateCount = items.filter((i: any) => i.severity === "good").length;
+
+    const rawSummary = sanitizeInputText(String(parsed?.overallSummary || ""), 500);
+    const defaultSummary =
+      criticalCount > 0
+        ? `${criticalCount}개 핵심 음소의 구강 조음 교정 포인트가 분석되었습니다.`
+        : "전반적으로 안정적인 음소 조음과 리듬이 확인되었습니다.";
+
+    return {
+      source: "ai",
+      providerName,
+      targetText,
+      recognizedText,
+      overallSummary: rawSummary || defaultSummary,
+      phonemeItems: items,
+      practiceDrills,
+      stats: {
+        totalCount: items.length,
+        criticalCount,
+        moderateCount,
+        accurateCount,
+      },
+      generatedAt: new Date().toISOString(),
+    };
+  };
+
+  if (ai && (engineMode === "gemini_byok" || engineMode === "auto_free")) {
+    try {
+      const contentsPayload = validAudioPart ? [validAudioPart, { text: promptText }] : promptText;
+      const response = await generateGeminiContent(ai, {
+        contents: contentsPayload,
+        config: {
+          systemInstruction:
+            "You are an expert phonetician coaching Korean learners of English. Provide precise IPA symbols, realistic phoneme-level error diagnostics, and actionable articulatory cues in natural Korean. Output strictly valid JSON.",
+          responseMimeType: "application/json",
+          responseSchema: {
+            type: Type.OBJECT,
+            properties: {
+              overallSummary: { type: Type.STRING },
+              phonemeItems: {
+                type: Type.ARRAY,
+                items: {
+                  type: Type.OBJECT,
+                  properties: {
+                    word: { type: Type.STRING },
+                    grapheme: { type: Type.STRING },
+                    expectedIpa: { type: Type.STRING },
+                    spokenIpa: { type: Type.STRING },
+                    errorType: {
+                      type: Type.STRING,
+                      enum: ["accurate", "substitution", "omission", "distortion", "weak_stress"],
+                    },
+                    severity: {
+                      type: Type.STRING,
+                      enum: ["good", "moderate", "critical"],
+                    },
+                    accuracyScore: { type: Type.NUMBER },
+                    diagnosis: { type: Type.STRING },
+                    articulationCue: { type: Type.STRING },
+                    mouthFocus: {
+                      type: Type.STRING,
+                      enum: [
+                        "interdental",
+                        "alveolar",
+                        "lips_teeth",
+                        "bilabial",
+                        "velar",
+                        "retroflex_r",
+                        "vowel_open",
+                        "vowel_spread",
+                        "glottal",
+                      ],
+                    },
+                    minimalPairWord: { type: Type.STRING },
+                    minimalPairIpa: { type: Type.STRING },
+                  },
+                  required: [
+                    "word",
+                    "grapheme",
+                    "expectedIpa",
+                    "spokenIpa",
+                    "errorType",
+                    "severity",
+                    "accuracyScore",
+                    "diagnosis",
+                    "articulationCue",
+                    "mouthFocus",
+                  ],
+                },
+              },
+              practiceDrills: {
+                type: Type.ARRAY,
+                items: {
+                  type: Type.OBJECT,
+                  properties: {
+                    pairA: { type: Type.STRING },
+                    pairB: { type: Type.STRING },
+                    focusIpa: { type: Type.STRING },
+                    tip: { type: Type.STRING },
+                  },
+                  required: ["pairA", "pairB", "focusIpa", "tip"],
+                },
+              },
+            },
+            required: ["overallSummary", "phonemeItems", "practiceDrills"],
+          },
+        },
+      });
+
+      const jsonText = response.text || "{}";
+      const parsed = sanitizeObjectDeep(JSON.parse(jsonText));
+
+      if (parsed && Array.isArray(parsed.phonemeItems)) {
+        return res.json({
+          success: true,
+          report: formatNormalizedReport(parsed, validAudioPart ? "Gemini AI 오디오 청취 정밀 진단" : "Gemini AI 음소 정밀 진단", "ai-ph"),
+        });
+      }
+    } catch (error: any) {
+      if (engineMode === "gemini_byok") {
+        const { statusCode, message } = mapGeminiErrorStatus(error);
+        return res.status(statusCode).json({ error: message });
+      }
+      console.warn("Gemini pronunciation report failed, falling back to free AI:", error?.message || error);
+    }
+  }
+
+  // Keyless Worldwide Free AI Fallback (compact schema under open-model token limits)
+  try {
+    const freeJsonPrompt = `Analyze English pronunciation for Korean learner.
+Target: "${targetText}", Recognized: "${recognizedText || "(none)"}", Hints: ${localHints || "(none)"}
+Reply ONLY with compact valid JSON (max 3 phonemeItems, all feedback strings in Korean):
+{"overallSummary":"<한국어 총평 1문장>","phonemeItems":[{"word":"<target word>","grapheme":"<letters>","expectedIpa":"/<ipa>/","spokenIpa":"/<ipa>/","errorType":"accurate|substitution|omission|distortion","severity":"good|moderate|critical","accuracyScore":75,"diagnosis":"<한국어 원인 1문장>","articulationCue":"<한국어 혀·입술 교정 팁>","mouthFocus":"interdental|alveolar|lips_teeth|bilabial|velar|retroflex_r|vowel_open|vowel_spread|glottal","minimalPairWord":"<contrast word>","minimalPairIpa":"/<ipa>/"}]}`;
+    const { data, providerName } = await generateFreeAiJson<any>(
+      freeJsonPrompt,
+      "한국인 영어 학습자용 음소 발음 코치입니다. 마크다운 없이 유효한 JSON만 출력하고 overallSummary, diagnosis, articulationCue 값은 반드시 한국어로 작성하세요.",
+      engineMode,
+      (p) => {
+        const arr = unwrapArrayFromAiPayload(p, ["phonemeItems", "phonemes", "items", "data"]);
+        return Boolean(arr && arr.length > 0 && typeof arr[0]?.word === "string");
+      }
+    );
+    return res.json({
+      success: true,
+      report: formatNormalizedReport(data, providerName, "free-ai-ph"),
+    });
+  } catch (freeErr: any) {
+    console.error("Free AI pronunciation report failed:", freeErr?.message || freeErr);
+    return res.status(502).json({
+      error: "무료 AI 음소 정밀 분석 서버 응답 중 일시적인 오류가 발생했습니다. 잠시 후 다시 시도해 주세요.",
+    });
+  }
 });
 
 async function startServer() {

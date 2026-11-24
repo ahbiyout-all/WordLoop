@@ -41,6 +41,7 @@ export const FocusRoutinePlayer: React.FC<FocusRoutinePlayerProps> = ({
   onOpenPronunciation,
   onRoutineComplete,
 }) => {
+  const [sessionQueue, setSessionQueue] = useState<VocabItem[]>(queue);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [step, setStep] = useState<RoutineStep>('listen');
   const [selectedOption, setSelectedOption] = useState<string | null>(null);
@@ -48,7 +49,22 @@ export const FocusRoutinePlayer: React.FC<FocusRoutinePlayerProps> = ({
   const [correctCount, setCorrectCount] = useState(0);
   const [completed, setCompleted] = useState(false);
 
-  const currentItem = queue[currentIndex];
+  React.useEffect(() => {
+    if (isOpen) {
+      setSessionQueue(queue);
+      setCurrentIndex(0);
+      setStep('listen');
+      setSelectedOption(null);
+      setIsCorrect(null);
+      setCorrectCount(0);
+      setCompleted(false);
+    }
+    // Intentionally snapshot queue only when the modal opens
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen]);
+
+  const activeQueue = sessionQueue.length > 0 ? sessionQueue : queue;
+  const currentItem = activeQueue[currentIndex];
 
   // Build 4 deterministic Korean meaning choices for Step 2 recall
   const quizOptions = useMemo(() => {
@@ -57,7 +73,7 @@ export const FocusRoutinePlayer: React.FC<FocusRoutinePlayerProps> = ({
     const distractors: string[] = [];
     const used = new Set<string>([targetMeaning]);
 
-    const pool = allVocab.length > 4 ? allVocab : queue;
+    const pool = allVocab.length > 4 ? allVocab : activeQueue;
     const stepOffset = (currentIndex * 7 + 3) % Math.max(1, pool.length);
 
     for (let i = 0; i < pool.length && distractors.length < 3; i++) {
@@ -77,7 +93,7 @@ export const FocusRoutinePlayer: React.FC<FocusRoutinePlayerProps> = ({
       const hb = (b.charCodeAt(0) + currentIndex) % 17;
       return ha - hb;
     });
-  }, [currentItem, allVocab, queue, currentIndex]);
+  }, [currentItem, allVocab, activeQueue, currentIndex]);
 
   if (!isOpen) return null;
 
@@ -106,12 +122,12 @@ export const FocusRoutinePlayer: React.FC<FocusRoutinePlayerProps> = ({
     if (!currentItem) return;
     onUpdateVocabSrs(currentItem.id, rating);
 
-    if (currentIndex + 1 >= queue.length) {
+    if (currentIndex + 1 >= activeQueue.length) {
       recordGameDone();
       confettiService.fireSideCannons();
       setCompleted(true);
       if (onRoutineComplete) {
-        onRoutineComplete(queue.length, correctCount);
+        onRoutineComplete(activeQueue.length, correctCount);
       }
     } else {
       setCurrentIndex((prev) => prev + 1);
@@ -121,7 +137,7 @@ export const FocusRoutinePlayer: React.FC<FocusRoutinePlayerProps> = ({
     }
   };
 
-  const progressPct = queue.length > 0 ? Math.round(((currentIndex + (completed ? 1 : 0)) / queue.length) * 100) : 100;
+  const progressPct = activeQueue.length > 0 ? Math.round(((currentIndex + (completed ? 1 : 0)) / activeQueue.length) * 100) : 100;
 
   return (
     <div
@@ -141,9 +157,9 @@ export const FocusRoutinePlayer: React.FC<FocusRoutinePlayerProps> = ({
             <span className="font-display font-bold text-sm text-slate-900 dark:text-white truncate">
               오늘의 3분 집중 루틴
             </span>
-            {!completed && queue.length > 0 && (
+            {!completed && activeQueue.length > 0 && (
               <span className="font-mono-tabular text-xs text-slate-500 dark:text-slate-400">
-                {currentIndex + 1} / {queue.length}
+                {currentIndex + 1} / {activeQueue.length}
               </span>
             )}
           </div>
@@ -168,7 +184,7 @@ export const FocusRoutinePlayer: React.FC<FocusRoutinePlayerProps> = ({
 
         {/* Body */}
         <div className="p-5 sm:p-6 overflow-y-auto flex-1">
-          {queue.length === 0 ? (
+          {activeQueue.length === 0 ? (
             <div className="py-10 text-center space-y-3">
               <p className="text-sm font-semibold text-slate-800 dark:text-slate-200">
                 현재 학습할 단어가 없습니다.
@@ -191,7 +207,7 @@ export const FocusRoutinePlayer: React.FC<FocusRoutinePlayerProps> = ({
                   오늘의 3분 루틴 완료
                 </h3>
                 <p className="text-sm text-slate-600 dark:text-slate-400">
-                  총 <span className="font-mono-tabular font-semibold text-slate-900 dark:text-white">{queue.length}</span>개 단어 복습 완료 · 회상 정답{' '}
+                  총 <span className="font-mono-tabular font-semibold text-slate-900 dark:text-white">{activeQueue.length}</span>개 단어 복습 완료 · 회상 정답{' '}
                   <span className="font-mono-tabular font-semibold text-emerald-600 dark:text-emerald-400">{correctCount}</span>개 · 잔디 불꽃 기록 반영됨
                 </p>
               </div>

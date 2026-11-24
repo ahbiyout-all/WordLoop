@@ -2,7 +2,100 @@
 
 ---
 
-## 🚀 Version 4.2.0 (최신 업데이트)
+## 🚀 Version 4.5.0 (최신 업데이트)
+
+### 🌍 전 세계 API 키 없는 무료 오픈 AI 4종 추가 발굴·실시간 검증 (총 7중 워터폴 확장)
+- **🚀 Kilo AI Gateway 무료 프록시 (`server.ts`, `apiClient.ts`)**:
+  - Live 검증(`HTTP 200`)을 마친 `api.kilo.ai` 무료 게이트웨이(`kilo-auto/free` · `nvidia/nemotron-3-ultra-550b-a55b:free` · `nvidia/nemotron-3.5-lightning:free`)를 Express 프록시 워터폴 최상단에 통합했습니다. (시간당 약 200회 무료 할당, 브라우저 CORS 미지원 구간을 서버 프록시로 안전하게 중계)
+- **🇪🇺 OVHcloud EU AI Endpoints 다중 모델 5종 자동 순환 (`freeAiService.ts`, `server.ts`)**:
+  - `CORS: *` 지원 및 Live `HTTP 200` 검증을 마친 **DeepSeek-V4.1-Flash-1017**, **Mistral-Small-3.2-24B-Instruct-2506**, **Meta-Llama-3_3-70B-Instruct**, **gpt-oss-20b**, **gemma-4-26b-a4b** 5개 모델을 브라우저 직결 + 서버 워터폴에 동시 탑재했습니다.
+  - 모델당 2 RPM 제한을 우회하기 위해 `browserOvhCooldownUntil`/`serverOvhCooldownUntil` 모델별 65초 쿨다운 맵과 `max_tokens: 1024` 안전 설정을 적용했습니다.
+- **🌐 LLM7 Open Gateway & MLVoca 이중 폴백 (`freeAiService.ts`, `server.ts`)**:
+  - IP별 무료 익명 할당량을 제공하는 `api.llm7.io`(`default`, `gpt-oss:20b`, `mistral-Nemo-Instruct-2407`, `429` 시 120초 쿨다운)를 브라우저 직결 및 서버 체인에 추가했습니다.
+  - 기존 MLVoca 서버(`mlvoca.com`)가 `deepseek-r1:1.5b` 일시 지연 시 라이브 검증된 `tinyllama` 모델로 자동 폴백하도록 보강했습니다.
+- **💻 Chrome / Edge 온디바이스 Gemini Nano (`chrome_builtin`) & 9종 엔진 선택기 (`ApiKeyModal.tsx`, `pronunciationReportService.ts`)**:
+  - 브라우저 Prompt API(`LanguageModel` / `window.ai.languageModel`)를 지원해 네트워크·사용량 한도 없이 기기 내부 추론을 지원하며, 서버 경유 시 클라우드 무료 워터폴로 자동 폴백합니다.
+  - `ApiKeyModal`에 9종 엔진 선택기(7중 자동 + 7개 개별 무료 + BYOK)와 연결 방식 배지(`브라우저 직결` / `서버 프록시` / `기기 내장 온디바이스` / `개인 키 전용`)를 추가하고, 음소 발음 리포트 경로에서도 모든 브라우저 무료 엔진을 우선 활용하도록 확장했습니다.
+
+---
+
+## 🚀 Version 4.4.1
+
+### 🔍 전방위 심층 감사(Deep Audit) · AI 엔진 격리 · 키 검증 무결성 & 안정화 패치
+- **🔑 Gemini API 키 검증 거짓 양성(False Positive) 수정 & BYOK 엄격 격리 (`ApiKeyModal.tsx`, `freeAiService.ts`, `server.ts`)**:
+  - `ApiKeyModal`의 `[Gemini 키 테스트]`가 `/api/dictionary/lookup`의 사전 응답(`isFallback` 미표기)을 유효 키로 오인하던 버그를 해결해 `sourcesUsed` 내 `'Gemini'` 포함 여부와 HTTP `401`/`429`를 엄격히 판별하도록 교정했습니다.
+  - 서버 모든 AI 라우트(7개 엔드포인트)가 `gemini_byok` 모드에서 개인 키가 없거나 유효하지 않을 때 서버 환경변수 키나 가짜 성공 폴백으로 흘러가지 않도록 `401`/`429`/`502` 명확한 오류를 반환합니다.
+- **📦 무료 AI JSON 배열 언래핑 · 스키마 정규화 & UI 방어 (`freeAiService.ts`, `server.ts`, `AIRoleplayView.tsx`, `PronunciationCorrectionReport.tsx`)**:
+  - `unwrapArrayFromAiPayload()`를 도입해 무료 AI가 배열을 `{ items/words/goals: [...] }` 객체로 감싸 반환해도 단어/목표 생성이 실패하지 않도록 개선했습니다.
+  - 롤플레잉 턴/리포트 및 음소 드릴(`practiceDrills`), 허용 enum(`errorType`, `severity`, `mouthFocus`)을 서버/클라이언트 양단에서 정규화하고, BYOK 안내 모달에 **무료 AI 자동 체인으로 즉시 전환** 1-클릭 버튼을 추가했습니다.
+- **🛡️ 로컬 저장 데이터 정화 · URL 검증 & 서버 버전/APK 메타 동기화 (`UserProfileModal.tsx`, `SurpriseParentNagPopup.tsx`, `GitHubUpdateModal.tsx`, `ErrorBoundary.tsx`, `deviceStorageService.ts`, `server.ts`)**:
+  - 커스텀 대본 로컬 스토리지 파싱을 `safeJsonParse` + `sanitizeDeepObject`로 통일하고, APK 다운로드 URL 검증(`/api/` 또는 `https://`) 및 다운로드/토스트 타이머 언마운트 정리를 추가했습니다.
+  - `ErrorBoundary` 캐시 초기화 시 `wordloop_ai_engine_mode`를 함께 보존하며, `/api/health`에 `version`/`versionCode`를 추가하고 `/api/apk/info`가 구형(`4.0.0`) 매니페스트 대신 live `4.4.1` 메타데이터를 반환하도록 교정했습니다.
+
+---
+
+## 🚀 Version 4.4.0
+
+### 🌐 전 세계 API 키 없는 무료 오픈 AI 다중 워터폴 엔진 탑재 (Zero-Key Free AI)
+- **🆓 API 키 없이 전 기능 무료 AI 즉시 활성화 (`freeAiService.ts`, `apiClient.ts`, `server.ts`)**:
+  - 전 세계에서 API 키·가입 없이 공개 제공되는 **Pollinations AI (GPT-OSS 20B)**, **Cloudflare Workers AI Gateway (Llama 3.2 3B)**, **MLVoca Public Ollama (DeepSeek R1 1.5B)** 3종 무료 AI 엔진을 워터폴 체인으로 통합했습니다.
+  - 개인 Gemini API 키가 전혀 없어도 **AI 원어민 롤플레잉**, **AI 맞춤 단어/목표 생성**, **AI 뉘앙스·발음 팁 해설**, **글로벌 사전 한국어 분석**, **AI 음소 단위 발음 교정 리포트**, **AI 엄빠 잔소리 커스텀 대본**을 즉시 무료로 사용할 수 있습니다.
+- **⚡ 브라우저 직결(Per-User IP) + Express 프록시 2계층 아키텍처**:
+  - Pollinations·Cloudflare Workers AI처럼 브라우저 CORS를 허용하는 엔드포인트는 학습자 브라우저에서 직접 호출해 공유 서버 IP 속도 제한(45초 쿨다운)을 회피하고, CORS가 제한된 MLVoca(DeepSeek R1)는 Express 서버(`server.ts`)가 안전하게 프록시합니다.
+  - `extractJsonFromAiText()`로 `<think>` 추론 태그·마크다운 코드펜스를 정화하고 한국어 정규식/스키마 검증 + `__proto__` 오염 차단(`sanitizeDeepObject`)을 통과한 응답만 반영합니다.
+- **🎛️ 5종 AI 엔진 선택 UI · 실시간 연결 테스트 · 롤플레잉 잠금 해제 (`ApiKeyModal.tsx`, `Navbar.tsx`, `AIRoleplayView.tsx`, `AIGenerator.tsx`, `UserProfileModal.tsx`, `App.tsx`)**:
+  - 설정 모달을 **무료 AI 엔진 · API 키 설정**으로 개편하여 `무료 AI 자동 체인` / `Pollinations` / `Cloudflare Workers AI` / `MLVoca DeepSeek R1` / `개인 Gemini 키 전용(BYOK)`을 원클릭 선택하고 지연 시간(ms)을 실시간 테스트할 수 있습니다.
+  - `AIRoleplayView`의 필수 API 키 잠금 모달을 해제하고, 상단 내비게이션과 각 AI 뷰에 현재 동작 중인 무료 AI 엔진 배지를 표시했습니다.
+
+---
+
+## 🚀 Version 4.3.2
+
+### 🔍 시스템 심층 감사(Deep Audit) · 안정성/레이스 컨디션 수정 & 문서 전면 현행화
+- **🗜️ Compact v2 ID 프리픽스 누락 & 커스텀 중복 방지 (`deviceStorageService.ts`, `autoSavePersistenceService.ts`)**:
+  - `edu3000-*`, `curr-*`, `elem-sent-*` 등 3,210단어/예문 ID 프리픽스를 정밀 인식하도록 보강해 `defaultVocab` 인자 없이 호출되어도 전체 데이터가 `custom`으로 덤프되지 않도록 차단했습니다.
+  - 긴급 종료 스냅샷(`flushEmergencyAppState`)에도 `DEFAULT_VOCAB`/`DEFAULT_SENTENCES`를 전달하고, 복원(`hydrateCompact*`) 시 기본 어휘와 겹치는 수정본을 제자리 병합해 중복 카드 생성을 방지했습니다.
+- **🎙️ 발음 교정 리포트 · 쉐도잉 퀴즈 · 발음 모달 레이스 컨디션 & 메모리 누수 해결 (`PronunciationCorrectionReport.tsx`, `ShadowingQuizView.tsx`, `PronunciationModal.tsx`)**:
+  - `PronunciationCorrectionReport`에서 초기 인식 결과와 지연 도착하는 `MediaRecorder` 오디오 Blob 간 이중 AI 요청 레이스를 `AbortController` + 디바운스(`60ms`/`250ms`)로 원천 차단하고, 자소 구두점 정규화로 음소 구간 매핑 정확도를 높였습니다.
+  - `ShadowingQuizView`의 `phaseRef`/`transcriptRef` 최신화로 음성 인식 콜백의 오래된 클로저 참조 버그를 해결하고, 카운트다운/평가 타이머 및 `blob:` ObjectURL 정리를 완비했습니다.
+  - `PronunciationModal`에서 캐시 오디오의 `readyState >= 1` 즉시 구간 재생 분기(`sliceStarted` 가드)와 3D 플립 타이머 언마운트 정리를 추가했습니다.
+- **🎯 3분 집중 루틴 세션 큐 스냅샷 & 비차단 토스트 전면 표준화 (`FocusRoutinePlayer.tsx`, `App.tsx`, `ErrorBoundary.tsx`, `UserProfileModal.tsx`, `AIRoleplayView.tsx`, `StudentWordGame.tsx`, `InAppBrowserBanner.tsx`)**:
+  - `FocusRoutinePlayer`가 루틴 시작 시점의 큐를 스냅샷해 SM-2 평가 직후 남은 카드 순서가 밀리거나 건너뛰는 현상을 해결했습니다.
+  - 앱 전체 잔여 `alert()` 호출을 비차단 온스크린 토스트/인라인 배너로 전면 교체하고, JSON 가져오기 시 `safeJsonParse` + `sanitizeDeepObject` 정화 및 `ErrorBoundary`/초기화 경로의 잔여 스토리지 키 누락을 해소했습니다.
+- **🤖 서버 Gemini 모델 라인업 현행화 & 문서 동기화 (`server.ts`, `docs/`, `README.md`)**:
+  - deprecated 모델(`gemini-2.5-flash` 등)을 공식 지원 모델(`gemini-4-hydrogen`, `gemini-3.1-flash-lite`)로 교체하고, 버전/APK 메타데이터 동적 추출과 `429 RESOURCE_EXHAUSTED` 응답 처리를 보강했습니다.
+  - `README.md`, `ARCHITECTURE.md`, `USER_GUIDE.md`, `SECURITY_REPORT.md`, `SELF_REFLECTION_AUDIT.md`, `WorkLog.md`를 v4.3.2 기준으로 전면 개정했습니다.
+
+---
+
+## 🚀 Version 4.3.1
+
+### 💾 로컬 저장소(5MB) 95.2% 포화 근본 해결 · 델타 압축(Compact v2) & 원클릭 백업/캐시 정리
+- **🗜️ 어휘·예문 델타 압축 저장 (`deviceStorageService.ts`, `App.tsx`, `PronunciationModal.tsx`)**:
+  - 기존 `wordloop_vocab`과 `wordloop_sentences`가 앱 내부 기본 3,210단어 정적 데이터를 매번 통째로 직렬화해 ~2.26MB를 점유하던 구조를 **Compact v2 델타 포맷**으로 전환했습니다.
+  - 기본 내장 어휘는 학습 진도(`masteryLevel`, `isBookmarked`, `repeatCount`, `srs`) 및 사용자 추가/수정 단어만 저장하여 로컬 저장소 점유율을 **95.2% → 5% 미만**으로 대폭 경량화했습니다.
+- **🔧 종료 직전 긴급 스냅샷 중복 저장 & 키 불일치 버그 수정 (`autoSavePersistenceService.ts`)**:
+  - `wordloop_emergency_exit_snapshot`이 전체 어휘 데이터를 2중 복제해 2.26MB를 추가 점유하던 현상을 델타 압축 스냅샷으로 교체하고, `cleanupRedundantStorageCache()`가 실제 스냅샷 키(`wordloop_emergency_exit_snapshot`)를 정확히 정리하고 구버전 대용량 키도 즉시 압축하도록 수정했습니다.
+- **⚡ 원클릭 'JSON 백업 후 캐시 정리' & 실시간 점유율 갱신 (`JsonBackupModal.tsx`, `TodayHub.tsx`, `UserProfileModal.tsx`)**:
+  - 백업 모달에 **JSON 백업 후 캐시 정리** 원클릭 버튼을 추가했으며, 정리 즉시 `TodayHub` 경고 배너와 저장소 점유율 게이지가 새로고침 없이 반영됩니다.
+
+---
+
+## 🚀 Version 4.3.0
+
+### 🎙️ AI 음소(Phoneme) 단위 '발음 교정 리포트' · 구강 조음 위치 시각화 도입
+- **🔬 단순 점수 평가 → 음소(Phoneme) 단위 정밀 교정 리포트 (`PronunciationCorrectionReport.tsx`, `phonemeAnalysisUtils.ts`)**:
+  - 모든 점수대(0~100점)에서 발음 직후 즉시 각 단어의 자소(Grapheme)와 표준 IPA 기호, 실제 인식/혼동된 IPA 변화(`/θ/ → /s/`, `/r/ → /l/`, `/v/ → /b/`, `/f/ → /p/`, 어말 자음 탈락 `/Ø/`)를 색상·아이콘·유형(`음소 치환`, `음소 탈락`, `조음 왜곡`, `강세 약화`)으로 직관적으로 표시합니다.
+  - 단어 1개 연습 시 1음소 차이로 0점 처리되던 문제를 개선해 문자·음소 유사도 기반 부분 점수를 반영했습니다(`speechService.ts`).
+- **👄 실시간 구강 단면도 SVG 조음 시각화 & 최소대립쌍(Minimal Pair) 비교 연습**:
+  - 문제가 발생한 음소를 선택하면 혀끝·입술·치아·잇몸(치간/치조/순치/권설/연구개)의 목표 위치와 기류 방향을 구강 단면도 SVG로 시각화하고, 한국어 조음 교정 가이드를 함께 제공합니다.
+  - **1-클릭 구간 비교 제어**: `원어민 단어 듣기`, 내 녹음에서 해당 음소가 발화된 시간대만 잘라 듣는 `내 발음 구간 듣기`, 그리고 `think ↔ sink`, `right ↔ light` 등 최소대립쌍 연속 비교 듣기를 지원합니다.
+- **🤖 Gemini 멀티모달 오디오 청취 음소 분석 API (`/api/ai/pronunciation-report`, `pronunciationReportService.ts`)**:
+  - 서버 사이드 `gemini-4-hydrogen` 엔드포인트를 통해 녹음된 실제 오디오(webm/wav/mp4)와 발화 텍스트를 함께 분석하여, 한국인 학습자가 자주 틀리는 음소 치환·탈락 패턴과 맞춤 대립쌍 드릴을 구조화된 JSON 리포트로 제공합니다.
+
+---
+
+## 🚀 Version 4.2.0
 
 ### 📚 전 학년 맞춤형 3,210개 단어 예문 전면 교체 · 상용구 템플릿 완전 제거
 - **✨ 획일적 상용구 예문 3,021개 전면 개편 (`officialCurriculum3000Data.json`)**:

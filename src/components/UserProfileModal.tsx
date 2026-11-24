@@ -39,12 +39,15 @@ import {
   getStartupRandomConfig,
   saveStartupRandomConfig
 } from '../services/randomLaunchService';
+import { generateCustomNagsWithFreeAi } from '../services/freeAiService';
 import {
   getDeviceStorageStats,
   exportUserProfileToFile,
   importUserProfileFromFile,
   DeviceStorageStats,
   saveUserProfileToDevice,
+  safeJsonParse,
+  sanitizeDeepObject,
 } from '../services/deviceStorageService';
 import {
   processImageFileToDataUrl,
@@ -130,29 +133,30 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
   } | null>(() => {
     try {
       const saved = localStorage.getItem('wordloop_custom_nag_scripts');
-      return saved ? JSON.parse(saved) : null;
+      if (!saved) return null;
+      const parsed = safeJsonParse<any>(saved);
+      return parsed && typeof parsed === 'object' ? sanitizeDeepObject(parsed) : null;
     } catch {
       return null;
     }
   });
   const [isGeneratingNags, setIsGeneratingNags] = useState(false);
+  const [errorToast, setErrorToast] = useState<string | null>(null);
+
+  const showErrorToast = (msg: string) => {
+    setErrorToast(msg);
+    setTimeout(() => setErrorToast(null), 3500);
+  };
 
   const handleGenerateCustomScripts = async () => {
     setIsGeneratingNags(true);
     try {
-      const response = await fetch('/api/ai/generate-custom-nags', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-gemini-api-key': geminiApiKey.trim() || '',
-        },
-        body: JSON.stringify({
-          direction: conceptDirection,
-        }),
+      const data = await generateCustomNagsWithFreeAi({
+        direction: conceptDirection,
+        customGeminiKey: geminiApiKey.trim(),
       });
 
-      const data = await response.json();
-      if (data.success && data.scripts) {
+      if (data.scripts) {
         setCustomNagScripts(data.scripts);
         localStorage.setItem('wordloop_custom_nag_scripts', JSON.stringify(data.scripts));
         if (geminiApiKey.trim()) {
@@ -160,13 +164,15 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
         } else {
           localStorage.removeItem('wordloop_custom_gemini_key');
         }
-        setSaveToast('🎉 AI 대본이 안전하게 자동 구축되어 기기에 보관되었습니다!');
+        setSaveToast(
+          `🎉 ${data.aiProvider || '무료 AI'}로 대본이 자동 구축되어 기기에 저장되었습니다!`
+        );
         setTimeout(() => setSaveToast(null), 2500);
       } else {
-        alert(data.error || '대본 생성 실패. 인터넷 연결 또는 API Key 상태를 확인해주세요.');
+        showErrorToast('대본 생성 실패. 잠시 후 다시 시도해 주세요.');
       }
     } catch (err: any) {
-      alert('오류 발생: ' + (err.message || err));
+      showErrorToast('오류 발생: ' + (err.message || err));
     } finally {
       setIsGeneratingNags(false);
     }
@@ -210,6 +216,12 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
     }
     setStorageStats(getDeviceStorageStats());
   }, [userProfile, isOpen]);
+
+  useEffect(() => {
+    const syncStorage = () => setStorageStats(getDeviceStorageStats());
+    window.addEventListener('wordloop_storage_updated', syncStorage);
+    return () => window.removeEventListener('wordloop_storage_updated', syncStorage);
+  }, []);
 
   // Keyboard accessibility: ESC key to close modal
   useEffect(() => {
@@ -328,7 +340,7 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
         setSaveToast('👩 엄마 사진이 안전하게 등록 및 자동 저장되었습니다!');
         setTimeout(() => setSaveToast(null), 2500);
       } catch (err: any) {
-        alert(err.message || '사진 업로드 실패');
+        showErrorToast(err.message || '사진 업로드 실패');
       }
     }
     if (e?.target && 'value' in e.target) {
@@ -354,7 +366,7 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
         setSaveToast('👨 아빠 사진이 안전하게 등록 및 자동 저장되었습니다!');
         setTimeout(() => setSaveToast(null), 2500);
       } catch (err: any) {
-        alert(err.message || '사진 업로드 실패');
+        showErrorToast(err.message || '사진 업로드 실패');
       }
     }
     if (e?.target && 'value' in e.target) {
@@ -417,7 +429,7 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
         setSaveToast('프로필 파일을 성공적으로 장치에 불러왔습니다!');
         setTimeout(() => setSaveToast(null), 2500);
       } catch (err: any) {
-        alert(err.message || '프로필 파일 불러오기 실패');
+        showErrorToast(err.message || '프로필 파일 불러오기 실패');
       }
     }
     if (e.target) e.target.value = '';
@@ -459,11 +471,17 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
     >
       <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl max-w-xl w-full p-4 sm:p-6 shadow-2xl relative my-auto max-h-[94dvh] sm:max-h-[90vh] flex flex-col overflow-hidden">
         
-        {/* Save Toast Notification Banner */}
+        {/* Save & Error Toast Notification Banners */}
         {saveToast && (
           <div className="absolute top-4 left-1/2 -translate-x-1/2 z-50 px-4 py-2 rounded-2xl bg-emerald-600 text-white font-extrabold text-xs shadow-xl flex items-center gap-2 animate-in slide-in-from-top duration-200">
             <Check className="w-4 h-4 text-emerald-200" />
             <span>{saveToast}</span>
+          </div>
+        )}
+        {errorToast && (
+          <div className="absolute top-4 left-1/2 -translate-x-1/2 z-50 px-4 py-2 rounded-2xl bg-rose-600 text-white font-extrabold text-xs shadow-xl flex items-center gap-2 animate-in slide-in-from-top duration-200">
+            <AlertTriangle className="w-4 h-4 text-rose-200 shrink-0" />
+            <span>{errorToast}</span>
           </div>
         )}
 
@@ -1325,7 +1343,7 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
                   </span>
                 </div>
                 <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-relaxed">
-                  원하는 잔소리 컨셉이나 사투리, 스파르타식 지시사항을 입력하면 <strong>Gemini AI가 상황별(학습 시작, 완료, 미루기) 및 3가지 톤(츤데레, 엄격, 다정)</strong>에 맞는 입체적인 부모님 대본 데이터를 자동으로 구축해 줍니다.
+                  원하는 잔소리 컨셉이나 사투리, 스파르타식 지시사항을 입력하면 <strong>무료 AI(또는 등록된 Gemini 키)</strong>가 상황별(학습 시작, 완료, 미루기) 및 3가지 톤(츤데레, 엄격, 다정)에 맞는 부모님 대본을 자동으로 구축해 줍니다.
                 </p>
               </div>
 
@@ -1342,11 +1360,11 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
                   type="password"
                   value={geminiApiKey}
                   onChange={(e) => setGeminiApiKey(e.target.value)}
-                  placeholder="🔑 API Key를 입력하세요 (공백 시 서버 보안 Key 자동 사용)"
+                  placeholder="🔑 비워두면 API 키 없이 무료 AI 엔진으로 자동 생성됩니다"
                   className="w-full px-3 py-2 text-xs rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-600 focus:outline-none focus:ring-1 focus:ring-purple-500"
                 />
                 <p className="text-[10px] text-slate-500 dark:text-slate-400 leading-tight">
-                  💡 개인 API Key가 없어도 비워두시면 <strong>서버 전용 보안 API Key가 자동으로 적용</strong>되어 누구나 즉시 빌드 가능합니다.
+                  💡 개인 API Key를 입력하지 않아도 <strong>전 세계 무료 AI(Pollinations · Cloudflare Workers AI · DeepSeek)</strong>가 자동 적용되어 누구나 즉시 무료로 대본을 만들 수 있습니다.
                 </p>
               </div>
 
