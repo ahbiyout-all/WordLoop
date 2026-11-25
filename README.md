@@ -1,6 +1,6 @@
-# 🔤 WordLoop (v4.5.1)
+# 🔤 WordLoop (v4.6.0)
 
-**WordLoop**는 초·중·고·수능 3,210개 필수 어휘(학년별 맞춤형 실전 예문 포함)와 **API 키 없는 전 세계 무료 오픈 AI 7중 워터폴 엔진(OVHcloud 70B · Kilo 550B · Pollinations · Cloudflare Workers AI · LLM7 · MLVoca · 온디바이스 Chrome Gemini Nano)**, **TodayHub 3분 집중 루틴**, **SM-2 간격 반복(SRS)**, **AI 음소(Phoneme) 단위 발음 교정 리포트 & 구강 조음 위치 시각화**, **Compact v2 델타 로컬 저장 엔진(<5% 용량 점유)**, **12종+ 단어·문장 게임**, 그리고 **원어민 AI 대화형 롤플레잉**을 하나로 통합한 1인 전용 온디바이스 영어 학습 플랫폼입니다.
+**WordLoop**는 초·중·고·수능 3,210개 필수 어휘(학년별 맞춤형 실전 예문 포함)와 **3계층 로컬 파일 시스템·IndexedDB 자동 저장 및 Gzip 동기화**, **API 키 없는 전 세계 무료 오픈 AI 7중 워터폴 엔진(OVHcloud 70B · Kilo 550B · Pollinations · Cloudflare Workers AI · LLM7 · MLVoca · 온디바이스 Chrome Gemini Nano)**, **TodayHub 3분 집중 루틴**, **SM-2 간격 반복(SRS)**, **AI 음소(Phoneme) 단위 발음 교정 리포트**, **12종+ 단어·문장 게임**, 그리고 **원어민 AI 대화형 롤플레잉**을 하나로 통합한 1인 전용 온디바이스 영어 학습 플랫폼입니다.
 
 - **🌐 웹 애플리케이션 바로가기 (GitHub Pages):** [https://ahbiyout-all.github.io/WordLoop/](https://ahbiyout-all.github.io/WordLoop/)
 - **📁 GitHub Repository:** [https://github.com/ahbiyout-all/WordLoop](https://github.com/ahbiyout-all/WordLoop)
@@ -23,9 +23,10 @@
 - **🌐 API 키 없는 전 세계 무료 AI 7중 자동 워터폴 엔진 (v4.4.0 ~ v4.5.0)**:
   - 회원가입·API 키 없이 **OVHcloud EU AI (DeepSeek V4.1 · Llama 3.3 70B · Mistral 24B · GPT-OSS 20B · Gemma 4)**, **Kilo AI Gateway (최대 550B Nemotron Ultra · 서버 프록시)**, **Pollinations AI**, **Cloudflare Workers AI**, **LLM7 Open Gateway**, **MLVoca Ollama (DeepSeek R1 · TinyLlama)**, 그리고 **Chrome 내장 온디바이스 Gemini Nano**까지 총 7중 워터폴 체인이 자동 동작합니다.
   - AI 원어민 롤플레잉, AI 단어/목표 생성, AI 뉘앙스 해설, 오픈사전 한국어 분석, 발음 음소 교정 리포트, 부모님 맞춤 대본 생성을 모두 API 키 ZERO 상태로 바로 이용할 수 있습니다.
-- **🗜️ Compact v2 델타 저장소 & Schema v2 JSON 스마트 병합 (v4.1.0 ~ v4.3.2)**:
-  - 3,210개 내장 정적 데이터를 반복 저장하지 않고 학습 진도와 사용자 추가·수정 항목만 델타 압축 저장해 5MB `localStorage` 사용률을 **95.2% → 5% 미만**으로 절감합니다.
-  - **JSON 백업 후 캐시 정리** 원클릭 도구, 내보내기 체크섬 무결성 검증, 자동 롤백 스냅샷 기반 스마트 병합(Smart Merge)을 지원합니다.
+- **💾 3계층 로컬 파일 시스템 자동 저장 & 기기 간 Gzip 동기화 (`persistentStorageEngine.ts`, v4.6.0)**:
+  - **5MB 한계 해소 및 이미지 Blob 분리:** 부모님 사진 등 대용량 이미지를 IndexedDB `media` Blob 스토어로 분리하고 `localStorage`는 `< 100KB` 빠른 부트스트랩/종료 캐시로 유지하며 부팅 시 기존 데이터를 무손실 자동 이전합니다.
+  - **로컬 폴더 자동 동기화 & 7일 회전 스냅샷:** 웹 File System Access API 및 Electron 네이티브 FS IPC로 지정 폴더에 `wordloop-sync-latest.json.gz`, 7일 회전 `snapshots/`, `media/`를 자동 저장하고 브라우저 캐시 초기화 시 IndexedDB/동기화 폴더에서 자동 복원합니다.
+  - **Schema v3 `.json.gz` 내보내기 & 스마트 병합:** 네이티브 `CompressionStream('gzip')` 압축 내보내기, FNV-1a 체크섬 무결성 검증, 충돌 Diff 미리보기 기반 스마트 병합(Smart Merge)을 지원합니다.
 - **⚡ `React.lazy` 온디맨드 코드 분할 & 12종+ 게이미피케이션**:
   - 초기 진입 시 `TodayHub`와 오디오 루프만 즉시 로드하고, 3탭 `StatsDashboard`, 미니게임, 사전, AI 롤플레이 및 모달을 지연 로딩 청크로 분리했습니다.
 - **🛡️ 온디바이스 프라이버시 & 풀스택 보안 표준 준수**:
@@ -53,7 +54,7 @@ npm run build
 
 ## 💻 기기별 빌드 및 GitHub 자동 배포 파이프라인
 
-WordLoop는 `package.json`, `src/constants/version.ts`, `metadata.json`, `docs/PATCH_NOTES.md`, `src/data/patchNotesData.ts`를 단일 버전 기준(`4.5.1`)으로 동기화합니다.
+WordLoop는 `package.json`, `src/constants/version.ts`, `metadata.json`, `docs/PATCH_NOTES.md`, `src/data/patchNotesData.ts`를 단일 버전 기준(`4.6.0`)으로 동기화합니다.
 
 - **Windows PC 데스크톱 앱 (`.exe`)**: `npm run build:pc` 또는 `build-pc.bat`
 - **안드로이드 모바일 앱 (`.apk`)**: `npm run build:android` 또는 `build-android.bat`
@@ -69,23 +70,23 @@ WordLoop/
 ├── .github/workflows/          # GitHub Actions CI/CD (Web/PC/Android/iOS 자동 빌드)
 ├── docs/                       # 프로젝트 표준 문서
 │   ├── README.md               # 프로젝트 핵심 기능 및 스택 요약
-│   ├── ARCHITECTURE.md         # v4.5.1 클라이언트/서버/7중 무료 AI 아키텍처
+│   ├── ARCHITECTURE.md         # v4.6.0 3계층 저장소 · 클라이언트/서버 · 7중 무료 AI 아키텍처
 │   ├── USER_GUIDE.md           # 오늘 학습 · 무료 AI · 발음 교정 · 저장소 관리 가이드
 │   ├── SECURITY_REPORT.md      # 보안 점검 및 강화 보고서
 │   ├── SELF_REFLECTION_AUDIT.md# 자아성찰 및 심층 감사 보고서
 │   ├── PATCH_NOTES.md          # 버전별 패치 노트
 │   └── WorkLog.md              # 마일스톤 작업 이력
-├── electron/                   # PC 데스크톱 Electron 래퍼 (main.cjs, preload.cjs)
+├── electron/                   # PC 데스크톱 Electron 래퍼 및 샌드박스 FS IPC (main.cjs, preload.cjs)
 ├── scripts/                    # 멀티플랫폼 빌드 및 GitHub 동기화 스크립트
 ├── src/
-│   ├── components/             # TodayHub, FocusRoutinePlayer, PronunciationCorrectionReport, StatsDashboard 등
+│   ├── components/             # TodayHub, FocusRoutinePlayer, JsonBackupModal, StatsDashboard 등
 │   ├── constants/              # version.ts (Single Source of Truth)
 │   ├── data/                   # 3,210개 교육과정 어휘, 시나리오, 패치노트 데이터
-│   ├── services/               # freeAiService, deviceStorageService, srsEngineService, speechService 등
+│   ├── services/               # persistentStorageEngine, deviceStorageService, freeAiService, srsEngineService 등
 │   ├── utils/                  # phonemeAnalysisUtils, audioWaveformUtils, meaningUtils 등
 │   └── App.tsx                 # 메인 라우트 및 전역 상태/영속성 조율
 ├── server.ts                   # Express 프록시 (/api/dictionary, /api/ai/*, 무료 AI 6중 체인 + Origin/Rate-Limit 보안)
-└── package.json                # 의존성 및 버전 정보 (v4.5.1)
+└── package.json                # 의존성 및 버전 정보 (v4.6.0)
 ```
 
 ---

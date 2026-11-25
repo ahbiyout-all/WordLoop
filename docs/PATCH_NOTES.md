@@ -2,7 +2,22 @@
 
 ---
 
-## 🚀 Version 4.5.1 (최신 업데이트)
+## 🚀 Version 4.6.0 (최신 업데이트)
+
+### 💾 3계층 로컬 파일 시스템 자동 저장 & 압축 스냅샷 아키텍처
+- **🖼️ 5MB 용량 한계 근본 해소 & 대용량 이미지 Blob 분리 (`persistentStorageEngine.ts`, `UserProfileModal.tsx`, `deviceStorageService.ts`, `App.tsx`)**:
+  - 부모님 사진(`momPhotoUrl`, `dadPhotoUrl`) 등 Base64 이미지를 브라우저 IndexedDB `wordloop_state_db`의 `media` 오브젝트 스토어에 Blob으로 분리 보관하고 UI에서는 경량 `ObjectURL`을 사용합니다.
+  - 기존 `localStorage` 내 Base64 사진과 중복 사본(`wordloop_user_profile_backup`)은 앱 부팅 시 무손실 자동 마이그레이션되어 `localStorage`를 `< 100KB` 빠른 부트스트랩/종료 캐시로 경량화합니다.
+- **📁 로컬 폴더 자동 저장 & 기기 간 동기화 (`persistentStorageEngine.ts`, `electron/main.cjs`, `electron/preload.cjs`)**:
+  - 웹 File System Access API(`showDirectoryPicker`) 및 Electron 데스크톱 샌드박스 IPC(`native:fs:*`)를 통합해 OneDrive·iCloud Drive·Google Drive·Dropbox 등 로컬 동기화 폴더에 변경 후 4초 디바운스로 `wordloop-sync-latest.json.gz`, 일일 7개 회전 `snapshots/wordloop-YYYY-MM-DD.json.gz`, `media/` 파일을 안전하게 기록합니다.
+- **🗜️ Schema v3 Gzip 압축 백업 & 3계층 저장소 허브 UI (`JsonBackupModal.tsx`)**:
+  - 네이티브 `CompressionStream('gzip')`으로 `.json.gz` 휴대용 압축 백업을 내보내고 `Schema v1/v2/v3` 파일과 연결 폴더 최신본을 모두 Diff 미리보기·스마트 병합으로 복원합니다.
+- **🛡️ 브라우저 캐시 초기화 자동 복구 & 영구 보존 권한 (`App.tsx`)**:
+  - `navigator.storage.persist()` 요청 및 `localStorage` 초기화 시 IndexedDB → 동기화 폴더 순 자동 복구를 수행하며, 새로고침 후 브라우저 폴더 권한 재확인 시 1-클릭 복구 배너를 표시합니다.
+
+---
+
+## 🚀 Version 4.5.1
 
 ### 🛠️ GitHub Pages 정적 웹 실행 불가 근본 수정 & 정적 호스팅 탄력성 강화
 - **⚛️ ESM 청크 순환 참조 (`vendor-react ↔ vendor-misc`) 완전 해소 (`vite.config.ts`)**:

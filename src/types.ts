@@ -157,8 +157,10 @@ export interface UserProfile {
   nagCharacter?: NagCharacterSetting; // 전담 잔소리 코치 캐릭터 설정 ('mom' | 'dad' | 'both')
   nagTone?: NagTonePreset; // 잔소리 톤앤매너 프리셋 ('tsundere' | 'strict' | 'affectionate')
   nagLanguage?: NagLanguageMode; // 잔소리 언어 모드 ('ko' | 'en' | 'bilingual')
-  momPhotoUrl?: string; // 등록된 엄마 사진 (전면 가득 잔소리용 Data URL)
-  dadPhotoUrl?: string; // 등록된 아빠 사진 (전면 가득 잔소리용 Data URL)
+  momPhotoUrl?: string; // 등록된 엄마 사진 (세션 ObjectURL 또는 Data URL)
+  dadPhotoUrl?: string; // 등록된 아빠 사진 (세션 ObjectURL 또는 Data URL)
+  momPhotoRef?: string; // IndexedDB 분리 저장 참조 키 ('idb:mom_photo')
+  dadPhotoRef?: string; // IndexedDB 분리 저장 참조 키 ('idb:dad_photo')
   streakDays?: number; // 학습 연속 일수
   lastSavedToDeviceAt?: string; // 마지막 장치 저장 일시
   savedToDeviceCount?: number; // 장치 저장 횟수

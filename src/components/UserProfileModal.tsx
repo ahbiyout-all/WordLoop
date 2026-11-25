@@ -50,6 +50,10 @@ import {
   sanitizeDeepObject,
 } from '../services/deviceStorageService';
 import {
+  saveMediaAsset,
+  deleteMediaAsset,
+} from '../services/persistentStorageEngine';
+import {
   processImageFileToDataUrl,
   DEFAULT_MOM_PHOTO,
   DEFAULT_DAD_PHOTO,
@@ -335,9 +339,11 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
     if (file) {
       try {
         const dataUrl = await processImageFileToDataUrl(file, 480, 0.82);
-        setMomPhotoUrl(dataUrl);
-        persistProfileWithPhotos(dataUrl, dadPhotoUrl);
-        setSaveToast('👩 엄마 사진이 안전하게 등록 및 자동 저장되었습니다!');
+        const savedMedia = await saveMediaAsset('mom_photo', dataUrl);
+        const resolvedUrl = savedMedia?.objectUrl || dataUrl;
+        setMomPhotoUrl(resolvedUrl);
+        persistProfileWithPhotos(resolvedUrl, dadPhotoUrl);
+        setSaveToast('👩 엄마 사진이 IndexedDB 대용량 저장소에 분리 보관 및 자동 저장되었습니다!');
         setTimeout(() => setSaveToast(null), 2500);
       } catch (err: any) {
         showErrorToast(err.message || '사진 업로드 실패');
@@ -361,9 +367,11 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
     if (file) {
       try {
         const dataUrl = await processImageFileToDataUrl(file, 480, 0.82);
-        setDadPhotoUrl(dataUrl);
-        persistProfileWithPhotos(momPhotoUrl, dataUrl);
-        setSaveToast('👨 아빠 사진이 안전하게 등록 및 자동 저장되었습니다!');
+        const savedMedia = await saveMediaAsset('dad_photo', dataUrl);
+        const resolvedUrl = savedMedia?.objectUrl || dataUrl;
+        setDadPhotoUrl(resolvedUrl);
+        persistProfileWithPhotos(momPhotoUrl, resolvedUrl);
+        setSaveToast('👨 아빠 사진이 IndexedDB 대용량 저장소에 분리 보관 및 자동 저장되었습니다!');
         setTimeout(() => setSaveToast(null), 2500);
       } catch (err: any) {
         showErrorToast(err.message || '사진 업로드 실패');
@@ -374,23 +382,31 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
     }
   };
 
-  const handleSelectMomPreset = (presetDataUrl: string) => {
-    setMomPhotoUrl(presetDataUrl);
-    persistProfileWithPhotos(presetDataUrl, dadPhotoUrl);
+  const handleSelectMomPreset = async (presetDataUrl: string) => {
+    const savedMedia = await saveMediaAsset('mom_photo', presetDataUrl);
+    const resolvedUrl = savedMedia?.objectUrl || presetDataUrl;
+    setMomPhotoUrl(resolvedUrl);
+    persistProfileWithPhotos(resolvedUrl, dadPhotoUrl);
     setSaveToast('👩 엄마 추천 캐릭터가 등록 및 저장되었습니다!');
     setTimeout(() => setSaveToast(null), 2200);
   };
 
-  const handleSelectDadPreset = (presetDataUrl: string) => {
-    setDadPhotoUrl(presetDataUrl);
-    persistProfileWithPhotos(momPhotoUrl, presetDataUrl);
+  const handleSelectDadPreset = async (presetDataUrl: string) => {
+    const savedMedia = await saveMediaAsset('dad_photo', presetDataUrl);
+    const resolvedUrl = savedMedia?.objectUrl || presetDataUrl;
+    setDadPhotoUrl(resolvedUrl);
+    persistProfileWithPhotos(momPhotoUrl, resolvedUrl);
     setSaveToast('👨 아빠 추천 캐릭터가 등록 및 저장되었습니다!');
     setTimeout(() => setSaveToast(null), 2200);
   };
 
-  const handleAutoRegisterBothPresetParents = () => {
-    const newMom = DEFAULT_MOM_PHOTO;
-    const newDad = DEFAULT_DAD_PHOTO;
+  const handleAutoRegisterBothPresetParents = async () => {
+    const [momRes, dadRes] = await Promise.all([
+      saveMediaAsset('mom_photo', DEFAULT_MOM_PHOTO),
+      saveMediaAsset('dad_photo', DEFAULT_DAD_PHOTO),
+    ]);
+    const newMom = momRes?.objectUrl || DEFAULT_MOM_PHOTO;
+    const newDad = dadRes?.objectUrl || DEFAULT_DAD_PHOTO;
     setMomPhotoUrl(newMom);
     setDadPhotoUrl(newDad);
     persistProfileWithPhotos(newMom, newDad);
@@ -398,14 +414,16 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
     setTimeout(() => setSaveToast(null), 3000);
   };
 
-  const handleRemoveMomPhoto = () => {
+  const handleRemoveMomPhoto = async () => {
+    await deleteMediaAsset('mom_photo');
     setMomPhotoUrl(undefined);
     persistProfileWithPhotos(undefined, dadPhotoUrl);
     setSaveToast('엄마 사진이 기본 상태로 복원되었습니다.');
     setTimeout(() => setSaveToast(null), 2000);
   };
 
-  const handleRemoveDadPhoto = () => {
+  const handleRemoveDadPhoto = async () => {
+    await deleteMediaAsset('dad_photo');
     setDadPhotoUrl(undefined);
     persistProfileWithPhotos(momPhotoUrl, undefined);
     setSaveToast('아빠 사진이 기본 상태로 복원되었습니다.');

@@ -132,9 +132,20 @@ export function saveUserProfileToDevice(profile: UserProfile): { success: boolea
       isLocked: true,
     };
 
-    const serialized = JSON.stringify(updatedProfile);
+    // Keep localStorage bootstrap ultra-light (< 1KB): strip bulky base64/blob image strings from LS copy
+    const bootstrapProfile: UserProfile = { ...updatedProfile };
+    if (bootstrapProfile.momPhotoUrl && (bootstrapProfile.momPhotoUrl.startsWith('data:') || bootstrapProfile.momPhotoUrl.startsWith('blob:'))) {
+      bootstrapProfile.momPhotoRef = 'idb:mom_photo';
+      delete bootstrapProfile.momPhotoUrl;
+    }
+    if (bootstrapProfile.dadPhotoUrl && (bootstrapProfile.dadPhotoUrl.startsWith('data:') || bootstrapProfile.dadPhotoUrl.startsWith('blob:'))) {
+      bootstrapProfile.dadPhotoRef = 'idb:dad_photo';
+      delete bootstrapProfile.dadPhotoUrl;
+    }
+
+    const serialized = JSON.stringify(bootstrapProfile);
     localStorage.setItem(STORAGE_KEYS.USER_PROFILE, serialized);
-    localStorage.setItem(STORAGE_KEYS.USER_PROFILE_BACKUP, serialized);
+    localStorage.removeItem(STORAGE_KEYS.USER_PROFILE_BACKUP);
     localStorage.setItem(STORAGE_KEYS.LAST_DEVICE_SYNC, savedAt);
 
     window.dispatchEvent(
@@ -158,7 +169,7 @@ export function saveUserProfileToDevice(profile: UserProfile): { success: boolea
   }
 }
 
-const MAX_IMPORT_FILE_BYTES = 5 * 1024 * 1024; // 5MB max JSON import size
+const MAX_IMPORT_FILE_BYTES = 25 * 1024 * 1024; // 25MB max JSON/Gzip import size
 
 /**
  * Sanitize plain string input: strip nulls, scripts, and unsafe tags
@@ -170,7 +181,7 @@ export function sanitizeSafeText(val: unknown, maxLength: number = 500): string 
     .replace(/<\s*script[^>]*>[\s\S]*?<\s*\/\s*script\s*>/gi, '')
     .replace(/<\s*iframe[^>]*>[\s\S]*?<\s*\/\s*iframe\s*>/gi, '')
     .replace(/javascript\s*:/gi, '')
-    .replace(/on\w+\s*=/gi, '')
+    .replace(/\bon\w+\s*=/gi, '')
     .trim()
     .slice(0, maxLength);
 }
@@ -199,7 +210,8 @@ export function sanitizeDeepObject<T = any>(obj: T, depth = 6): T {
   for (const [key, value] of Object.entries(obj)) {
     if (key === '__proto__' || key === 'constructor' || key === 'prototype') continue;
     if (typeof value === 'string') {
-      clean[key] = sanitizeSafeText(value, 3000);
+      const limit = value.startsWith('data:image/') ? 5_000_000 : 3000;
+      clean[key] = sanitizeSafeText(value, limit);
     } else if (typeof value === 'object' && value !== null) {
       clean[key] = sanitizeDeepObject(value, depth - 1);
     } else {
@@ -716,7 +728,7 @@ export function getDeviceStorageStats(): DeviceStorageStats {
     lastExportedAt,
     shouldRemindBackup,
     savedToDeviceCount,
-    storageType: '브라우저 로컬 저장소 (On-Device LocalStorage)',
+    storageType: '3계층 로컬 저장소 (IndexedDB · 로컬 폴더 · 빠른 캐시)',
   };
 }
 
@@ -841,6 +853,96 @@ export function buildVersionedJsonBackup(data: {
 }
 
 /**
+ * Export Schema v3 Gzip-compressed portable backup (.json.gz) including compact delta + optional media photos
+ */
+export async function exportCompressedBackupToFile(data: {
+  userProfile: UserProfile | null;
+  vocabList: VocabItem[];
+  sentenceList: SentenceItem[];
+  goals: Goal[];
+  history: DailyGoalHistory[];
+  totalRepeatsCount: number;
+  mediaDataUrls?: { momPhotoDataUrl?: string; dadPhotoDataUrl?: string };
+}): Promise<{
+  manifest: VersionedBackupManifest;
+  fileName: string;
+  rawBytes: number;
+  compressedBytes: number;
+  wasCompressed: boolean;
+}> {
+  const manifest = buildVersionedJsonBackup(data);
+  const v3Bundle = {
+    ...manifest,
+    schemaVersion: 3,
+    payload: {
+      ...manifest.payload,
+      mediaDataUrls: data.mediaDataUrls,
+    },
+  };
+  const jsonText = JSON.stringify(v3Bundle);
+  const rawArr = new TextEncoder().encode(jsonText);
+
+  let outBytes = rawArr;
+  let wasCompressed = false;
+  if (typeof CompressionStream !== 'undefined') {
+    try {
+      const cs = new CompressionStream('gzip');
+      const writer = cs.writable.getWriter();
+      writer.write(rawArr).catch(() => {});
+      writer.close().catch(() => {});
+      const reader = cs.readable.getReader();
+      const chunks: Uint8Array[] = [];
+      let total = 0;
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        if (value) {
+          chunks.push(value);
+          total += value.byteLength;
+        }
+      }
+      const merged = new Uint8Array(total);
+      let offset = 0;
+      for (const c of chunks) {
+        merged.set(c, offset);
+        offset += c.byteLength;
+      }
+      outBytes = merged;
+      wasCompressed = true;
+    } catch {}
+  }
+
+  const safeCopy = new Uint8Array(outBytes.byteLength);
+  safeCopy.set(outBytes);
+  const blob = new Blob([safeCopy], {
+    type: wasCompressed ? 'application/gzip' : 'application/json',
+  });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  const safeName = (data.userProfile?.name || 'user').replace(/[^a-zA-Z0-9가-힣_-]/g, '_');
+  const ext = wasCompressed ? 'json.gz' : 'json';
+  const fileName = `wordloop-backup-v${APP_VERSION}-${safeName}-${new Date().toISOString().slice(0, 10)}.${ext}`;
+  a.href = url;
+  a.download = fileName;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+
+  try {
+    localStorage.setItem(STORAGE_KEYS.LAST_JSON_EXPORT, manifest.exportedAt);
+  } catch {}
+
+  return {
+    manifest,
+    fileName,
+    rawBytes: rawArr.byteLength,
+    compressedBytes: outBytes.byteLength,
+    wasCompressed,
+  };
+}
+
+/**
  * Export Schema v2 versioned JSON backup file and record last export timestamp
  */
 export function exportVersionedAllDataToFile(data: {
@@ -871,10 +973,11 @@ export function exportVersionedAllDataToFile(data: {
 }
 
 /**
- * Parse and validate a JSON backup file (Schema v1 legacy or Schema v2 with checksum), returning diff preview
+ * Parse and validate raw bytes (.json or Gzip .json.gz across Schema v1/v2/v3), returning diff preview
  */
-export async function parseAndPreviewJsonBackup(
-  file: File,
+export async function parseAndPreviewBackupBytes(
+  rawBytes: Uint8Array,
+  fileName: string,
   currentState: {
     vocabList: VocabItem[];
     sentenceList: SentenceItem[];
@@ -883,11 +986,44 @@ export async function parseAndPreviewJsonBackup(
     totalRepeatsCount: number;
   }
 ): Promise<JsonBackupPreview> {
-  if (file.size > MAX_IMPORT_FILE_BYTES) {
-    throw new Error('백업 파일 크기가 허용 한도(5MB)를 초과했습니다.');
+  if (rawBytes.byteLength > MAX_IMPORT_FILE_BYTES) {
+    throw new Error('백업 파일 크기가 허용 한도(25MB)를 초과했습니다.');
   }
 
-  const text = await file.text();
+  let text = '';
+  const isGzip = rawBytes.byteLength >= 2 && rawBytes[0] === 0x1f && rawBytes[1] === 0x8b;
+  if (isGzip) {
+    if (typeof DecompressionStream === 'undefined') {
+      throw new Error('현재 브라우저가 .json.gz 압축 백업 해제를 지원하지 않습니다.');
+    }
+    const ds = new DecompressionStream('gzip');
+    const writer = ds.writable.getWriter();
+    const safeCopy = new Uint8Array(rawBytes.byteLength);
+    safeCopy.set(rawBytes);
+    writer.write(safeCopy).catch(() => {});
+    writer.close().catch(() => {});
+    const reader = ds.readable.getReader();
+    const chunks: Uint8Array[] = [];
+    let total = 0;
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      if (value) {
+        chunks.push(value);
+        total += value.byteLength;
+      }
+    }
+    const merged = new Uint8Array(total);
+    let offset = 0;
+    for (const c of chunks) {
+      merged.set(c, offset);
+      offset += c.byteLength;
+    }
+    text = new TextDecoder().decode(merged);
+  } else {
+    text = new TextDecoder().decode(rawBytes);
+  }
+
   const rawParsed = safeJsonParse<any>(text);
   if (!rawParsed || typeof rawParsed !== 'object') {
     throw new Error('올바른 JSON 백업 파일이 아닙니다.');
@@ -896,27 +1032,73 @@ export async function parseAndPreviewJsonBackup(
   let checksumStatus: 'verified' | 'legacy_no_checksum' | 'mismatch' = 'legacy_no_checksum';
   let rawPayload: any = rawParsed;
   let schemaVersion = 1;
-  let appVersion = String(rawParsed.version || rawParsed.appVersion || 'legacy');
+  const appVersion = String(rawParsed.version || rawParsed.appVersion || 'legacy');
   const exportedAt = typeof rawParsed.exportedAt === 'string' ? rawParsed.exportedAt : null;
 
-  if (rawParsed.schemaVersion === 2 && rawParsed.payload && typeof rawParsed.payload === 'object') {
-    schemaVersion = 2;
+  if ((rawParsed.schemaVersion === 2 || rawParsed.schemaVersion === 3) && rawParsed.payload && typeof rawParsed.payload === 'object') {
+    schemaVersion = rawParsed.schemaVersion;
     rawPayload = rawParsed.payload;
     if (typeof rawParsed.checksum === 'string') {
-      const expected = computePayloadChecksum(rawParsed.payload);
-      checksumStatus = expected === rawParsed.checksum ? 'verified' : 'mismatch';
+      if (rawParsed.schemaVersion === 3) {
+        // v3 checksum covers payload before or with compact/media fields; allow either match
+        const expectedExact = computePayloadChecksum(rawParsed.payload);
+        const { mediaDataUrls: _m, ...withoutMedia } = rawParsed.payload;
+        const expectedCore = computePayloadChecksum(withoutMedia);
+        checksumStatus =
+          expectedExact === rawParsed.checksum || expectedCore === rawParsed.checksum
+            ? 'verified'
+            : 'mismatch';
+      } else {
+        const expected = computePayloadChecksum(rawParsed.payload);
+        checksumStatus = expected === rawParsed.checksum ? 'verified' : 'mismatch';
+      }
     }
   }
 
-  const sanitized = sanitizeDeepObject<WordLoopBackupPayload>(rawPayload);
-  const backupVocab = Array.isArray(sanitized.vocabList) ? sanitized.vocabList.slice(0, 5000) : [];
-  const backupSentences = Array.isArray(sanitized.sentenceList) ? sanitized.sentenceList.slice(0, 5000) : [];
+  const sanitized = sanitizeDeepObject<any>(rawPayload);
+
+  // Hydrate compactVocab / compactSentences when reading Schema v3 sync bundles
+  let backupVocab: VocabItem[] = [];
+  if (Array.isArray(sanitized.vocabList)) {
+    backupVocab = sanitized.vocabList.slice(0, 5000);
+  } else if (sanitized.compactVocab && sanitized.compactVocab.v === 2) {
+    backupVocab = hydrateCompactVocab(
+      JSON.stringify(sanitized.compactVocab),
+      currentState.vocabList
+    );
+  }
+
+  let backupSentences: SentenceItem[] = [];
+  if (Array.isArray(sanitized.sentenceList)) {
+    backupSentences = sanitized.sentenceList.slice(0, 5000);
+  } else if (sanitized.compactSentences && sanitized.compactSentences.v === 2) {
+    backupSentences = hydrateCompactSentences(
+      JSON.stringify(sanitized.compactSentences),
+      currentState.sentenceList
+    );
+  }
+
   const backupGoals = Array.isArray(sanitized.goals) ? sanitized.goals.slice(0, 200) : [];
   const backupHistory = Array.isArray(sanitized.history) ? sanitized.history.slice(0, 1000) : [];
   const backupRepeats =
     typeof sanitized.totalRepeatsCount === 'number' && Number.isFinite(sanitized.totalRepeatsCount)
       ? Math.max(0, Math.floor(sanitized.totalRepeatsCount))
       : 0;
+
+  let backupProfile: UserProfile | null = sanitized.userProfile || null;
+  if (backupProfile && sanitized.mediaDataUrls) {
+    backupProfile = {
+      ...backupProfile,
+      momPhotoUrl:
+        typeof rawPayload?.mediaDataUrls?.momPhotoDataUrl === 'string'
+          ? rawPayload.mediaDataUrls.momPhotoDataUrl
+          : backupProfile.momPhotoUrl,
+      dadPhotoUrl:
+        typeof rawPayload?.mediaDataUrls?.dadPhotoDataUrl === 'string'
+          ? rawPayload.mediaDataUrls.dadPhotoDataUrl
+          : backupProfile.dadPhotoUrl,
+    };
+  }
 
   // Compute diff preview against current device state
   const currentVocabMap = new Map<string, VocabItem>();
@@ -948,15 +1130,15 @@ export async function parseAndPreviewJsonBackup(
   const mergedHistoryDaysCount = backupHistory.filter((h) => h?.date && !currentHistoryDates.has(h.date)).length;
 
   return {
-    fileName: file.name,
-    fileSizeBytes: file.size,
+    fileName,
+    fileSizeBytes: rawBytes.byteLength,
     schemaVersion,
     appVersion,
     exportedAt,
     checksumStatus,
-    backupProfileName: sanitized.userProfile?.name || '미지정 프로필',
+    backupProfileName: backupProfile?.name || '미지정 프로필',
     payload: {
-      userProfile: sanitized.userProfile || null,
+      userProfile: backupProfile,
       vocabList: backupVocab,
       sentenceList: backupSentences,
       goals: backupGoals,
@@ -972,6 +1154,26 @@ export async function parseAndPreviewJsonBackup(
       backupTotalRepeats: backupRepeats,
     },
   };
+}
+
+/**
+ * Parse and validate a JSON or Gzipped JSON backup file (Schema v1/v2/v3), returning diff preview
+ */
+export async function parseAndPreviewJsonBackup(
+  file: File,
+  currentState: {
+    vocabList: VocabItem[];
+    sentenceList: SentenceItem[];
+    goals: Goal[];
+    history: DailyGoalHistory[];
+    totalRepeatsCount: number;
+  }
+): Promise<JsonBackupPreview> {
+  if (file.size > MAX_IMPORT_FILE_BYTES) {
+    throw new Error('백업 파일 크기가 허용 한도(25MB)를 초과했습니다.');
+  }
+  const buf = await file.arrayBuffer();
+  return parseAndPreviewBackupBytes(new Uint8Array(buf), file.name, currentState);
 }
 
 /**
@@ -1106,6 +1308,8 @@ export function applyBackupImport(
     currentState.userProfile && p.userProfile
       ? {
           ...currentState.userProfile,
+          momPhotoUrl: currentState.userProfile.momPhotoUrl || p.userProfile.momPhotoUrl,
+          dadPhotoUrl: currentState.userProfile.dadPhotoUrl || p.userProfile.dadPhotoUrl,
           streakDays: Math.max(currentState.userProfile.streakDays || 1, p.userProfile.streakDays || 1),
           hasPronunciationMasterBadge: Boolean(
             currentState.userProfile.hasPronunciationMasterBadge || p.userProfile.hasPronunciationMasterBadge

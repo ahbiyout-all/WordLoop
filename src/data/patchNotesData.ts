@@ -14,9 +14,26 @@ export { APP_VERSION };
 
 export const PATCH_NOTES_DATA: PatchNoteVersion[] = [
   {
-    version: '4.5.1',
+    version: '4.6.0',
     date: '2026-11',
     isLatest: true,
+    tagline: '3계층 로컬 파일 시스템 자동 저장 & 동기화 아키텍처 전면 개편 (5MB 용량 한계 해소 · 이미지 Blob 분리 · Gzip 7일 회전 스냅샷 · 캐시 초기화 자동 복구)',
+    highlights: [
+      {
+        category: '💾 3계층 로컬 저장소 & 로컬 파일 시스템 자동 동기화 (IndexedDB + FS Access + Electron)',
+        items: [
+          '🖼️ [5MB 용량 한계 근본 해소 & 대용량 이미지 분리 저장 (persistentStorageEngine.ts)]: 부모님 사진(momPhotoUrl/dadPhotoUrl) 등 Base64 이미지를 IndexedDB media 스토어 Blob과 ObjectURL로 분리해 localStorage 점유를 < 100KB(참조 키)로 압축하고, 부팅 시 기존 Base64 데이터를 무손실 자동 이전합니다.',
+          '📁 [로컬 폴더 자동 저장 & 기기 간 동기화 (OneDrive · iCloud · Google Drive)]: 웹 File System Access API 및 Electron 데스크톱 네이티브 IPC(native:fs:*)를 통합해 사용자가 지정한 폴더에 변경 감지 후 4초 디바운스로 wordloop-sync-latest.json.gz, 7일 자동 회전 snapshots/, media/ 폴더를 원자적으로 동기화합니다.',
+          '🗜️ [Schema v3 Gzip 압축 스냅샷 & FNV-1a 체크섬 무결성]: 브라우저 네이티브 CompressionStream(\'gzip\')으로 스냅샷을 70~85% 압축 저장하며, JsonBackupModal에서 계층별 점유율·영구 보존 권한·폴더 동기화 상태·.json.gz 가져오기 Diff 미리보기 및 스마트 병합을 원클릭으로 제어할 수 있습니다.',
+          '🛡️ [브라우저 캐시 초기화 자동 복구 & 1-클릭 폴더 권한 복원]: navigator.storage.persist() 영구 보존 권한 요청과 함께 localStorage 초기화 감지 시 IndexedDB 또는 동기화 폴더에서 학습 진도·사진을 자동 복구하며, 새로고침 후 폴더 권한 재확인이 필요할 때 하단 1-클릭 복구 배너를 제공합니다.',
+        ],
+      },
+    ],
+  },
+  {
+    version: '4.5.1',
+    date: '2026-11',
+    isLatest: false,
     tagline: 'GitHub Pages 정적 웹 실행 불가 근본 수정 (React ESM 청크 순환 참조 해소 · PWA 상대 경로 보정 · 정적 호스트 API 404 안전 폴백)',
     highlights: [
       {

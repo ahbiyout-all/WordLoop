@@ -28,6 +28,7 @@ import {
   sanitizeCsvCell,
   exportVersionedAllDataToFile,
   parseAndPreviewJsonBackup,
+  parseAndPreviewBackupBytes,
   applyBackupImport,
   serializeCompactVocab,
   hydrateCompactVocab,
@@ -36,6 +37,16 @@ import {
   safeJsonParse,
   sanitizeDeepObject,
 } from './services/deviceStorageService';
+import {
+  migrateAndHydrateOnBoot,
+  saveAppStateToIndexedDb,
+  syncBundleToLocalFolder,
+  getLocalSyncStatus,
+  authorizeLocalSyncFolder,
+  readLatestBundleFromLocalFolder,
+  clearIndexedDbAppState,
+  saveMediaAsset,
+} from './services/persistentStorageEngine';
 import {
   setupAppTerminationSafeguards,
   checkEmergencyRecoverySnapshot,
@@ -52,7 +63,7 @@ import {
   buildTodayRoutineQueue,
   SrsRating,
 } from './services/srsEngineService';
-import { Sparkles, X, Shuffle, ShieldCheck, Coffee } from 'lucide-react';
+import { Sparkles, X, Shuffle, ShieldCheck, Coffee, FolderSync } from 'lucide-react';
 import { InAppBrowserBanner } from './components/InAppBrowserBanner';
 
 // Route-level & Modal-level Code Splitting (Reduces initial entry bundle dramatically)
@@ -470,8 +481,12 @@ export default function App() {
     }
   };
 
-  // Crash Recovery & Termination Safety Toast Banner
+  // Crash Recovery, Migration & Folder Sync State
   const [recoveryToast, setRecoveryToast] = useState<string | null>(null);
+  const [pendingFolderRecoveryName, setPendingFolderRecoveryName] = useState<string | null>(null);
+  const [isRestoringFromFolder, setIsRestoringFromFolder] = useState<boolean>(false);
+  const bootMigrationDoneRef = useRef<boolean>(false);
+  const mediaOffloadInFlightRef = useRef<Set<string>>(new Set());
 
   // Apply dark mode class to html
   useEffect(() => {
@@ -534,7 +549,134 @@ export default function App() {
     return () => unbindSafeguards();
   }, []);
 
-  // Instant continuous sync to local storage
+  // Automatic lossless boot migration from localStorage -> IndexedDB Blob/Gzip + auto-recovery
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await migrateAndHydrateOnBoot(latestStateRef.current);
+        if (cancelled) return;
+
+        if (
+          (res.action === 'recovered_from_indexeddb' || res.action === 'recovered_from_folder') &&
+          res.restoredState
+        ) {
+          const restored = res.restoredState;
+          if (restored.userProfile) {
+            setUserProfile(restored.userProfile);
+            setShowProfileModal(false);
+          }
+          if (restored.vocabList?.length) setVocabList(restored.vocabList);
+          if (restored.sentenceList?.length) setSentenceList(restored.sentenceList);
+          if (restored.goals?.length) setGoals(restored.goals);
+          if (restored.history?.length) setHistory(restored.history);
+          if (typeof restored.totalRepeatsCount === 'number') {
+            setTotalRepeatsCount(restored.totalRepeatsCount);
+          }
+          setRecoveryToast(
+            res.action === 'recovered_from_folder'
+              ? '연결된 로컬 동기화 폴더에서 학습 데이터와 사진을 자동 복원했습니다.'
+              : '브라우저 캐시 초기화가 감지되어 IndexedDB 영구 저장소에서 학습 기록과 사진을 100% 자동 복원했습니다.'
+          );
+          setTimeout(() => setRecoveryToast(null), 6000);
+        } else if (res.mediaUrls.momPhotoUrl || res.mediaUrls.dadPhotoUrl) {
+          setUserProfile((prev) => {
+            if (!prev) return prev;
+            const nextMom = res.mediaUrls.momPhotoUrl || prev.momPhotoUrl;
+            const nextDad = res.mediaUrls.dadPhotoUrl || prev.dadPhotoUrl;
+            if (nextMom === prev.momPhotoUrl && nextDad === prev.dadPhotoUrl) return prev;
+            return {
+              ...prev,
+              momPhotoUrl: nextMom,
+              dadPhotoUrl: nextDad,
+              momPhotoRef: res.mediaUrls.momPhotoUrl ? 'idb:mom_photo' : prev.momPhotoRef,
+              dadPhotoRef: res.mediaUrls.dadPhotoUrl ? 'idb:dad_photo' : prev.dadPhotoRef,
+            };
+          });
+        }
+
+        if (res.pendingFolderRecovery?.requiresPermission) {
+          setPendingFolderRecoveryName(res.pendingFolderRecovery.folderName);
+        }
+
+        bootMigrationDoneRef.current = true;
+        window.dispatchEvent(new CustomEvent('wordloop_storage_updated'));
+      } catch (err) {
+        bootMigrationDoneRef.current = true;
+        console.warn('Boot migration note:', err);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  // Automatically offload any inline base64 parent photos into IndexedDB Blob storage
+  useEffect(() => {
+    if (!userProfile) return;
+    const momRaw = userProfile.momPhotoUrl;
+    const dadRaw = userProfile.dadPhotoUrl;
+    const needsMom = Boolean(momRaw && momRaw.startsWith('data:'));
+    const needsDad = Boolean(dadRaw && dadRaw.startsWith('data:'));
+    if (!needsMom && !needsDad) return;
+
+    const momSig = needsMom ? `mom:${momRaw!.length}:${momRaw!.slice(0, 48)}` : '';
+    const dadSig = needsDad ? `dad:${dadRaw!.length}:${dadRaw!.slice(0, 48)}` : '';
+    if ((needsMom && mediaOffloadInFlightRef.current.has(momSig)) && (!needsDad || mediaOffloadInFlightRef.current.has(dadSig))) {
+      return;
+    }
+
+    if (needsMom) mediaOffloadInFlightRef.current.add(momSig);
+    if (needsDad) mediaOffloadInFlightRef.current.add(dadSig);
+
+    (async () => {
+      try {
+        const momSaved = needsMom ? await saveMediaAsset('mom_photo', momRaw!) : null;
+        const dadSaved = needsDad ? await saveMediaAsset('dad_photo', dadRaw!) : null;
+        if (momSaved || dadSaved) {
+          setUserProfile((prev) => {
+            if (!prev) return prev;
+            return {
+              ...prev,
+              momPhotoUrl: momSaved ? momSaved.objectUrl : prev.momPhotoUrl,
+              momPhotoRef: momSaved ? 'idb:mom_photo' : prev.momPhotoRef,
+              dadPhotoUrl: dadSaved ? dadSaved.objectUrl : prev.dadPhotoUrl,
+              dadPhotoRef: dadSaved ? 'idb:dad_photo' : prev.dadPhotoRef,
+            };
+          });
+        }
+      } catch (err) {
+        console.warn('Media offload note:', err);
+      }
+    })();
+  }, [userProfile]);
+
+  // Debounced auto-save to IndexedDB (1.8s) and connected local sync folder (4s)
+  useEffect(() => {
+    const idbTimer = setTimeout(() => {
+      if (!bootMigrationDoneRef.current) return;
+      void saveAppStateToIndexedDb(latestStateRef.current).then(() => {
+        window.dispatchEvent(new CustomEvent('wordloop_storage_updated'));
+      });
+    }, 1800);
+
+    const fsTimer = setTimeout(() => {
+      if (!bootMigrationDoneRef.current) return;
+      void getLocalSyncStatus().then((status) => {
+        if (status.isConnected && status.permissionState === 'granted') {
+          void syncBundleToLocalFolder(latestStateRef.current).catch(() => {});
+        }
+      });
+    }, 4000);
+
+    return () => {
+      clearTimeout(idbTimer);
+      clearTimeout(fsTimer);
+    };
+  }, [vocabList, sentenceList, goals, history, totalRepeatsCount, userProfile]);
+
+  // Instant continuous sync to local storage bootstrap copy
   useEffect(() => {
     if (userProfile) {
       saveUserProfileToDevice(userProfile);
@@ -742,9 +884,9 @@ export default function App() {
     setTimeout(() => setRecoveryToast(null), 3500);
   }, [userProfile, vocabList, sentenceList, goals, history, totalRepeatsCount]);
 
-  // Apply Imported / Merged State cleanly
+  // Apply Imported / Merged State cleanly & persist across all 3 storage tiers
   const handleApplyImportedState = useCallback(
-    (nextState: {
+    async (nextState: {
       userProfile: UserProfile | null;
       vocabList: VocabItem[];
       sentenceList: SentenceItem[];
@@ -752,19 +894,68 @@ export default function App() {
       history: DailyGoalHistory[];
       totalRepeatsCount: number;
     }) => {
-      if (nextState.userProfile) setUserProfile(nextState.userProfile);
+      let resolvedProfile = nextState.userProfile;
+      if (resolvedProfile) {
+        let momUrl = resolvedProfile.momPhotoUrl;
+        let dadUrl = resolvedProfile.dadPhotoUrl;
+        let momRef = resolvedProfile.momPhotoRef;
+        let dadRef = resolvedProfile.dadPhotoRef;
+
+        if (momUrl?.startsWith('data:')) {
+          const saved = await saveMediaAsset('mom_photo', momUrl);
+          if (saved) {
+            momUrl = saved.objectUrl;
+            momRef = 'idb:mom_photo';
+          }
+        }
+        if (dadUrl?.startsWith('data:')) {
+          const saved = await saveMediaAsset('dad_photo', dadUrl);
+          if (saved) {
+            dadUrl = saved.objectUrl;
+            dadRef = 'idb:dad_photo';
+          }
+        }
+        resolvedProfile = {
+          ...resolvedProfile,
+          momPhotoUrl: momUrl,
+          dadPhotoUrl: dadUrl,
+          momPhotoRef: momRef,
+          dadPhotoRef: dadRef,
+        };
+        setUserProfile(resolvedProfile);
+        setShowProfileModal(false);
+      }
+
       if (nextState.vocabList) setVocabList(nextState.vocabList);
       if (nextState.sentenceList) setSentenceList(nextState.sentenceList);
       if (nextState.goals) setGoals(nextState.goals);
       if (nextState.history) setHistory(nextState.history);
       if (typeof nextState.totalRepeatsCount === 'number') setTotalRepeatsCount(nextState.totalRepeatsCount);
-      setRecoveryToast('✅ JSON 백업 데이터 적용 및 병합이 안전하게 완료되었습니다!');
+
+      const finalBundle = {
+        userProfile: resolvedProfile,
+        vocabList: nextState.vocabList,
+        sentenceList: nextState.sentenceList,
+        goals: nextState.goals,
+        history: nextState.history,
+        totalRepeatsCount: nextState.totalRepeatsCount,
+      };
+      await saveAppStateToIndexedDb({ ...finalBundle, forceSnapshot: true });
+      try {
+        const fsStatus = await getLocalSyncStatus();
+        if (fsStatus.isConnected && fsStatus.permissionState === 'granted') {
+          await syncBundleToLocalFolder(finalBundle, { ignoreDirtyCheck: true });
+        }
+      } catch {}
+
+      window.dispatchEvent(new CustomEvent('wordloop_storage_updated'));
+      setRecoveryToast('✅ 백업 데이터 적용 및 3계층 저장소 동기화가 안전하게 완료되었습니다!');
       setTimeout(() => setRecoveryToast(null), 4000);
     },
     []
   );
 
-  // Import Entire 1-User Learning Data (JSON) with size limit, Schema v1/v2 support & smart merge
+  // Import Entire 1-User Learning Data (.json / .json.gz) with Schema v1/v2/v3 support & smart merge
   const handleImportAllData = useCallback(
     async (file: File) => {
       try {
@@ -780,15 +971,50 @@ export default function App() {
           preview,
           'merge'
         );
-        handleApplyImportedState(nextState);
+        await handleApplyImportedState(nextState);
       } catch (e: any) {
-        setRecoveryToast('백업 파일 복원 실패: ' + (e?.message || '올바른 JSON 파일인지 확인해주세요.'));
+        setRecoveryToast('백업 파일 복원 실패: ' + (e?.message || '올바른 JSON/압축 백업 파일인지 확인해주세요.'));
       }
     },
     [userProfile, vocabList, sentenceList, goals, history, totalRepeatsCount, handleApplyImportedState]
   );
 
-  // Reset All Data
+  // 1-Click Folder Permission Recovery Handler
+  const handleRecoverWithPendingFolder = useCallback(async () => {
+    setIsRestoringFromFolder(true);
+    try {
+      const folderStatus = await authorizeLocalSyncFolder();
+      if (folderStatus.permissionState !== 'granted') {
+        setRecoveryToast('폴더 접근 권한이 허용되지 않았습니다.');
+        return;
+      }
+      setPendingFolderRecoveryName(null);
+
+      const hasProfileNow = Boolean(latestStateRef.current.userProfile?.name);
+      const bundle = await readLatestBundleFromLocalFolder();
+      if (bundle && !hasProfileNow) {
+        const preview = await parseAndPreviewBackupBytes(bundle.bytes, bundle.fileName, {
+          vocabList: latestStateRef.current.vocabList,
+          sentenceList: latestStateRef.current.sentenceList,
+          goals: latestStateRef.current.goals,
+          history: latestStateRef.current.history,
+          totalRepeatsCount: latestStateRef.current.totalRepeatsCount,
+        });
+        const nextState = applyBackupImport(latestStateRef.current, preview, 'overwrite');
+        await handleApplyImportedState(nextState);
+      } else {
+        await syncBundleToLocalFolder(latestStateRef.current, { ignoreDirtyCheck: true });
+        setRecoveryToast(`'${folderStatus.folderName}' 자동 동기화 폴더 연결이 복구되었습니다.`);
+        setTimeout(() => setRecoveryToast(null), 4000);
+      }
+    } catch (e: any) {
+      setRecoveryToast('폴더 동기화 복구 실패: ' + (e?.message || '폴더 상태를 확인해주세요.'));
+    } finally {
+      setIsRestoringFromFolder(false);
+    }
+  }, [handleApplyImportedState]);
+
+  // Reset All Data (localStorage + IndexedDB + media cache)
   const handleResetAllData = useCallback(() => {
     localStorage.removeItem('wordloop_user_profile');
     localStorage.removeItem('wordloop_user_profile_backup');
@@ -802,6 +1028,8 @@ export default function App() {
     localStorage.removeItem('wordloop_atomic_safety_ledger');
     localStorage.removeItem('wordloop_pre_import_rollback');
     localStorage.removeItem('wordloop_last_device_sync_time');
+    void clearIndexedDbAppState();
+    setPendingFolderRecoveryName(null);
     setUserProfile(null);
     setVocabList(DEFAULT_VOCAB);
     setSentenceList(DEFAULT_SENTENCES);
@@ -1199,11 +1427,55 @@ export default function App() {
             <button
               type="button"
               onClick={() => setRecoveryToast(null)}
-              className="p-1 rounded-lg text-emerald-300 hover:text-white transition-colors shrink-0"
+              className="p-1 rounded-lg text-emerald-300 hover:text-white transition-colors shrink-0 cursor-pointer"
               title="알림 닫기"
             >
               <X className="w-4 h-4" />
             </button>
+          </div>
+        </aside>
+      )}
+
+      {/* 1-Click Local Folder Permission Recovery Banner */}
+      {pendingFolderRecoveryName && (
+        <aside
+          role="status"
+          aria-live="polite"
+          className="fixed bottom-20 md:bottom-24 left-1/2 -translate-x-1/2 z-40 w-[92%] max-w-lg pointer-events-auto"
+        >
+          <div className="p-3.5 rounded-2xl bg-white dark:bg-slate-900 border border-amber-300 dark:border-amber-700 shadow-xl flex flex-wrap sm:flex-nowrap items-center justify-between gap-3">
+            <div className="flex items-center gap-2.5 min-w-0">
+              <div className="w-9 h-9 rounded-xl bg-amber-100 dark:bg-amber-950 text-amber-700 dark:text-amber-300 flex items-center justify-center shrink-0">
+                <FolderSync className="w-4 h-4" />
+              </div>
+              <div className="min-w-0">
+                <p className="text-xs font-bold text-slate-900 dark:text-white truncate">
+                  백업 폴더 권한 재확인 필요 · {pendingFolderRecoveryName}
+                </p>
+                <p className="text-[11px] text-slate-600 dark:text-slate-400 truncate">
+                  브라우저 새로고침 후 폴더 자동 저장 및 복원을 재개하려면 아래 버튼을 눌러주세요.
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-1.5 shrink-0 ml-auto">
+              <button
+                type="button"
+                disabled={isRestoringFromFolder}
+                onClick={handleRecoverWithPendingFolder}
+                className="min-h-[36px] px-3 rounded-lg bg-amber-600 hover:bg-amber-500 disabled:opacity-50 text-white text-xs font-semibold cursor-pointer"
+              >
+                {isRestoringFromFolder ? '복구 중...' : '폴더 권한 허용'}
+              </button>
+              <button
+                type="button"
+                onClick={() => setPendingFolderRecoveryName(null)}
+                aria-label="폴더 권한 알림 닫기"
+                className="min-h-[36px] min-w-[36px] flex items-center justify-center rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
           </div>
         </aside>
       )}

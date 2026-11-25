@@ -1,6 +1,6 @@
 {
   "name": "Self-Improvement & English Vocab",
-  "description": "WordLoop (v4.5.1): GitHub Pages 정적 웹 ESM 청크 순환 참조 부팅 복구 및 API 404 안전 폴백 · API 키 없는 전 세계 무료 AI 7중 자동 워터폴(OVHcloud · Kilo · Pollinations · Workers AI · LLM7 · MLVoca · Chrome Gemini Nano) · AI 음소 발음 교정 리포트 · Compact v2 델타 저장소",
+  "description": "WordLoop (v4.6.0): 3계층 로컬 파일 시스템 자동 저장·동기화(IndexedDB 대용량 이미지 분리 · 로컬 폴더 Gzip 7일 회전 스냅샷 · 기기 간 스마트 병합 · 브라우저 캐시 초기화 자동 복구) · API 키 없는 전 세계 무료 AI 7중 자동 워터폴 · AI 음소 발음 교정 리포트",
   "requestFramePermissions": [
     "microphone"
   ],

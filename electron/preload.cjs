@@ -61,6 +61,15 @@ contextBridge.exposeInMainWorld('WordLoopNative', {
     synthesizeToneChord: (toneType, chordStep) =>
       ipcRenderer.invoke('native:synth:synthesizeToneChord', { toneType, chordStep }),
   },
+
+  // 7. Local File System Auto-Backup & Sync Bridge
+  fsSync: {
+    isAvailable: () => true,
+    pickDirectory: () => ipcRenderer.invoke('native:fs:pickDirectory'),
+    getStatus: () => ipcRenderer.invoke('native:fs:getStatus'),
+    writeBackupBundle: (payload) => ipcRenderer.invoke('native:fs:writeBackupBundle', payload),
+    readLatestBundle: () => ipcRenderer.invoke('native:fs:readLatestBundle'),
+  },
 });
 
 window.addEventListener('DOMContentLoaded', () => {

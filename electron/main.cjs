@@ -1,6 +1,49 @@
-const { app, BrowserWindow, Menu, ipcMain } = require('electron');
+const { app, BrowserWindow, Menu, ipcMain, dialog } = require('electron');
 const path = require('path');
 const fs = require('fs');
+
+let configuredBackupDir = null;
+
+function getDefaultBackupDirPath() {
+  return path.join(app.getPath('documents'), 'WordLoop-Backups');
+}
+
+function getBackupConfigFile() {
+  return path.join(app.getPath('userData'), 'wordloop-sync-config.json');
+}
+
+function resolveActiveBackupDir() {
+  if (configuredBackupDir && typeof configuredBackupDir === 'string') {
+    return configuredBackupDir;
+  }
+  try {
+    const cfgPath = getBackupConfigFile();
+    if (fs.existsSync(cfgPath)) {
+      const parsed = JSON.parse(fs.readFileSync(cfgPath, 'utf8'));
+      if (parsed && typeof parsed.backupDir === 'string' && parsed.backupDir.trim()) {
+        configuredBackupDir = parsed.backupDir;
+        return configuredBackupDir;
+      }
+    }
+  } catch {}
+  return getDefaultBackupDirPath();
+}
+
+function persistConfiguredBackupDir(dirPath) {
+  configuredBackupDir = dirPath;
+  try {
+    fs.writeFileSync(getBackupConfigFile(), JSON.stringify({ backupDir: dirPath }, null, 2), 'utf8');
+  } catch {}
+}
+
+function assertSafeSubpath(baseDir, relativeParts) {
+  const target = path.resolve(baseDir, ...relativeParts);
+  const resolvedBase = path.resolve(baseDir);
+  if (target !== resolvedBase && !target.startsWith(resolvedBase + path.sep)) {
+    throw new Error('Unsafe path outside backup directory');
+  }
+  return target;
+}
 
 // Register Safe Native DLL IPC Handlers
 ipcMain.handle('native:audio:processVAD', async (_event, { pcmData, threshold }) => {
@@ -96,6 +139,133 @@ ipcMain.handle('native:shadow:generateWaveformColorMap', async (_event, { pointC
     return 0; // Green
   });
   return { colorFlags, isNativeAccelerated: true };
+});
+
+// 8. Local File System Auto-Backup & Cross-Device Folder Sync IPC Handlers
+ipcMain.handle('native:fs:pickDirectory', async () => {
+  const res = await dialog.showOpenDialog({
+    title: 'WordLoop 자동 백업 · 동기화 폴더 선택',
+    defaultPath: resolveActiveBackupDir(),
+    properties: ['openDirectory', 'createDirectory'],
+  });
+  if (res.canceled || !res.filePaths || res.filePaths.length === 0) {
+    return { canceled: true, folderPath: null, folderName: null };
+  }
+  const chosen = path.resolve(res.filePaths[0]);
+  persistConfiguredBackupDir(chosen);
+  return {
+    canceled: false,
+    folderPath: chosen,
+    folderName: path.basename(chosen) || chosen,
+  };
+});
+
+ipcMain.handle('native:fs:getStatus', async () => {
+  const dirPath = resolveActiveBackupDir();
+  const latestPath = assertSafeSubpath(dirPath, ['wordloop-sync-latest.json.gz']);
+  const snapshotsDir = assertSafeSubpath(dirPath, ['snapshots']);
+  let latestModifiedAt = null;
+  let latestSizeBytes = 0;
+  let snapshotFiles = [];
+
+  try {
+    if (fs.existsSync(latestPath)) {
+      const stat = fs.statSync(latestPath);
+      latestModifiedAt = stat.mtime.toISOString();
+      latestSizeBytes = stat.size;
+    }
+    if (fs.existsSync(snapshotsDir)) {
+      snapshotFiles = fs
+        .readdirSync(snapshotsDir)
+        .filter((name) => /^wordloop-\d{4}-\d{2}-\d{2}\.json(\.gz)?$/.test(name))
+        .sort()
+        .reverse();
+    }
+  } catch {}
+
+  return {
+    folderPath: dirPath,
+    folderName: path.basename(dirPath) || dirPath,
+    latestModifiedAt,
+    latestSizeBytes,
+    snapshotCount: snapshotFiles.length,
+    recentSnapshots: snapshotFiles.slice(0, 7),
+  };
+});
+
+ipcMain.handle(
+  'native:fs:writeBackupBundle',
+  async (_event, { latestBytes, dailySnapshotName, dailySnapshotBytes, mediaEntries }) => {
+    const dirPath = resolveActiveBackupDir();
+    const snapshotsDir = assertSafeSubpath(dirPath, ['snapshots']);
+    const mediaDir = assertSafeSubpath(dirPath, ['media']);
+    await fs.promises.mkdir(dirPath, { recursive: true });
+    await fs.promises.mkdir(snapshotsDir, { recursive: true });
+    await fs.promises.mkdir(mediaDir, { recursive: true });
+
+    const latestBuffer = Buffer.from(latestBytes);
+    const latestPath = assertSafeSubpath(dirPath, ['wordloop-sync-latest.json.gz']);
+    const tmpPath = assertSafeSubpath(dirPath, ['wordloop-sync-latest.tmp']);
+    await fs.promises.writeFile(tmpPath, latestBuffer);
+    await fs.promises.rename(tmpPath, latestPath);
+
+    let wroteDaily = false;
+    if (
+      dailySnapshotName &&
+      /^wordloop-\d{4}-\d{2}-\d{2}\.json(\.gz)?$/.test(dailySnapshotName) &&
+      dailySnapshotBytes
+    ) {
+      const snapPath = assertSafeSubpath(dirPath, ['snapshots', dailySnapshotName]);
+      await fs.promises.writeFile(snapPath, Buffer.from(dailySnapshotBytes));
+      wroteDaily = true;
+
+      // Rotate: keep latest 7 daily snapshots
+      const allSnaps = (await fs.promises.readdir(snapshotsDir))
+        .filter((f) => /^wordloop-\d{4}-\d{2}-\d{2}\.json(\.gz)?$/.test(f))
+        .sort();
+      while (allSnaps.length > 7) {
+        const oldest = allSnaps.shift();
+        if (oldest) {
+          await fs.promises.unlink(assertSafeSubpath(dirPath, ['snapshots', oldest])).catch(() => {});
+        }
+      }
+    }
+
+    if (Array.isArray(mediaEntries)) {
+      for (const entry of mediaEntries) {
+        if (entry?.fileName && /^[a-zA-Z0-9._-]+$/.test(entry.fileName) && entry.bytes) {
+          const mediaPath = assertSafeSubpath(dirPath, ['media', entry.fileName]);
+          await fs.promises.writeFile(mediaPath, Buffer.from(entry.bytes));
+        }
+      }
+    }
+
+    return {
+      success: true,
+      folderPath: dirPath,
+      folderName: path.basename(dirPath) || dirPath,
+      bytesWritten: latestBuffer.length,
+      wroteDaily,
+      syncedAt: new Date().toISOString(),
+    };
+  }
+);
+
+ipcMain.handle('native:fs:readLatestBundle', async () => {
+  const dirPath = resolveActiveBackupDir();
+  const latestPath = assertSafeSubpath(dirPath, ['wordloop-sync-latest.json.gz']);
+  if (!fs.existsSync(latestPath)) {
+    return { found: false, folderName: path.basename(dirPath) || dirPath };
+  }
+  const bytes = await fs.promises.readFile(latestPath);
+  const stat = await fs.promises.stat(latestPath);
+  return {
+    found: true,
+    folderName: path.basename(dirPath) || dirPath,
+    fileName: 'wordloop-sync-latest.json.gz',
+    modifiedAt: stat.mtime.toISOString(),
+    bytes: new Uint8Array(bytes),
+  };
 });
 
 // Allow local file access for ES modules loaded via file:// protocol

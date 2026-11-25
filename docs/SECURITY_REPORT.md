@@ -1,6 +1,6 @@
 # WordLoop 보안 점검 및 보안 강화 보고서 (Security Report)
 
-**문서 버전:** v4.5.1  
+**문서 버전:** v4.6.0  
 **최종 점검일:** 2026-11-25  
 **대상 시스템:** WordLoop Web SPA (Vite/React 19), Express API 프록시(`server.ts`), PC 데스크톱(Electron) 및 모바일 패키징
 
@@ -34,10 +34,10 @@ WordLoop는 사용자의 학습 기록, 녹음 오디오, 프로필 사진 및 G
 ### 2.2 입력 살균 & JSON 프로토타입 오염 방어 (`deviceStorageService.ts`, `App.tsx`, `server.ts`)
 - **서버 입력 살균 (`sanitizeInputText`, `sanitizeDeepObject`):**
   - Null Byte(`\0`), 제어 문자, `<script>`/`<iframe>`/`javascript:`/인라인 이벤트 핸들러 및 프롬프트 탈옥 패턴을 정화하며 객체 중첩 깊이를 제한합니다.
-- **클라이언트 JSON 백업/복원 & 커스텀 대본 보호 (v4.4.1 강화):**
-  - 백업 JSON 파일 크기 상한을 `5MB` (`MAX_IMPORT_FILE_BYTES`)로 제한해 메모리 고갈 DoS를 차단합니다.
-  - `App.tsx`의 `handleImportData`뿐만 아니라 `UserProfileModal.tsx` 및 `SurpriseParentNagPopup.tsx`의 커스텀 대본(`wordloop_custom_nag_scripts`) 파싱과 `freeAiService.ts`/`server.ts` AI 응답 파싱까지 모두 `safeJsonParse()` + `sanitizeDeepObject()` + 스키마/열거형 정규화 경로로 통일해 `__proto__`, `constructor`, `prototype` 키 주입 및 비정상 페이로드 복원을 차단했습니다.
-  - Schema v2 내보내기/가져오기 시 `computePayloadChecksum` 무결성 검사와 자동 사전 롤백 스냅샷(`wordloop_pre_import_rollback`)을 유지하며, `GitHubUpdateModal` APK 다운로드 경로는 `/` 또는 `https://` 스킴만 허용하도록 검증합니다.
+- **클라이언트 JSON / Gzip 백업 복원 & 커스텀 대본 보호 (v4.4.1 ~ v4.6.0 강화):**
+  - 백업 `.json`/`.json.gz` 파일 크기 상한을 `25MB` (`MAX_IMPORT_FILE_BYTES`)로 검증해 대용량 사진이 포함된 백업을 안전하게 수용하면서도 압축 폭탄(Decompression Bomb) 및 메모리 고갈 DoS를 방어합니다.
+  - `App.tsx`의 `handleImportData`뿐만 아니라 `UserProfileModal.tsx`, `SurpriseParentNagPopup.tsx`, `persistentStorageEngine.ts`의 IndexedDB/폴더 복원 경로까지 모두 `safeJsonParse()` + `sanitizeDeepObject()` + 스키마/열거형 정규화 경로로 통일해 `__proto__`, `constructor`, `prototype` 키 주입을 차단했습니다.
+  - Schema v2/v3 내보내기/가져오기 시 `computePayloadChecksum` 무결성 검사와 자동 사전 롤백 스냅샷(`wordloop_pre_import_rollback`)을 유지하며, `GitHubUpdateModal` APK 다운로드 경로는 `/` 또는 `https://` 스킴만 허용하도록 검증합니다.
 
 ### 2.3 이미지 업로드 · UI 알림 · 스토리지 초기화 안전성
 - **이미지 파일 정규화 (`parentPhotoUtils.ts`):**
@@ -47,11 +47,12 @@ WordLoop는 사용자의 학습 기록, 녹음 오디오, 프로필 사진 및 G
 - **완전 초기화 & 에러 복구 캐시 정리 정확성 (v4.4.1 보강):**
   - `ErrorBoundary` 캐시 초기화 및 `App.tsx` 전체 초기화가 긴급 스냅샷(`wordloop_emergency_exit_snapshot`), 롤백 스냅샷(`wordloop_pre_import_rollback`), 안전 원장(`wordloop_atomic_safety_ledger`)을 누락 없이 정리하며, `ErrorBoundary` 긴급 캐시 정리 시 사용자 Gemini API 키(`wordloop_gemini_api_key`)와 AI 엔진 선택 설정(`wordloop_ai_engine_mode`)은 의도적으로 보존합니다.
 
-### 2.4 데스크톱 Electron 샌드박스 (`electron/main.cjs`)
+### 2.4 데스크톱 Electron 샌드박스 & 파일 시스템 격리 (`electron/main.cjs`, `electron/preload.cjs`)
 - 외부 비인가 URL 창 탐색 차단, `setWindowOpenHandler` 팝업 거부, `contextBridge` 화이트리스트 IPC 채널(`preload.cjs`)만 허용합니다.
+- v4.6.0에 추가된 `native:fs:*` 백업 핸들러는 사용자가 대화상자(`dialog.showOpenDialog`)로 명시 선택했거나 기본 지정된 `Documents/WordLoop-Backups` 디렉터리 내부로만 쓰기/읽기 경로를 엄격히 격리하며(`path.basename` + `resolveInside` 검증), `.tmp -> rename` 원자적 파일 쓰기를 수행해 임의 경로 탐색(Path Traversal)이나 부분 손상을 차단합니다.
 
 ---
 
-## 3. 🎯 점검 결론 (v4.5.1)
+## 3. 🎯 점검 결론 (v4.6.0)
 
-WordLoop v4.5.1은 온디바이스 격리 저장, 고정 HTTPS 화이트리스트 기반 7중 키리스 무료 AI 워터폴(개인 키 미전송 보장), BYOK/키 테스트 엄격 격리, 3MB 오디오 페이로드 및 MIME 검증, 전 계층 `safeJsonParse` + `sanitizeDeepObject` 정화, 정적 호스트 비-JSON `/api/*` 응답 방어 및 ESM 청크 무결성을 준수합니다.
+WordLoop v4.6.0은 3계층 온디바이스 격리 저장 및 경로 격리된 로컬 파일 동기화, 고정 HTTPS 화이트리스트 기반 7중 키리스 무료 AI 워터폴(개인 키 미전송 보장), BYOK/키 테스트 엄격 격리, 3MB 오디오 페이로드 및 MIME 검증, 전 계층 `safeJsonParse` + `sanitizeDeepObject` 정화, 정적 호스트 비-JSON `/api/*` 응답 방어 및 ESM 청크 무결성을 준수합니다.

@@ -1,8 +1,17 @@
 # WordLoop 프로젝트 작업 로그 (WorkLog)
 
 **최종 작업 일시:** 2026-11-25  
-**현재 버전:** WordLoop v4.5.1 (`40501`)  
+**현재 버전:** WordLoop v4.6.0 (`40600`)  
 **GitHub 리포지토리:** https://github.com/ahbiyout-all/WordLoop
+
+---
+
+## 📌 Milestone: v4.6.0 — 3계층 로컬 파일 시스템 자동 저장 · 이미지 Blob 분리 · Gzip 7일 스냅샷 아키텍처
+- **5MB 용량 한계 해소 & 이미지 분리 영속 엔진 (`src/services/persistentStorageEngine.ts`, `src/types.ts`, `src/components/UserProfileModal.tsx`)**:
+  - IndexedDB `wordloop_state_db`(`kv`, `media`, `snapshots`, `handles`)를 구축하고 부모님 사진(`momPhotoUrl`/`dadPhotoUrl`)을 `media` Blob + 캐시 `ObjectURL`로 분리, 부팅 시 기존 `localStorage` Base64 이미지를 무손실 자동 마이그레이션해 `localStorage`를 `< 100KB` 빠른 캐시로 경량화.
+  - `navigator.storage.persist()` 영구 보존 권한 요청, FNV-1a 체크섬, `CompressionStream('gzip')` 기반 7일 회전 스냅샷 및 캐시 초기화 시 IndexedDB/동기화 폴더 자동 복구 구현.
+- **로컬 폴더 자동 동기화 & Electron 샌드박스 IPC (`electron/main.cjs`, `electron/preload.cjs`, `src/services/deviceStorageService.ts`, `src/App.tsx`, `src/components/JsonBackupModal.tsx`)**:
+  - 웹 File System Access API + Electron `native:fs:*` 샌드박스 IPC(원자적 `.tmp -> rename` 쓰기, `wordloop-sync-latest.json.gz` · `snapshots/` · `media/`)를 통합하고 `JsonBackupModal`을 3계층 저장소 & 폴더 동기화 허브로 개편, 새로고침 후 폴더 권한 재확인용 1-클릭 복구 배너 추가.
 
 ---
 

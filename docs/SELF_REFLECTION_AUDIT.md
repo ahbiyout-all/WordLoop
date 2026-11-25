@@ -1,18 +1,26 @@
 # WordLoop 자아성찰 및 심층 시스템 감사 보고서 (Self-Reflection & Deep Audit)
 
 **문서 작성일:** 2026-11-25  
-**대상 버전:** WordLoop v4.5.1  
-**감사 범위:** GitHub Pages 프로덕션 ESM 번들 순환 참조 크래시 진단·복구, 정적 호스트 API 404 폴백, 7중 키리스 무료 AI 워터폴 검증, BYOK 격리 및 문서 정합성
+**대상 버전:** WordLoop v4.6.0  
+**감사 범위:** 3계층 로컬 파일 시스템·IndexedDB 영속성 개편(5MB 한계·이미지 분리·Gzip 7일 스냅샷·캐시 복구), GitHub Pages ESM 순환 참조 해소, 7중 키리스 무료 AI 검증
 
 ---
 
 ## Executive Summary (총괄 요약)
 
-v4.5.1 긴급 감사에서는 실제 배포된 GitHub Pages(`ahbiyout-all.github.io/WordLoop/`)가 프리로더 화면에서 정지하던 원인을 프로덕션 ESM 번들 실행 재현으로 추적했습니다. `vite.config.ts`의 `manualChunks` 설정이 `react`/`react-dom`과 `scheduler`를 서로 다른 청크(`vendor-react` ↔ `vendor-misc`)로 분리하면서 **모듈 최상단 순환 임포트 크래시(`Cannot set properties of undefined (setting 'Activity')`)**가 React 마운트 전에 발생하고 있었음을 규명해 단일 `vendor-react` 청크 통합으로 완전히 해소했습니다. 아울러 서브패스 `manifest.json` 상대 경로 보정 및 정적 호스트 `/api/*` HTML 404 `SyntaxError` 방어를 전 계층에 적용했습니다.
+v4.6.0 저장 아키텍처 개편에서는 기존 `localStorage` 단일 5MB 저장 구조에서 발생하던 **Base64 가족 사진 용량 포화**, **브라우저 캐시 초기화 시 데이터 유실 위험**, **기기 간 수동 파일 이동의 불편함**을 해소하기 위해 **Tier 1(`localStorage` <100KB 빠른 캐시) + Tier 2(IndexedDB Blob/Gzip 스냅샷 + `navigator.storage.persist()`) + Tier 3(로컬 폴더 File System Access API & Electron 샌드박스 IPC `.json.gz` 자동 동기화)** 3계층 저장 엔진(`persistentStorageEngine.ts`)을 구축하고, 부팅 시 기존 Base64 데이터를 무손실 자동 이전하도록 검증했습니다.
 
 ---
 
-## 0. 금번 v4.5.1 GitHub Pages 부팅 장애 감사 · v4.5.0~v4.4.1 수정 내역
+## 0. 금번 v4.6.0 저장 구조 개선 & v4.5.1~v4.4.1 수정 내역
+
+### -0.1 `localStorage` 5MB 포화 · 대용량 사진 혼재 · 캐시 초기화 유실 위험 해소 (`persistentStorageEngine.ts`, `UserProfileModal.tsx`, `JsonBackupModal.tsx`, `electron/main.cjs`, `App.tsx`)
+- **발견한 구조적 한계:**
+  - `momPhotoUrl`/`dadPhotoUrl` Base64 이미지가 `wordloop_user_profile` 및 `wordloop_user_profile_backup`에 2중 저장되어 `localStorage` 용량(5MB)을 잠식하고 있었으며, 브라우저 캐시 삭제 시 학습 진도와 가족 사진이 함께 손실될 위험이 있었습니다.
+  - 웹과 데스크톱 간 학습 데이터 동기화가 수동 JSON 다운로드/업로드에만 의존해 일상적 7일 스냅샷 회전과 폴더 자동 동기화가 부재했습니다.
+- **적용한 해결책:**
+  - `persistentStorageEngine.ts`를 신설해 사진은 IndexedDB `media` 스토어(`Blob` + 캐시 `ObjectURL`)로 분리하고 `localStorage`에는 `momPhotoRef`/`dadPhotoRef` 참조 키만 남겨 부팅 시 기존 데이터를 무손실 자동 이전(`migrateAndHydrateOnBoot`)하도록 개선했습니다.
+  - 네이티브 `CompressionStream('gzip')` 기반 `.json.gz` 7일 회전 스냅샷과 웹 File System Access API / Electron 샌드박스 IPC(`native:fs:*`) 로컬 폴더 자동 동기화를 통합하고, 캐시 초기화 감지 시 IndexedDB 또는 동기화 폴더에서 100% 자동 복구(권한 재확인 시 1-클릭 배너)하도록 완성했습니다.
 
 ### 0.0 프로덕션 ESM 청크 순환 참조(`vendor-react ↔ vendor-misc`) & 정적 호스트 API 404 방어 (`vite.config.ts`, `manifest.json`, `build-web.js`, `freeAiService.ts`)
 - **발견한 문제:**
