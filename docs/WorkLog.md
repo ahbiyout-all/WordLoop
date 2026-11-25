@@ -1,8 +1,17 @@
 # WordLoop 프로젝트 작업 로그 (WorkLog)
 
-**최종 작업 일시:** 2026-11-24  
-**현재 버전:** WordLoop v4.5.0 (`40500`)  
+**최종 작업 일시:** 2026-11-25  
+**현재 버전:** WordLoop v4.5.1 (`40501`)  
 **GitHub 리포지토리:** https://github.com/ahbiyout-all/WordLoop
+
+---
+
+## 📌 Milestone: v4.5.1 — GitHub Pages 정적 웹 실행 불가(ESM 순환 참조) 근본 수정 & 정적 호스트 폴백
+- **근본 원인 재현 및 해결 (`vite.config.ts`, `public/manifest.json`, `scripts/build-web.js`)**:
+  - 프로덕션 `dist/` ESM 정적 청크 그래프 분석 및 Node ESM 실행 재현을 통해 `vendor-react` ↔ `vendor-misc` 순환 임포트로 인한 부팅 크래시(`TypeError: Cannot set properties of undefined (setting 'Activity')`)를 정확히 규명하고, `react`/`react-dom`/`scheduler`/`react-is`/`use-sync-external-store`를 단일 `vendor-react` 청크로 통합해 순환 참조 `0`건 달성.
+  - `public/manifest.json`의 `start_url`·아이콘 경로를 `/WordLoop/` 서브패스 대응 상대 경로(`./`, `./favicon.svg`)로 교정하고, `scripts/build-web.js`의 `crossorigin` 정리를 로컬 `./assets/` 태그로 스코프 제한.
+- **정적 호스트 `/api/*` HTML 404 방어 (`freeAiService.ts`, `CommercialDictionarySearch.tsx`, `pronunciationReportService.ts`)**:
+  - `safeParseApiJson()` 및 `content-type: application/json` 검증을 전 경로에 적용해 백엔드 미존재 정적 웹 환경에서 `SyntaxError` 없이 브라우저 직결 무료 AI 및 직접 Gemini 키 테스트로 폴백하도록 보강.
 
 ---
 

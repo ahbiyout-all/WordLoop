@@ -1,6 +1,6 @@
 {
   "name": "Self-Improvement & English Vocab",
-  "description": "WordLoop (v4.5.0): API 키 없는 전 세계 무료 AI 7중 자동 워터폴(OVHcloud 70B/DeepSeek · Kilo 550B · Pollinations · Workers AI · LLM7 · MLVoca · 온디바이스 Chrome Gemini Nano) 연동 · AI 음소 발음 교정 리포트 · Compact v2 델타 저장소 · 3,210개 학년별 예문 · SM-2 간격 반복 학습 플랫폼",
+  "description": "WordLoop (v4.5.1): GitHub Pages 정적 웹 ESM 청크 순환 참조 부팅 복구 및 API 404 안전 폴백 · API 키 없는 전 세계 무료 AI 7중 자동 워터폴(OVHcloud · Kilo · Pollinations · Workers AI · LLM7 · MLVoca · Chrome Gemini Nano) · AI 음소 발음 교정 리포트 · Compact v2 델타 저장소",
   "requestFramePermissions": [
     "microphone"
   ],

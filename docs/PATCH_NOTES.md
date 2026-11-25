@@ -2,7 +2,20 @@
 
 ---
 
-## 🚀 Version 4.5.0 (최신 업데이트)
+## 🚀 Version 4.5.1 (최신 업데이트)
+
+### 🛠️ GitHub Pages 정적 웹 실행 불가 근본 수정 & 정적 호스팅 탄력성 강화
+- **⚛️ ESM 청크 순환 참조 (`vendor-react ↔ vendor-misc`) 완전 해소 (`vite.config.ts`)**:
+  - `manualChunks` 분할 규칙에서 `react`/`react-dom`만 `vendor-react`로 보내고 React 내부 의존성(`scheduler`, `use-sync-external-store` 등)이 `vendor-misc`로 분리되며 발생하던 프로덕션 ESM 순환 참조 부팅 크래시(`TypeError: Cannot set properties of undefined (setting 'Activity')`)를 수정해, GitHub Pages 정적 배포 시 프리로더 화면에 멈추지 않고 정상 마운트되도록 복구했습니다.
+- **📁 서브패스(`/WordLoop/`) PWA 매니페스트 & 정적 에셋 태그 정렬 (`public/manifest.json`, `scripts/build-web.js`)**:
+  - `manifest.json`의 `start_url`과 `icons[].src`를 루트(`/`)에서 상대 경로(`./`, `./favicon.svg`)로 교정해 `/WordLoop/` 서브패스에서도 PWA 설치 및 아이콘이 정상 동작하도록 수정했습니다.
+  - `build-web.js`가 외부 폰트 `preconnect` 링크는 유지하고 로컬 `./assets/` 스크립트·스타일시트 태그만 대상으로 `crossorigin`을 제거하도록 정교화했습니다.
+- **🛡️ 정적 호스트 `/api/*` HTML 404 안전 폴백 (`freeAiService.ts`, `CommercialDictionarySearch.tsx`, `pronunciationReportService.ts`)**:
+  - 백엔드 Express 서버가 없는 GitHub Pages 환경에서 `/api/*` 호출이 `404.html`(HTML)을 반환할 때 `res.json()` 파싱 `SyntaxError`가 발생하지 않도록 `content-type: application/json` 사전 검증을 적용하고, 개인 Gemini 키 직접 검증 및 브라우저 직결 무료 AI 폴백으로 매끄럽게 전환합니다.
+
+---
+
+## 🚀 Version 4.5.0
 
 ### 🌍 전 세계 API 키 없는 무료 오픈 AI 4종 추가 발굴·실시간 검증 (총 7중 워터폴 확장)
 - **🚀 Kilo AI Gateway 무료 프록시 (`server.ts`, `apiClient.ts`)**:

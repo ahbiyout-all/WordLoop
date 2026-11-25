@@ -1,7 +1,7 @@
 # WordLoop 보안 점검 및 보안 강화 보고서 (Security Report)
 
-**문서 버전:** v4.5.0  
-**최종 점검일:** 2026-11-24  
+**문서 버전:** v4.5.1  
+**최종 점검일:** 2026-11-25  
 **대상 시스템:** WordLoop Web SPA (Vite/React 19), Express API 프록시(`server.ts`), PC 데스크톱(Electron) 및 모바일 패키징
 
 ---
@@ -52,6 +52,6 @@ WordLoop는 사용자의 학습 기록, 녹음 오디오, 프로필 사진 및 G
 
 ---
 
-## 3. 🎯 점검 결론 (v4.5.0)
+## 3. 🎯 점검 결론 (v4.5.1)
 
-WordLoop v4.5.0은 온디바이스 격리 저장, 고정 HTTPS 화이트리스트 기반 7중 키리스 무료 AI 워터폴(개인 키 미전송 보장), BYOK/키 테스트 엄격 격리, 3MB 오디오 페이로드 및 MIME 검증, 전 계층 `safeJsonParse` + `sanitizeDeepObject` 정화 및 스키마 정규화를 통해 안정성과 웹 보안 기준을 준수합니다.
+WordLoop v4.5.1은 온디바이스 격리 저장, 고정 HTTPS 화이트리스트 기반 7중 키리스 무료 AI 워터폴(개인 키 미전송 보장), BYOK/키 테스트 엄격 격리, 3MB 오디오 페이로드 및 MIME 검증, 전 계층 `safeJsonParse` + `sanitizeDeepObject` 정화, 정적 호스트 비-JSON `/api/*` 응답 방어 및 ESM 청크 무결성을 준수합니다.

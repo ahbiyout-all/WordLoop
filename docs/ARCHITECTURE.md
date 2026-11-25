@@ -1,4 +1,4 @@
-# WordLoop - 시스템 아키텍처 및 구조 설계서 (v4.5.0)
+# WordLoop - 시스템 아키텍처 및 구조 설계서 (v4.5.1)
 
 ## 🏗 전체 시스템 구조 (Overview)
 
@@ -35,7 +35,7 @@
 │                      Express API Proxy Server (server.ts)                  │
 │                                                                            │
 │  • Security Middlewares: Origin/Referer 검증 · Dual-Tier Rate Limiting     │
-│  • GET  /api/health                  (서버 상태 및 live 4.5.0 버전/코드)   │
+│  • GET  /api/health                  (서버 상태 및 live 4.5.1 버전/코드)   │
 │  • GET  /api/apk/info                (디스크 검증 기반 live APK 메타)      │
 │  • GET  /api/dictionary/lookup       (FreeDictionary + Wiktionary + AI)    │
 │  • POST /api/ai/pronunciation-report (3MB JSON · 오디오 MIME 검증 + 무료AI)│
@@ -81,4 +81,5 @@
 - **선택적 개인 Gemini SDK (`@google/genai`) 및 엄격 BYOK 격리**:
   - `generateGeminiContent()`가 `["gemini-4-hydrogen", "gemini-3.1-flash-lite"]` 폴백 체인으로 호출하며, `gemini_byok` 모드에서는 개인 키 누락·인증 실패(`401`/`429`) 시 서버 키나 가짜 성공으로 우회하지 않습니다.
 - **동적 버전/APK 메타데이터 & 스키마 정규화**:
-  - `package.json`에서 버전(`4.5.0`)과 `SERVER_VERSION_CODE`(`40500`)를 동적 파싱해 `/api/health`와 `/api/apk/info`에 일관되게 응답하며, 래핑 JSON 배열 언래핑(`unwrapArrayFromAiPayload`) 및 롤플레잉/음소 필드 정규화를 양단에 적용합니다.
+  - `package.json`에서 버전(`4.5.1`)과 `SERVER_VERSION_CODE`(`40501`)를 동적 파싱해 `/api/health`와 `/api/apk/info`에 일관되게 응답하며, 래핑 JSON 배열 언래핑(`unwrapArrayFromAiPayload`) 및 롤플레잉/음소 필드 정규화를 양단에 적용합니다.
+  - 정적 웹 배포(GitHub Pages) 시 `vendor-react` 청크(`react`, `react-dom`, `scheduler`) 통합으로 ESM 순환 참조 부팅 오류를 차단하며, `/api/*` HTML 404 응답 시 `safeParseApiJson()`으로 안전 폴백합니다.

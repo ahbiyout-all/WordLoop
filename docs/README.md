@@ -1,4 +1,4 @@
-# WordLoop - 1인 전용 온디바이스 영어 학습 & 발음 교정 플랫폼 (v4.5.0)
+# WordLoop - 1인 전용 온디바이스 영어 학습 & 발음 교정 플랫폼 (v4.5.1)
 
 - **🌐 웹 애플리케이션 바로가기 (GitHub Pages):** [https://ahbiyout-all.github.io/WordLoop/](https://ahbiyout-all.github.io/WordLoop/)
 - **📁 GitHub Repository:** [https://github.com/ahbiyout-all/WordLoop](https://github.com/ahbiyout-all/WordLoop)
@@ -9,7 +9,7 @@
 
 ---
 
-## 🔥 핵심 기능 (v4.5.0 기준)
+## 🔥 핵심 기능 (v4.5.1 기준)
 1. **TodayHub & 3단계 집중 루틴 (`TodayHub.tsx`, `FocusRoutinePlayer.tsx`)**
    - 초심자도 고민 없이 시작할 수 있는 단일 CTA(`오늘의 3분 루틴 시작`)와 오늘 복습 우선순위 5단어 제공
    - `듣고 뜻 확인 → 4지선다 회상 → 발음/SM-2 난이도 평가` 집중 학습 파이프라인 및 세션 큐 스냅샷 보호

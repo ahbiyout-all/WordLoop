@@ -21,9 +21,9 @@ const CLOUDFLARE_WORKERS_FREE_ENDPOINT = 'https://devtoolbox-api.devtoolbox-api.
 const LLM7_CHAT_ENDPOINT = 'https://api.llm7.io/v1/chat/completions';
 
 const OVHCLOUD_FREE_MODELS = [
-  'DeepSeek-V4.1-Flash-1017',
   'Mistral-Small-3.2-24B-Instruct-2506',
   'Meta-Llama-3_3-70B-Instruct',
+  'DeepSeek-V4.1-Flash-1017',
   'gpt-oss-20b',
   'gemma-4-26b-a4b',
 ];
@@ -370,6 +370,7 @@ async function callOvhCloudBrowser(
 ): Promise<FreeAiGenerationResult> {
   const now = Date.now();
   let lastError: any = null;
+  let consecutive429 = 0;
 
   for (const model of OVHCLOUD_FREE_MODELS) {
     if (signal?.aborted) throw new DOMException('Aborted', 'AbortError');
@@ -393,10 +394,13 @@ async function callOvhCloudBrowser(
       });
 
       if (res.status === 429) {
-        browserOvhCooldownUntil.set(model, Date.now() + 65_000);
+        browserOvhCooldownUntil.set(model, Date.now() + 35_000);
+        consecutive429 += 1;
         lastError = new Error(`OVHcloud ${model} rate limited (429)`);
+        if (consecutive429 >= 2) break;
         continue;
       }
+      consecutive429 = 0;
 
       if (!res.ok) {
         lastError = new Error(`OVHcloud ${model} HTTP ${res.status}`);
@@ -651,6 +655,14 @@ function shouldPreferBrowserFreeAi(): boolean {
   return !hasGeminiKey;
 }
 
+async function safeParseApiJson(res: Response): Promise<any> {
+  const ct = res.headers.get('content-type') || '';
+  if (!ct.includes('application/json')) {
+    return null;
+  }
+  return res.json().catch(() => null);
+}
+
 /**
  * Live ping test for free keyless AI engines (used in ApiKeyModal).
  */
@@ -674,7 +686,7 @@ export async function testFreeAiConnection(
         headers: { ...getAuthHeaders(), 'x-ai-engine': 'gemini_byok', 'x-gemini-api-key': userKey },
         body: JSON.stringify({ text: 'resilience', context: 'connection test' }),
       });
-      const data = await res.json().catch(() => ({}));
+      const data = await safeParseApiJson(res);
       const latencyMs = Date.now() - started;
       if (res.ok && data?.success && !data?.isFallback) {
         return {
@@ -682,6 +694,33 @@ export async function testFreeAiConnection(
           providerName: data.aiProvider || 'Personal Gemini Key',
           latencyMs,
           message: `연결 성공! 개인 Gemini API 키가 정상 동작합니다 (${latencyMs}ms)`,
+        };
+      }
+      if (!data) {
+        // Static host (e.g., GitHub Pages) without Express backend — test Gemini API directly from browser
+        const directRes = await fetch(
+          `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite:generateContent?key=${encodeURIComponent(userKey)}`,
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ contents: [{ parts: [{ text: 'Reply OK' }] }] }),
+          }
+        );
+        const directLatency = Date.now() - started;
+        if (directRes.ok) {
+          return {
+            success: true,
+            providerName: 'Personal Gemini Key (Direct)',
+            latencyMs: directLatency,
+            message: `연결 성공! 개인 Gemini API 키가 정적 웹 환경에서 직접 검증되었습니다 (${directLatency}ms)`,
+          };
+        }
+        const errData = await directRes.json().catch(() => ({}));
+        return {
+          success: false,
+          providerName: 'Gemini 키 전용',
+          latencyMs: directLatency,
+          message: errData?.error?.message || `Google API 키 인증 실패 (HTTP ${directRes.status})`,
         };
       }
       return {
@@ -699,7 +738,7 @@ export async function testFreeAiConnection(
         headers: { ...getAuthHeaders(), 'x-ai-engine': engine },
         body: JSON.stringify({ text: 'resilience', context: 'connection test' }),
       });
-      const data = await res.json();
+      const data = await safeParseApiJson(res);
       const latencyMs = Date.now() - started;
       if (res.ok && data?.success && !data?.isFallback) {
         return {
@@ -708,6 +747,11 @@ export async function testFreeAiConnection(
           latencyMs,
           message: `연결 성공! [${data.aiProvider || label}] 응답 확인 (${latencyMs}ms)`,
         };
+      }
+      if (!data) {
+        throw new Error(
+          `${label}는 백엔드 프록시가 필요해 정적 호스팅(GitHub Pages)에서는 브라우저 직결 무료 AI(OVHcloud · Pollinations · Workers AI · LLM7)를 이용해 주세요.`
+        );
       }
       throw new Error(data?.error || `${label} 서버 연결 응답을 받지 못했습니다.`);
     }
@@ -755,7 +799,7 @@ export async function testFreeAiConnection(
         headers: { ...getAuthHeaders(), 'x-ai-engine': engine },
         body: JSON.stringify({ text: 'hello', context: 'free ai check' }),
       });
-      const data = await res.json();
+      const data = await safeParseApiJson(res);
       const latencyMs = Date.now() - started;
       if (res.ok && data?.success && !data?.isFallback) {
         return {
@@ -820,9 +864,14 @@ Every "meaning" and "sentenceMeaning" MUST contain Korean Hangul.`;
     headers: getAuthHeaders(),
     body: JSON.stringify({ topic: safeTopic, count, difficulty }),
   });
-  const data = await res.json();
+  const data = await safeParseApiJson(res);
   if (!res.ok || !data?.success) {
-    throw new Error(data?.error || 'AI 단어 생성에 실패했습니다.');
+    throw new Error(
+      data?.error ||
+        (!data
+          ? '정적 호스팅 환경에서는 서버 프록시가 지원되지 않습니다. 설정에서 브라우저 직결 무료 AI 엔진을 선택해 주세요.'
+          : 'AI 단어 생성에 실패했습니다.')
+    );
   }
   return {
     items: data.items || [],
@@ -868,9 +917,14 @@ ${safeContext ? `맥락: ${safeContext}` : ''}
     headers: getAuthHeaders(),
     body: JSON.stringify({ text: safeText, context: safeContext }),
   });
-  const data = await res.json();
+  const data = await safeParseApiJson(res);
   if (!res.ok || !data?.success) {
-    throw new Error(data?.error || '해설 생성에 실패했습니다.');
+    throw new Error(
+      data?.error ||
+        (!data
+          ? '정적 호스팅 환경에서는 서버 프록시가 지원되지 않습니다. 설정에서 브라우저 직결 무료 AI 엔진을 선택해 주세요.'
+          : '해설 생성에 실패했습니다.')
+    );
   }
   return {
     explanation: data.explanation,
@@ -915,9 +969,14 @@ export async function recommendGoalsWithFreeAi(params: {
     headers: getAuthHeaders(),
     body: JSON.stringify({ interest: safeInterest, timePerDay }),
   });
-  const data = await res.json();
+  const data = await safeParseApiJson(res);
   if (!res.ok || !data?.success) {
-    throw new Error(data?.error || 'AI 목표 추천에 실패했습니다.');
+    throw new Error(
+      data?.error ||
+        (!data
+          ? '정적 호스팅 환경에서는 서버 프록시가 지원되지 않습니다. 설정에서 브라우저 직결 무료 AI 엔진을 선택해 주세요.'
+          : 'AI 목표 추천에 실패했습니다.')
+    );
   }
   return {
     goals: data?.goals || [],
@@ -1001,9 +1060,14 @@ Reply ONLY with raw valid JSON matching:
       completedMissions,
     }),
   });
-  const data = await res.json();
+  const data = await safeParseApiJson(res);
   if (!res.ok || !data?.success) {
-    throw new Error(data?.error || 'AI 대화 응답 생성에 실패했습니다.');
+    throw new Error(
+      data?.error ||
+        (!data
+          ? '정적 호스팅 환경에서는 서버 프록시가 지원되지 않습니다. 설정에서 브라우저 직결 무료 AI 엔진을 선택해 주세요.'
+          : 'AI 대화 응답 생성에 실패했습니다.')
+    );
   }
   const normalized = normalizeRoleplayTurnPayload(data, safeUserMessage);
   return {
@@ -1072,9 +1136,14 @@ Output strictly valid JSON:
     headers: getAuthHeaders(),
     body: JSON.stringify({ scenario, messages, completedMissions }),
   });
-  const data = await res.json();
+  const data = await safeParseApiJson(res);
   if (!res.ok || !data?.success || !data?.report) {
-    throw new Error(data?.error || '롤플레잉 리포트 생성에 실패했습니다.');
+    throw new Error(
+      data?.error ||
+        (!data
+          ? '정적 호스팅 환경에서는 서버 프록시가 지원되지 않습니다. 설정에서 브라우저 직결 무료 AI 엔진을 선택해 주세요.'
+          : '롤플레잉 리포트 생성에 실패했습니다.')
+    );
   }
   return {
     report: normalizeRoleplayReportPayload(data.report, scenario, missionScoreCalc),
@@ -1121,9 +1190,14 @@ export async function generateCustomNagsWithFreeAi(params: {
     headers,
     body: JSON.stringify({ direction: safeDirection }),
   });
-  const data = await res.json();
+  const data = await safeParseApiJson(res);
   if (!res.ok || !data?.success) {
-    throw new Error(data?.error || 'AI 대본 생성에 실패했습니다.');
+    throw new Error(
+      data?.error ||
+        (!data
+          ? '정적 호스팅 환경에서는 서버 프록시가 지원되지 않습니다. 설정에서 브라우저 직결 무료 AI 엔진을 선택해 주세요.'
+          : 'AI 대본 생성에 실패했습니다.')
+    );
   }
   return {
     scripts: data.scripts,

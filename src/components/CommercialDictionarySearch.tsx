@@ -53,9 +53,10 @@ export const CommercialDictionarySearch: React.FC<CommercialDictionarySearchProp
         headers: getAuthHeaders(),
       });
       
-      if (res.ok) {
-        const data = await res.json();
-        if (data.success) {
+      const ct = res.headers.get('content-type') || '';
+      if (res.ok && ct.includes('application/json')) {
+        const data = await res.json().catch(() => null);
+        if (data?.success) {
           setResult(data);
           return;
         }

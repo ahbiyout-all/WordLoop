@@ -298,9 +298,9 @@ const FREE_MLVOCA_URL = "https://mlvoca.com/api/generate";
 
 const SERVER_KILO_MODELS = ["kilo-auto/free", "nvidia/nemotron-3.5-lightning:free"];
 const SERVER_OVHCLOUD_MODELS = [
-  "DeepSeek-V4.1-Flash-1017",
   "Mistral-Small-3.2-24B-Instruct-2506",
   "Meta-Llama-3_3-70B-Instruct",
+  "DeepSeek-V4.1-Flash-1017",
   "gpt-oss-20b",
   "gemma-4-26b-a4b",
 ];
@@ -403,7 +403,7 @@ async function callServerKiloFree(prompt: string, systemInstruction: string) {
             ...(systemInstruction ? [{ role: "system", content: systemInstruction }] : []),
             { role: "user", content: prompt },
           ],
-          max_tokens: 1024,
+          max_tokens: 2048,
           temperature: 0.35,
         }),
       });
@@ -436,6 +436,7 @@ async function callServerKiloFree(prompt: string, systemInstruction: string) {
 async function callServerOvhCloudFree(prompt: string, systemInstruction: string) {
   const now = Date.now();
   let lastError: any = null;
+  let consecutive429 = 0;
   for (const model of SERVER_OVHCLOUD_MODELS) {
     const cooldown = serverOvhCooldownUntil.get(model) || 0;
     if (now < cooldown) continue;
@@ -455,10 +456,13 @@ async function callServerOvhCloudFree(prompt: string, systemInstruction: string)
         }),
       });
       if (res.status === 429) {
-        serverOvhCooldownUntil.set(model, Date.now() + 65_000);
+        serverOvhCooldownUntil.set(model, Date.now() + 35_000);
+        consecutive429 += 1;
         lastError = new Error(`OVHcloud ${model} rate limited (429)`);
+        if (consecutive429 >= 2) break;
         continue;
       }
+      consecutive429 = 0;
       if (!res.ok) {
         lastError = new Error(`OVHcloud ${model} HTTP ${res.status}`);
         continue;
@@ -823,12 +827,12 @@ function mapGeminiErrorStatus(error: any): { statusCode: number; message: string
 
 // 📦 Android APK Download & Metadata Endpoints
 const APK_PUBLIC_DIR = path.join(process.cwd(), "public", "downloads");
-let SERVER_APP_VERSION = "4.5.0";
+let SERVER_APP_VERSION = "4.5.1";
 try {
   const pkgData = JSON.parse(fs.readFileSync(path.join(process.cwd(), "package.json"), "utf8"));
   if (pkgData.version) SERVER_APP_VERSION = pkgData.version;
 } catch {}
-const [vMaj = 4, vMin = 5, vPat = 0] = SERVER_APP_VERSION.split(".").map((n) => parseInt(n, 10) || 0);
+const [vMaj = 4, vMin = 5, vPat = 1] = SERVER_APP_VERSION.split(".").map((n) => parseInt(n, 10) || 0);
 const SERVER_VERSION_CODE = vMaj * 10000 + vMin * 100 + vPat;
 const APK_FILENAME = `WordLoop-v${SERVER_APP_VERSION}.apk`;
 

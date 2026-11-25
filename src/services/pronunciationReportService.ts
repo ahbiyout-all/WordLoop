@@ -105,15 +105,22 @@ export async function requestAiPronunciationReport({
     }),
   });
 
+  const ct = res.headers.get('content-type') || '';
   let data: any = null;
-  try {
-    data = await res.json();
-  } catch {
-    data = null;
+  if (ct.includes('application/json')) {
+    try {
+      data = await res.json();
+    } catch {
+      data = null;
+    }
   }
 
   if (!res.ok) {
-    const errMsg = data?.error || `AI 음소 리포트 요청에 실패했습니다 (HTTP ${res.status}).`;
+    const errMsg =
+      data?.error ||
+      (!data
+        ? '정적 웹(GitHub Pages) 환경에서는 백엔드 음소 분석 API가 없어 로컬 음소 리포트 또는 브라우저 무료 AI로 동작합니다.'
+        : `AI 음소 리포트 요청에 실패했습니다 (HTTP ${res.status}).`);
     if (res.status === 401) {
       throw new AiPronunciationAuthError(errMsg);
     }

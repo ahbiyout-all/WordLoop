@@ -1,18 +1,26 @@
 # WordLoop 자아성찰 및 심층 시스템 감사 보고서 (Self-Reflection & Deep Audit)
 
-**문서 작성일:** 2026-11-24  
-**대상 버전:** WordLoop v4.5.0  
-**감사 범위:** 7중 키리스 무료 AI 워터폴 확장 검증, BYOK/API 키 검증 격리, AI 응답 스키마/데이터 정화, UI 상태 동기화, 서버 메타데이터 및 문서 정합성
+**문서 작성일:** 2026-11-25  
+**대상 버전:** WordLoop v4.5.1  
+**감사 범위:** GitHub Pages 프로덕션 ESM 번들 순환 참조 크래시 진단·복구, 정적 호스트 API 404 폴백, 7중 키리스 무료 AI 워터폴 검증, BYOK 격리 및 문서 정합성
 
 ---
 
 ## Executive Summary (총괄 요약)
 
-WordLoop는 v4.4.1의 전방위 심층 감사에 이어 v4.5.0에서 전 세계 API 키 불필요 무료 오픈 AI 엔드포인트 15종 이상을 직접 라이브 프로빙해 실동작이 확인된 **4종(Kilo AI Gateway 550B · OVHcloud EU 70B/DeepSeek · LLM7 Open Gateway · Chrome Built-in Gemini Nano)** 및 MLVoca 이중 모델(`tinyllama`)을 추가 통합했습니다. (`api.airforce`, `g4f.space`, `runcrate`, `axforge`, `gen.pollinations.ai` 등 `401/402/타임아웃` 실패 후보는 실측 후 과감히 제외)
+v4.5.1 긴급 감사에서는 실제 배포된 GitHub Pages(`ahbiyout-all.github.io/WordLoop/`)가 프리로더 화면에서 정지하던 원인을 프로덕션 ESM 번들 실행 재현으로 추적했습니다. `vite.config.ts`의 `manualChunks` 설정이 `react`/`react-dom`과 `scheduler`를 서로 다른 청크(`vendor-react` ↔ `vendor-misc`)로 분리하면서 **모듈 최상단 순환 임포트 크래시(`Cannot set properties of undefined (setting 'Activity')`)**가 React 마운트 전에 발생하고 있었음을 규명해 단일 `vendor-react` 청크 통합으로 완전히 해소했습니다. 아울러 서브패스 `manifest.json` 상대 경로 보정 및 정적 호스트 `/api/*` HTML 404 `SyntaxError` 방어를 전 계층에 적용했습니다.
 
 ---
 
-## 0. 금번 v4.5.0 무료 AI 확장 검증 · 이전 v4.4.1 감사 수정 내역
+## 0. 금번 v4.5.1 GitHub Pages 부팅 장애 감사 · v4.5.0~v4.4.1 수정 내역
+
+### 0.0 프로덕션 ESM 청크 순환 참조(`vendor-react ↔ vendor-misc`) & 정적 호스트 API 404 방어 (`vite.config.ts`, `manifest.json`, `build-web.js`, `freeAiService.ts`)
+- **발견한 문제:**
+  - `vite.config.ts`에서 `/[\\/]node_modules[\\/](react|react-dom)[\\/]/`만 `vendor-react`로 분기하여 `scheduler`와 `use-sync-external-store`가 `vendor-misc`로 흘러들었고, 두 청크 간 정적 `import` 사이클이 생겨 브라우저/Node ESM 초기화 시 `TypeError: Cannot set properties of undefined (setting 'Activity')`로 앱이 즉시 중단되었습니다.
+  - `public/manifest.json`이 루트(`/`, `/favicon.svg`)를 가리켜 `/WordLoop/` 서브패스 PWA 아이콘/시작 경로가 어긋났으며, 백엔드가 없는 GitHub Pages에서 `/api/*` 실패 시 `404.html`(HTML)을 `res.json()`으로 파싱하려다 `SyntaxError`가 발생할 수 있었습니다.
+- **적용한 해결책:**
+  - `react|react-dom|scheduler|react-is|use-sync-external-store`를 동일 `vendor-react` 청크로 병합하여 정적 청크 사이클을 `0`건으로 제거하고 빌드 산출물(`dist/assets/*.js`)의 Node ESM 부팅 검증을 통과시켰습니다.
+  - `manifest.json`을 `./` 및 `./favicon.svg`로 수정하고 `build-web.js`의 `crossorigin` 제거 대상을 로컬 `./assets/`로 한정했으며, `freeAiService.ts`, `CommercialDictionarySearch.tsx`, `pronunciationReportService.ts`에 `content-type: application/json` 검사 기반 안전 폴백을 적용했습니다.
 
 ### 0.1 API 키 테스트 거짓 양성(False Positive) & `gemini_byok` 격리 누락 (`ApiKeyModal.tsx`, `server.ts`, `freeAiService.ts`)
 - **발견한 문제:**

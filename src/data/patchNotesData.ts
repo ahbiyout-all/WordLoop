@@ -14,9 +14,25 @@ export { APP_VERSION };
 
 export const PATCH_NOTES_DATA: PatchNoteVersion[] = [
   {
-    version: '4.5.0',
+    version: '4.5.1',
     date: '2026-11',
     isLatest: true,
+    tagline: 'GitHub Pages 정적 웹 실행 불가 근본 수정 (React ESM 청크 순환 참조 해소 · PWA 상대 경로 보정 · 정적 호스트 API 404 안전 폴백)',
+    highlights: [
+      {
+        category: '🛠️ GitHub Pages 정적 웹 부팅 복구 & 정적 호스팅 탄력성 강화',
+        items: [
+          '⚛️ [ESM 청크 순환 참조(vendor-react ↔ vendor-misc) 완전 해소]: vite.config.ts의 manualChunks가 react/react-dom과 scheduler를 서로 다른 청크로 분리해 발생하던 프로덕션 부팅 크래시(Cannot set properties of undefined \'Activity\')를 근본 수정해 GitHub Pages에서 즉시 앱이 마운트되도록 복구했습니다.',
+          '📁 [서브패스(/WordLoop/) PWA & 에셋 경로 정렬]: public/manifest.json의 start_url과 아이콘 경로를 루트(/)에서 상대 경로(./)로 교정하고, build-web.js가 로컬 ./assets/ 스크립트·스타일 태그만 대상으로 crossorigin을 정리하도록 정교화했습니다.',
+          '🛡️ [정적 호스트 /api/* HTML 404 안전 폴백]: 백엔드 서버가 없는 GitHub Pages 환경에서 /api/* 호출이 HTML 404를 반환할 때 SyntaxError 없이 content-type을 사전 검사하고 브라우저 직결 무료 AI(OVHcloud · Pollinations · Workers AI · LLM7) 및 직접 Gemini 키 검증으로 매끄럽게 전환합니다.',
+        ],
+      },
+    ],
+  },
+  {
+    version: '4.5.0',
+    date: '2026-11',
+    isLatest: false,
     tagline: '전 세계 API 키 없는 무료 AI 4종 대규모 추가 발굴·검증 (OVHcloud 70B · Kilo 550B · LLM7 · Chrome 온디바이스 Gemini Nano) — 총 7중 무료 AI 워터폴 체인 완성',
     highlights: [
       {

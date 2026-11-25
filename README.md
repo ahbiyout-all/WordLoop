@@ -1,4 +1,4 @@
-# 🔤 WordLoop (v4.5.0)
+# 🔤 WordLoop (v4.5.1)
 
 **WordLoop**는 초·중·고·수능 3,210개 필수 어휘(학년별 맞춤형 실전 예문 포함)와 **API 키 없는 전 세계 무료 오픈 AI 7중 워터폴 엔진(OVHcloud 70B · Kilo 550B · Pollinations · Cloudflare Workers AI · LLM7 · MLVoca · 온디바이스 Chrome Gemini Nano)**, **TodayHub 3분 집중 루틴**, **SM-2 간격 반복(SRS)**, **AI 음소(Phoneme) 단위 발음 교정 리포트 & 구강 조음 위치 시각화**, **Compact v2 델타 로컬 저장 엔진(<5% 용량 점유)**, **12종+ 단어·문장 게임**, 그리고 **원어민 AI 대화형 롤플레잉**을 하나로 통합한 1인 전용 온디바이스 영어 학습 플랫폼입니다.
 
@@ -53,7 +53,7 @@ npm run build
 
 ## 💻 기기별 빌드 및 GitHub 자동 배포 파이프라인
 
-WordLoop는 `package.json`, `src/constants/version.ts`, `metadata.json`, `docs/PATCH_NOTES.md`, `src/data/patchNotesData.ts`를 단일 버전 기준(`4.5.0`)으로 동기화합니다.
+WordLoop는 `package.json`, `src/constants/version.ts`, `metadata.json`, `docs/PATCH_NOTES.md`, `src/data/patchNotesData.ts`를 단일 버전 기준(`4.5.1`)으로 동기화합니다.
 
 - **Windows PC 데스크톱 앱 (`.exe`)**: `npm run build:pc` 또는 `build-pc.bat`
 - **안드로이드 모바일 앱 (`.apk`)**: `npm run build:android` 또는 `build-android.bat`
@@ -69,7 +69,7 @@ WordLoop/
 ├── .github/workflows/          # GitHub Actions CI/CD (Web/PC/Android/iOS 자동 빌드)
 ├── docs/                       # 프로젝트 표준 문서
 │   ├── README.md               # 프로젝트 핵심 기능 및 스택 요약
-│   ├── ARCHITECTURE.md         # v4.5.0 클라이언트/서버/7중 무료 AI 아키텍처
+│   ├── ARCHITECTURE.md         # v4.5.1 클라이언트/서버/7중 무료 AI 아키텍처
 │   ├── USER_GUIDE.md           # 오늘 학습 · 무료 AI · 발음 교정 · 저장소 관리 가이드
 │   ├── SECURITY_REPORT.md      # 보안 점검 및 강화 보고서
 │   ├── SELF_REFLECTION_AUDIT.md# 자아성찰 및 심층 감사 보고서
@@ -85,7 +85,7 @@ WordLoop/
 │   ├── utils/                  # phonemeAnalysisUtils, audioWaveformUtils, meaningUtils 등
 │   └── App.tsx                 # 메인 라우트 및 전역 상태/영속성 조율
 ├── server.ts                   # Express 프록시 (/api/dictionary, /api/ai/*, 무료 AI 6중 체인 + Origin/Rate-Limit 보안)
-└── package.json                # 의존성 및 버전 정보 (v4.5.0)
+└── package.json                # 의존성 및 버전 정보 (v4.5.1)
 ```
 
 ---

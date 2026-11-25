@@ -37,7 +37,10 @@ if (result.status === 0) {
       // 1. Post-process dist/index.html for Electron file:// and offline compatibility
       // Removing 'crossorigin' prevents Chromium from blocking module scripts on file://
       let html = fs.readFileSync(distIndex, 'utf8');
-      const sanitized = html.replace(/\s+crossorigin(?:="[^"]*")?/gi, '');
+      const sanitized = html.replace(
+        /(<(?:script|link)\b[^>]*\b(?:src|href)="\.\/assets\/[^"]*"[^>]*)\s+crossorigin(?:="[^"]*")?/gi,
+        '$1'
+      );
       fs.writeFileSync(distIndex, sanitized, 'utf8');
       console.log('🛡️ [Build Post-process] Electron file:// CORS 방지 패치 완료 (crossorigin 속성 정돈)');
 

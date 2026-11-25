@@ -25,10 +25,14 @@ export default defineConfig(() => {
         output: {
           manualChunks(id) {
             if (id.includes('node_modules')) {
+              if (
+                /[\\/]node_modules[\\/](react|react-dom|scheduler|react-is|use-sync-external-store)[\\/]/.test(id)
+              ) {
+                return 'vendor-react';
+              }
               if (id.includes('recharts') || id.includes('d3-')) return 'vendor-charts';
               if (id.includes('lucide-react')) return 'vendor-icons';
               if (id.includes('motion') || id.includes('framer-motion')) return 'vendor-motion';
-              if (id.includes('react-dom') || id.includes('/react/')) return 'vendor-react';
               return 'vendor-misc';
             }
             if (id.includes('officialCurriculum3000Data.json')) {

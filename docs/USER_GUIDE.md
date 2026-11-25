@@ -1,4 +1,4 @@
-# WordLoop 사용자 가이드 (User Guide · v4.5.0)
+# WordLoop 사용자 가이드 (User Guide · v4.5.1)
 
 ---
 
