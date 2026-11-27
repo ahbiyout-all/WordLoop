@@ -63,6 +63,13 @@ import {
   buildTodayRoutineQueue,
   SrsRating,
 } from './services/srsEngineService';
+import {
+  evaluateStreakWithPetShield,
+  resetPetState,
+  rewardPetStudyAction,
+  PET_STORAGE_KEY,
+  PET_UPDATED_EVENT,
+} from './services/petCompanionService';
 import { Sparkles, X, Shuffle, ShieldCheck, Coffee, FolderSync } from 'lucide-react';
 import { InAppBrowserBanner } from './components/InAppBrowserBanner';
 
@@ -120,6 +127,9 @@ const FocusRoutinePlayer = React.lazy(() =>
 );
 const JsonBackupModal = React.lazy(() =>
   import('./components/JsonBackupModal').then((m) => ({ default: m.JsonBackupModal }))
+);
+const PetSanctuaryModal = React.lazy(() =>
+  import('./components/PetSanctuaryModal').then((m) => ({ default: m.PetSanctuaryModal }))
 );
 
 export default function App() {
@@ -335,6 +345,8 @@ export default function App() {
   const [showRecordingHistoryModal, setShowRecordingHistoryModal] = useState<boolean>(false);
   const [showFocusRoutine, setShowFocusRoutine] = useState<boolean>(false);
   const [showJsonBackupModal, setShowJsonBackupModal] = useState<boolean>(false);
+  const [showPetSanctuary, setShowPetSanctuary] = useState<boolean>(false);
+  const [petSyncTick, setPetSyncTick] = useState<number>(0);
   const [recordingHistoryInitialTarget, setRecordingHistoryInitialTarget] = useState<string | undefined>(undefined);
   const [surpriseNagState, setSurpriseNagState] = useState<{
     isOpen: boolean;
@@ -600,6 +612,18 @@ export default function App() {
         }
 
         bootMigrationDoneRef.current = true;
+        const streakEval = evaluateStreakWithPetShield(latestStateRef.current.userProfile);
+        if (streakEval.outcome === 'shield_used') {
+          setRecoveryToast(
+            `🛡️ ${streakEval.state.name}의 스트릭 보호막 1개를 사용해 ${streakEval.nextStreakDays}일 연속 학습 기록을 지켜냈어요! (남은 보호막 ${streakEval.remainingShields}개)`
+          );
+          setTimeout(() => setRecoveryToast(null), 6000);
+        } else if (
+          (streakEval.outcome === 'incremented' || streakEval.outcome === 'streak_reset') &&
+          latestStateRef.current.userProfile
+        ) {
+          setUserProfile((prev) => (prev ? { ...prev, streakDays: streakEval.nextStreakDays } : prev));
+        }
         window.dispatchEvent(new CustomEvent('wordloop_storage_updated'));
       } catch (err) {
         bootMigrationDoneRef.current = true;
@@ -610,6 +634,12 @@ export default function App() {
     return () => {
       cancelled = true;
     };
+  }, []);
+
+  useEffect(() => {
+    const onPetUpdated = () => setPetSyncTick((t) => t + 1);
+    window.addEventListener(PET_UPDATED_EVENT, onPetUpdated);
+    return () => window.removeEventListener(PET_UPDATED_EVENT, onPetUpdated);
   }, []);
 
   // Automatically offload any inline base64 parent photos into IndexedDB Blob storage
@@ -674,7 +704,7 @@ export default function App() {
       clearTimeout(idbTimer);
       clearTimeout(fsTimer);
     };
-  }, [vocabList, sentenceList, goals, history, totalRepeatsCount, userProfile]);
+  }, [vocabList, sentenceList, goals, history, totalRepeatsCount, userProfile, petSyncTick]);
 
   // Instant continuous sync to local storage bootstrap copy
   useEffect(() => {
@@ -743,7 +773,13 @@ export default function App() {
 
     // Handle repeat count callback
     speechService.setOnItemRepeatCallback((itemId, text, count) => {
-      setTotalRepeatsCount((prev) => prev + 1);
+      setTotalRepeatsCount((prev) => {
+        const next = prev + 1;
+        if (next % 10 === 0) {
+          rewardPetStudyAction('audio_milestone');
+        }
+        return next;
+      });
 
       // Increment today's repeat count in history for real-time chart reflection
       const todayStr = getLocalDateString();
@@ -803,7 +839,7 @@ export default function App() {
     );
   }, []);
 
-  // Mastery Level Handlers (Syncs SM-2 SRS metadata smoothly)
+  // Mastery Level Handlers (Syncs SM-2 SRS metadata smoothly + awards Pet Companion)
   const handleUpdateVocabMastery = useCallback((id: string, level: 0 | 1 | 2) => {
     setVocabList((prev) =>
       prev.map((item) => {
@@ -813,6 +849,11 @@ export default function App() {
         return { ...item, masteryLevel: level, isLearned: level === 2, srs };
       })
     );
+    if (level === 2) {
+      rewardPetStudyAction('vocab_mastery', { vocabId: id });
+    } else if (level === 1) {
+      rewardPetStudyAction('vocab_learning', { vocabId: id });
+    }
   }, []);
 
   const handleUpdateVocabSrs = useCallback((id: string, rating: SrsRating) => {
@@ -830,6 +871,11 @@ export default function App() {
         };
       })
     );
+    if (rating === 'good' || rating === 'easy') {
+      rewardPetStudyAction('vocab_mastery', { vocabId: id });
+    } else if (rating === 'hard') {
+      rewardPetStudyAction('vocab_learning', { vocabId: id });
+    }
   }, []);
 
   const handleRoutineComplete = useCallback((reviewedCount: number) => {
@@ -858,7 +904,12 @@ export default function App() {
         ...prevHist,
       ];
     });
-    setRecoveryToast(`오늘의 3분 루틴(${reviewedCount}개 단어)이 완료되어 잔디에 기록되었습니다.`);
+    const petRes = rewardPetStudyAction('focus_routine');
+    setRecoveryToast(
+      petRes.awarded
+        ? `3분 루틴(${reviewedCount}개 단어) 완료! 펫 보상 +${petRes.coinsDelta}코인 · 영양식 ${petRes.specialTreatsDelta}개`
+        : `오늘의 3분 루틴(${reviewedCount}개 단어)이 완료되어 잔디에 기록되었습니다.`
+    );
     setTimeout(() => setRecoveryToast(null), 4000);
   }, [goals.length]);
 
@@ -1028,6 +1079,8 @@ export default function App() {
     localStorage.removeItem('wordloop_atomic_safety_ledger');
     localStorage.removeItem('wordloop_pre_import_rollback');
     localStorage.removeItem('wordloop_last_device_sync_time');
+    localStorage.removeItem(PET_STORAGE_KEY);
+    resetPetState();
     void clearIndexedDbAppState();
     setPendingFolderRecoveryName(null);
     setUserProfile(null);
@@ -1400,6 +1453,7 @@ export default function App() {
         onOpenAudioSettings={() => setShowAudioSettingsModal(true)}
         onOpenRecordingHistory={() => handleOpenRecordingHistory()}
         onOpenJsonBackup={() => setShowJsonBackupModal(true)}
+        onOpenPetSanctuary={() => setShowPetSanctuary(true)}
       />
 
       {/* Crash Recovery Notification Toast */}
@@ -1569,6 +1623,7 @@ export default function App() {
             onStartFocusRoutine={() => setShowFocusRoutine(true)}
             onOpenJsonBackup={() => setShowJsonBackupModal(true)}
             onChangeMastery={handleUpdateVocabMastery}
+            onOpenPetSanctuary={() => setShowPetSanctuary(true)}
           />
         )}
 
@@ -1653,6 +1708,7 @@ export default function App() {
               vocabList={vocabList}
               sentenceList={sentenceList}
               onChangeMastery={handleUpdateVocabMastery}
+              onUpdateVocabSrs={handleUpdateVocabSrs}
               onSelectGame={handleSubSelection}
               initialGame={initialGame}
               userProfile={userProfile}
@@ -1794,6 +1850,23 @@ export default function App() {
               if (englishGoal) {
                 handleIncrementGoal(englishGoal.id, 1);
               }
+              rewardPetStudyAction('pronunciation');
+            }}
+          />
+        )}
+
+        {showPetSanctuary && (
+          <PetSanctuaryModal
+            isOpen={showPetSanctuary}
+            onClose={() => setShowPetSanctuary(false)}
+            userProfile={userProfile}
+            vocabList={vocabList}
+            history={history}
+            dueCount={vocabList.filter((v) => (v.masteryLevel ?? (v.isLearned ? 2 : 0)) < 2).length}
+            masteredCount={vocabList.filter((v) => (v.masteryLevel ?? (v.isLearned ? 2 : 0)) >= 2).length}
+            onNavigateToStudy={() => {
+              setActiveTab('vocab');
+              handleSetHomeViewMode('launcher');
             }}
           />
         )}

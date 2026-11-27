@@ -1,8 +1,8 @@
 {
   "name": "react-example",
   "private": true,
-  "version": "4.6.0",
-  "description": "WordLoop English Vocabulary & Sentence Learning App with 3-Tier Local File System & IndexedDB Persistence, 7-Layer Keyless Free AI, On-Device Gemini Nano, Offline Audio Loop, and Gamification",
+  "version": "4.9.0",
+  "description": "WordLoop English Vocabulary & Sentence Learning App with Interactive 5-Stage Study Pet Sanctuary (Sentiment Indicator, 7-Day Mood Trend Chart, Study Boost 2x Coins, Evolution Animation, Hunger Timer & Earn Food Quiz, Coins/Rooms/Costumes, Bilingual TTS, Streak Shield), Cognitive Game Engine (SM-2 SRS, JOL, ZPD), 3-Tier Local Storage, and 7-Layer Keyless Free AI",
   "author": "WordLoop Team",
   "type": "module",
   "main": "electron/main.cjs",

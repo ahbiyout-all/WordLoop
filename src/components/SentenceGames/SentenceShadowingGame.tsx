@@ -25,6 +25,7 @@ import {
 } from 'lucide-react';
 import { SentenceItem, PronunciationResult, WordMatch } from '../../types';
 import { speechService } from '../../services/speechService';
+import { buildAdaptiveSentenceQueue } from '../../services/cognitiveGameEngine';
 import { AudioWaveform } from '../AudioWaveform';
 import {
   getVoiceHistoryForTarget,
@@ -62,7 +63,7 @@ export const SentenceShadowingGame: React.FC<SentenceShadowingGameProps> = ({
 }) => {
   const [shuffledSentences, setShuffledSentences] = useState<SentenceItem[]>(() => {
     const list = sentences.filter((s) => s.text && s.text.trim().length > 0);
-    return [...list].sort(() => 0.5 - Math.random());
+    return buildAdaptiveSentenceQueue(list);
   });
 
   const [currentIndex, setCurrentIndex] = useState(0);
@@ -76,7 +77,7 @@ export const SentenceShadowingGame: React.FC<SentenceShadowingGameProps> = ({
 
   useEffect(() => {
     const list = sentences.filter((s) => s.text && s.text.trim().length > 0);
-    setShuffledSentences([...list].sort(() => 0.5 - Math.random()));
+    setShuffledSentences(buildAdaptiveSentenceQueue(list));
     setCurrentIndex(0);
   }, [sentences]);
 

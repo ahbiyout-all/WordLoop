@@ -23,6 +23,7 @@ import {
 import { VocabItem, QAMode } from '../types';
 import { speechService } from '../services/speechService';
 import { getCleanKoreanMeaning, getEnglishDefinition } from '../utils/meaningUtils';
+import { buildAdaptiveVocabQueue, loadCognitiveStats, shuffleFisherYates } from '../services/cognitiveGameEngine';
 
 interface WordBlockGameProps {
   words: VocabItem[];
@@ -265,12 +266,16 @@ export const WordBlockGame: React.FC<WordBlockGameProps> = ({
     const currentWords = wordsRef.current && wordsRef.current.length > 0 ? wordsRef.current : [];
     const size = Math.min(8, 3 + stageNum);
 
-    const validWords = currentWords
-      .filter((w) => {
-        const clean = w.word.trim().toUpperCase();
-        return /^[A-Z]+$/.test(clean) && clean.length >= 3 && clean.length <= 8;
-      })
-      .sort(() => Math.random() - 0.5);
+    const validFiltered = currentWords.filter((w) => {
+      const clean = w.word.trim().toUpperCase();
+      return /^[A-Z]+$/.test(clean) && clean.length >= 3 && clean.length <= 8;
+    });
+    const validWords = buildAdaptiveVocabQueue(
+      validFiltered,
+      loadCognitiveStats(),
+      Math.min(25, validFiltered.length),
+      'adaptive'
+    );
 
     const selectedWords = validWords.length > 0 ? validWords : currentWords;
     setTargetWords(selectedWords);
@@ -625,8 +630,8 @@ export const WordBlockGame: React.FC<WordBlockGameProps> = ({
       pool.push(generateWeightedLetter(targetWordStr));
     }
 
-    // Shuffle positions
-    const shuffledPool = pool.sort(() => Math.random() - 0.5);
+    // Shuffle positions with Fisher-Yates
+    const shuffledPool = shuffleFisherYates(pool);
 
     let pIdx = 0;
     let colorIdx = Math.floor(Math.random() * BLOCK_COLOR_PALETTES.length);

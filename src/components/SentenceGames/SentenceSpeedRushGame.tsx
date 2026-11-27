@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 import { SentenceItem } from '../../types';
 import { speechService } from '../../services/speechService';
+import { buildAdaptiveSentenceQueue } from '../../services/cognitiveGameEngine';
 
 interface SentenceSpeedRushGameProps {
   sentences: SentenceItem[];
@@ -50,7 +51,7 @@ export const SentenceSpeedRushGame: React.FC<SentenceSpeedRushGameProps> = ({
 
   // Initialize and start game
   const startGame = useCallback(() => {
-    const pool = [...validSentences].sort(() => 0.5 - Math.random());
+    const pool = buildAdaptiveSentenceQueue(validSentences);
     setShuffledPool(pool);
     setCurrentIndex(0);
     setScore(0);

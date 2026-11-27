@@ -19,6 +19,11 @@ import { VocabItem, QAMode } from '../types';
 import { speechService, getSharedAudioContext } from '../services/speechService';
 import { getCleanKoreanMeaning, getEnglishDefinition, QA_MODES_CONFIG } from '../utils/meaningUtils';
 import { QAModeSelector } from './QAModeSelector';
+import {
+  buildAdaptiveVocabQueue,
+  getZpdProfile,
+  loadCognitiveStats,
+} from '../services/cognitiveGameEngine';
 
 interface RhythmWordGameProps {
   words: VocabItem[];
@@ -125,8 +130,8 @@ export const RhythmWordGame: React.FC<RhythmWordGameProps> = ({
   // Initialize Rhythm Session
   const initGame = useCallback(() => {
     if (words.length === 0) return;
-    const shuffled = [...words].sort(() => Math.random() - 0.5).slice(0, 15);
-    setWordList(shuffled);
+    const curated = buildAdaptiveVocabQueue(words, loadCognitiveStats(), 15, 'adaptive');
+    setWordList(curated);
     setTargetIndex(0);
     setNotes([]);
     setScore(0);
@@ -214,7 +219,8 @@ export const RhythmWordGame: React.FC<RhythmWordGameProps> = ({
   useEffect(() => {
     if (!isGameStarted || isGameOver || isPaused) return;
 
-    const speed = 0.5; // Note fall speed % per frame
+    const zpd = getZpdProfile(loadCognitiveStats().zpdLevel);
+    const speed = 0.5 * zpd.rhythmSpeedMultiplier; // Adaptive ZPD note fall speed % per frame
 
     const updateFrame = (time: number) => {
       // Spawn new note every ~1.2 seconds

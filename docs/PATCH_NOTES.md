@@ -2,7 +2,54 @@
 
 ---
 
-## 🚀 Version 4.6.0 (최신 업데이트)
+## 🚀 Version 4.9.0 (최신 업데이트)
+
+### 🐾 펫 키우기 방 인터랙티브 생츄어리 고도화 (`PetSanctuaryModal.tsx`, `PetFoodQuizOverlay.tsx`, `PetMoodTrendChart.tsx`, `PetEvolutionOverlay.tsx`)
+- **🍖 실시간 Hunger 게이지 & `Earn Food` 빠른 단어 퀴즈**:
+  - **시간 경과 감소 (`syncPetHungerOverTime`)**: 10분마다 `fullness`가 1%씩 자연 감소하며, 키우기 방에서 색상별 Hunger 바를 실시간으로 확인할 수 있습니다.
+  - **`Earn Food` 단어 간식 퀴즈 (`PetFoodQuizOverlay.tsx`)**: 미숙달 단어를 우선 출제하는 3문제 객관식 퀴즈(원어민 발음 지원)를 완료하면 간식·코인·EXP를 받고 즉시 먹이를 주어 Hunger를 회복할 수 있습니다.
+- **⚡ 5분 `Study Boost` 딥포커스 · `Pet Evolution Pokedex` · 진화 세레머니 오버레이**:
+  - 키우기 방에서 5분 집중 세션을 시작하면 펫이 즉시 `초집중(Focused)` 상태로 전환되고, 완료 시 **2배 스터디 코인**을 획득합니다.
+  - 전용 `진화 Pokedex` 탭(`PetEvolutionPokedex.tsx`)에서 5단계 진화 전체 목록, 해금 여부, 로어·패시브 버프와 함께 미해금 진화를 여는 구체적인 학습 마일스톤 힌트(단어 암기·발음·3분 루틴·스트릭)를 제공합니다.
+  - 다음 진화에 필요한 마스터리 EXP를 달성하면 축하용 진화 애니메이션 오버레이(`PetEvolutionOverlay`)가 자동으로 재생됩니다.
+- **💭 감정 말풍선 · 클릭 물리 반응 · 사운드 라이브러리 · 학습 단어 말하기 · 7일 `Mood Trend` & `Recent Mood Logs`**:
+  - 최근 학습 성과 및 7일간 일일 학습 일관성 데이터를 기반으로 펫 옆 감정 말풍선, 터치 시 물리 반응(점프·황금 반짝임·알림 흔들림), 상태별(`happy`/`hungry`) 효과음 라이브러리(`petSoundEffects.ts`) 및 학습한 영단어/예문 무작위 TTS 발화, Recharts 7일 감정 추이 차트, 그리고 `Recent Mood Logs` 피드를 제공합니다.
+
+---
+
+## 🚀 Version 4.8.0
+
+### 🐣 학습 연동 5단계 진화 펫 키우기 시스템 (`petCompanionService.ts`, `PetCompanionVisual.tsx`, `PetSanctuaryModal.tsx`)
+- **✨ 5단계 진화 학습 펫 & 실시간 보상 연동**:
+  - **Stage 1(신비한 알) → Stage 2(아기 버디) → Stage 3(탐험가 견습생) → Stage 4(지식의 수호자) → Stage 5(전설의 그랜드 마스코트)** 5단계 진화 로드맵과 커스텀 전용 일러스트를 추가했습니다.
+  - 단어 암기(`0→1/2`), SM-2 복습, AI 원어민 발음 80점+ 달성, 3분 집중 루틴, 일일 3분 퀘스트 보상 수령, 16종 게임 라운드, 오디오 반복 마일스톤을 통해 **학습 코인 · 펫 EXP · 단어 간식 · 특별 영양식**을 자동 적립합니다(단어별 일일 1회 & 게임 쿨다운 어뷰징 방지 포함).
+- **🏡 TodayHub 동반자 위젯 & 전용 키우기 방 (`TodayHub.tsx`, `Navbar.tsx`, `PetSanctuaryModal.tsx`)**:
+  - `TodayHub` 상단 루틴 카드 바로 아래에서 펫을 즉시 쓰다듬기·간식 주기·영어 한마디 TTS 듣기할 수 있으며, 상단 내비게이션과 홈 위젯에서 3탭(`돌보기·진화`, `방·코스튬`, `보호막·버프`) 전용 키우기 방 모달을 즉시 열 수 있습니다.
+- **🎨 4종 배경 방 꾸미기 & 5종 코스튬 장착**:
+  - 코인을 모아 **햇살 공부방 · 식물원 온실 · 별빛 다락방 · 그랜드 도서관** 배경과 **학자 금테 안경 · 포근한 니트 머플러 · 모험가 페도라 · 별빛 수호 망토 · 황금 월계관** SVG 코스튬을 해금·착용할 수 있습니다.
+- **🛡️ 연속 학습 스트릭 보호막 & 패시브 버프 + 3계층 백업 동기화 (`App.tsx`, `persistentStorageEngine.ts`, `deviceStorageService.ts`)**:
+  - 최대 3칸(진화 단계별 해금)까지 충전 가능한 **스트릭 보호막**이 학습 공백 시 자동 발동되어 `streakDays`를 보존하며, 펫 성장·아이템 상태가 IndexedDB 및 `.json`/`.json.gz` 로컬 폴더 백업·병합에 완전 포함됩니다.
+
+---
+
+## 🚀 Version 4.7.0
+
+### 🧠 학습과학 기반 공통 인지게임 엔진 & 16종 학습 게임 전면 고도화
+- **🔁 인출 연습 & SM-2 간격 반복 실시간 연동 (`cognitiveGameEngine.ts`, `App.tsx`, `StudentWordGame.tsx`)**:
+  - 기존 무작위(`Math.random`) 출제 방식을 폐지하고 복습 기한 도래(Due) · 망각(Lapsed) · 최근 오답 재인출(Remediation) · 신규 학습 단어를 인지 인터리빙 비율로 큐잉합니다.
+  - 게임 플레이 중 정오답, 반응속도(`ms`), 힌트 사용 단계, 메타인지 확신도 결과를 즉시 SM-2(`VocabItem.srs`)에 양방향 반영합니다.
+- **⚡ 반응속도 기반 ZPD 적응형 5단계 & 혼동 보기 생성 (`cognitiveGameEngine.ts`)**:
+  - 문항별 인출 지연시간(`ms`)과 최근 정답률 윈도우에 따라 ZPD Level 1~5를 자동 승급/하강하고, 레벨에 맞춰 의미·형태 유사 혼동 보기(Distractor), 스펠링 노이즈 문자, 버블/타임어택 제한시간, 리듬 배속을 자동 조절합니다.
+- **🪜 3단계 점진적 비계 힌트 & 지연 재인출 (`GameScaffoldingBar.tsx`, `FlashcardRecallGame.tsx`)**:
+  - `1단계(타깃 단어 마스킹 문맥 예문) → 2단계(글자 수·자음 뼈대·IPA·형태소 단서 + 원어민 발음) → 3단계(이중 부호화 뜻 풀이·오답 소거)`를 지원하며, 라운드 종료 시 오답/힌트 의존 단어를 즉시 재인출합니다.
+- **🎮 신규 인지과학 게임 2종 추가 & 기존 14종 게임 전수 업그레이드 (총 16종)**:
+  - **#15 메타인지 확신도 결투 (`MetacognitiveDuelGame.tsx`)**: 선택 전 `확실함(Q) / 헷갈림(E)` JOL 판단을 통해 **아는 착각(확실함+오답)** 과 **운 좋은 정답(헷갈림+정답)** 을 4사분면으로 진단하고 지연 재인출합니다.
+  - **#16 문맥·어근 3단계 추론 (`ScaffoldedContextGame.tsx`)**: 마스킹된 예문과 3단계 비계 힌트·보기 소거를 통해 문맥 어휘 추론력을 기릅니다.
+  - 기존 단어 게임 9종(`WordMatchGame`, `SwipeMatchGame`, `BubblePopGame`, `CrosswordGame`, `WordBlockGame`, `RhythmWordGame`, `FlashcardRecallGame`, 인라인 `Spelling` · `Speed`)과 문장 게임 5종(`SentenceScramble`, `SentenceListeningFill`, `SentenceSpeedRush`, `SentenceTrueFalse`, `SentenceShadowing`)에 공통 인지 큐·Fisher-Yates 셔플·ZPD 스케일링을 통합했습니다.
+
+---
+
+## 🚀 Version 4.6.0
 
 ### 💾 3계층 로컬 파일 시스템 자동 저장 & 압축 스냅샷 아키텍처
 - **🖼️ 5MB 용량 한계 근본 해소 & 대용량 이미지 Blob 분리 (`persistentStorageEngine.ts`, `UserProfileModal.tsx`, `deviceStorageService.ts`, `App.tsx`)**:

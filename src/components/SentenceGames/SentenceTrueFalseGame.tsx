@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 import { SentenceItem } from '../../types';
 import { speechService } from '../../services/speechService';
+import { buildAdaptiveSentenceQueue } from '../../services/cognitiveGameEngine';
 
 interface SentenceTrueFalseGameProps {
   sentences: SentenceItem[];
@@ -42,7 +43,7 @@ export const SentenceTrueFalseGame: React.FC<SentenceTrueFalseGameProps> = ({
 }) => {
   const [shuffledSentences, setShuffledSentences] = useState<SentenceItem[]>(() => {
     const list = sentences.filter((s) => s.text && s.text.trim().length > 0);
-    return [...list].sort(() => 0.5 - Math.random());
+    return buildAdaptiveSentenceQueue(list);
   });
 
   const [currentIndex, setCurrentIndex] = useState(0);
@@ -53,7 +54,7 @@ export const SentenceTrueFalseGame: React.FC<SentenceTrueFalseGameProps> = ({
 
   useEffect(() => {
     const list = sentences.filter((s) => s.text && s.text.trim().length > 0);
-    setShuffledSentences([...list].sort(() => 0.5 - Math.random()));
+    setShuffledSentences(buildAdaptiveSentenceQueue(list));
     setCurrentIndex(0);
   }, [sentences]);
 

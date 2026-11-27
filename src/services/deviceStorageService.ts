@@ -1,6 +1,12 @@
 import { UserProfile, VocabItem, SentenceItem, Goal, DailyGoalHistory } from '../types';
 import { DEFAULT_USER_PROFILE } from '../data/defaultProfile';
 import { APP_VERSION } from '../constants/version';
+import {
+  PetCompanionState,
+  exportPetStateForBackup,
+  restorePetStateFromBackup,
+  sanitizePetState,
+} from './petCompanionService';
 
 export const STORAGE_KEYS = {
   USER_PROFILE: 'wordloop_user_profile',
@@ -58,6 +64,7 @@ export interface WordLoopBackupPayload {
   goals?: Goal[];
   history?: DailyGoalHistory[];
   totalRepeatsCount?: number;
+  petState?: PetCompanionState;
 }
 
 export interface VersionedBackupManifest {
@@ -829,6 +836,7 @@ export function buildVersionedJsonBackup(data: {
     goals: data.goals,
     history: data.history,
     totalRepeatsCount: data.totalRepeatsCount,
+    petState: typeof window !== 'undefined' ? exportPetStateForBackup() : undefined,
   };
 
   const masteredCount = data.vocabList.filter((v) => (v.masteryLevel ?? (v.isLearned ? 2 : 0)) === 2).length;
@@ -1144,6 +1152,7 @@ export async function parseAndPreviewBackupBytes(
       goals: backupGoals,
       history: backupHistory,
       totalRepeatsCount: backupRepeats,
+      petState: sanitized.petState ? sanitizePetState(sanitized.petState) : undefined,
     },
     diff: {
       addedVocabCount,
@@ -1219,6 +1228,7 @@ export function applyBackupImport(
   const p = preview.payload;
 
   if (mode === 'overwrite') {
+    const restoredPet = p.petState ? restorePetStateFromBackup(p.petState) : undefined;
     return {
       userProfile: p.userProfile && p.userProfile.name ? p.userProfile : currentState.userProfile,
       vocabList: p.vocabList && p.vocabList.length > 0 ? p.vocabList : currentState.vocabList,
@@ -1227,7 +1237,8 @@ export function applyBackupImport(
       history: p.history && p.history.length > 0 ? p.history : currentState.history,
       totalRepeatsCount:
         typeof p.totalRepeatsCount === 'number' ? p.totalRepeatsCount : currentState.totalRepeatsCount,
-    };
+      ...(restoredPet ? { petState: restoredPet } : {}),
+    } as any;
   }
 
   // SMART MERGE MODE: union by normalized word/text and keep freshest/highest progress
@@ -1316,6 +1327,24 @@ export function applyBackupImport(
           ),
         }
       : currentState.userProfile || p.userProfile || null;
+
+  if (p.petState && typeof window !== 'undefined') {
+    const currPet = exportPetStateForBackup();
+    const incPet = sanitizePetState(p.petState);
+    const mergedPet = {
+      ...(incPet.exp > currPet.exp || incPet.coins > currPet.coins ? incPet : currPet),
+      stage: Math.max(currPet.stage, incPet.stage) as any,
+      exp: Math.max(currPet.exp, incPet.exp),
+      coins: Math.max(currPet.coins, incPet.coins),
+      snacks: Math.max(currPet.snacks, incPet.snacks),
+      specialTreats: Math.max(currPet.specialTreats, incPet.specialTreats),
+      bond: Math.max(currPet.bond, incPet.bond),
+      streakShields: Math.max(currPet.streakShields, incPet.streakShields),
+      unlockedRooms: Array.from(new Set([...currPet.unlockedRooms, ...incPet.unlockedRooms])),
+      unlockedCostumes: Array.from(new Set([...currPet.unlockedCostumes, ...incPet.unlockedCostumes])),
+    };
+    restorePetStateFromBackup(mergedPet);
+  }
 
   return {
     userProfile: mergedProfile,

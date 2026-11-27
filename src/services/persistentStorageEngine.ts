@@ -13,6 +13,11 @@ import {
   safeJsonParse,
   sanitizeDeepObject,
 } from './deviceStorageService';
+import {
+  PetCompanionState,
+  exportPetStateForBackup,
+  restorePetStateFromBackup,
+} from './petCompanionService';
 
 export type MediaSlotId = 'mom_photo' | 'dad_photo';
 
@@ -37,6 +42,7 @@ export interface PrimaryStateRecord {
   goals: Goal[];
   history: DailyGoalHistory[];
   totalRepeatsCount: number;
+  petState?: PetCompanionState;
 }
 
 export interface InternalSnapshotRecord {
@@ -100,6 +106,7 @@ export interface RestoredAppBundle {
   goals: Goal[];
   history: DailyGoalHistory[];
   totalRepeatsCount: number;
+  petState?: PetCompanionState;
 }
 
 export interface BootMigrationResult {
@@ -641,6 +648,8 @@ export async function saveAppStateToIndexedDb(params: {
     const strippedProfile = stripLargeMediaForBootstrap(params.userProfile);
     const savedAt = new Date().toISOString();
 
+    const petStateSnapshot = typeof window !== 'undefined' ? exportPetStateForBackup() : undefined;
+
     const corePayload = {
       userProfileMeta: strippedProfile,
       compactVocab,
@@ -648,6 +657,7 @@ export async function saveAppStateToIndexedDb(params: {
       goals: params.goals || [],
       history: params.history || [],
       totalRepeatsCount: params.totalRepeatsCount || 0,
+      petState: petStateSnapshot,
     };
     const checksum = computePayloadChecksum(corePayload);
 
@@ -684,6 +694,7 @@ export async function saveAppStateToIndexedDb(params: {
           goals: params.goals || [],
           history: params.history || [],
           totalRepeatsCount: params.totalRepeatsCount || 0,
+          petState: petStateSnapshot,
           mediaDataUrls,
         },
       };
@@ -743,6 +754,10 @@ export async function loadAppStateFromIndexedDb(): Promise<RestoredAppBundle | n
           }
         : null;
 
+      if (primary.petState) {
+        restorePetStateFromBackup(primary.petState);
+      }
+
       return {
         userProfile,
         vocabList: hydratedVocab,
@@ -750,6 +765,7 @@ export async function loadAppStateFromIndexedDb(): Promise<RestoredAppBundle | n
         goals: Array.isArray(primary.goals) ? sanitizeDeepObject(primary.goals) : [],
         history: Array.isArray(primary.history) ? sanitizeDeepObject(primary.history) : [],
         totalRepeatsCount: Number(primary.totalRepeatsCount) || 0,
+        petState: primary.petState,
       };
     }
 
@@ -766,6 +782,9 @@ export async function loadAppStateFromIndexedDb(): Promise<RestoredAppBundle | n
         }
         if (p.mediaDataUrls?.dadPhotoDataUrl) {
           await saveMediaAsset('dad_photo', p.mediaDataUrls.dadPhotoDataUrl);
+        }
+        if (p.petState) {
+          restorePetStateFromBackup(p.petState);
         }
         const mediaUrls = await loadHydratedMediaUrls();
         return {
@@ -785,6 +804,7 @@ export async function loadAppStateFromIndexedDb(): Promise<RestoredAppBundle | n
           goals: Array.isArray(p.goals) ? sanitizeDeepObject(p.goals) : [],
           history: Array.isArray(p.history) ? sanitizeDeepObject(p.history) : [],
           totalRepeatsCount: Number(p.totalRepeatsCount) || 0,
+          petState: p.petState,
         };
       }
     }
@@ -1028,6 +1048,7 @@ export async function syncBundleToLocalFolder(
     goals: data.goals || [],
     history: data.history || [],
     totalRepeatsCount: data.totalRepeatsCount || 0,
+    petState: data.petState || (typeof window !== 'undefined' ? exportPetStateForBackup() : undefined),
     mediaDataUrls,
   };
   const checksum = computePayloadChecksum(payload);
@@ -1380,6 +1401,9 @@ export async function migrateAndHydrateOnBoot(
               if (p.mediaDataUrls?.dadPhotoDataUrl) {
                 await saveMediaAsset('dad_photo', p.mediaDataUrls.dadPhotoDataUrl);
               }
+              if (p.petState) {
+                restorePetStateFromBackup(p.petState);
+              }
               mediaUrls = await loadHydratedMediaUrls();
               const restoredFromFolder: RestoredAppBundle = {
                 userProfile: p.userProfile
@@ -1402,6 +1426,7 @@ export async function migrateAndHydrateOnBoot(
                 goals: Array.isArray(p.goals) ? sanitizeDeepObject(p.goals) : [],
                 history: Array.isArray(p.history) ? sanitizeDeepObject(p.history) : [],
                 totalRepeatsCount: Number(p.totalRepeatsCount) || 0,
+                petState: p.petState,
               };
               await saveAppStateToIndexedDb(restoredFromFolder);
               return {

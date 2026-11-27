@@ -1,6 +1,6 @@
 {
   "name": "Self-Improvement & English Vocab",
-  "description": "WordLoop (v4.6.0): 3계층 로컬 파일 시스템 자동 저장·동기화(IndexedDB 대용량 이미지 분리 · 로컬 폴더 Gzip 7일 회전 스냅샷 · 기기 간 스마트 병합 · 브라우저 캐시 초기화 자동 복구) · API 키 없는 전 세계 무료 AI 7중 자동 워터폴 · AI 음소 발음 교정 리포트",
+  "description": "WordLoop (v4.9.0): 학습 연동 5단계 진화 펫 키우기 & 인터랙티브 생츄어리(감정 말풍선·7일 Mood Trend 차트·터치 반응·5분 Study Boost 2배 코인·진화 세레머니·시간 경과 Hunger 바 & Earn Food 단어 퀴즈·방 꾸미기·코스튬·스트릭 보호막) · 학습과학 16종 인지게임 · 3계층 로컬 저장 · 무료 AI 7중 워터폴",
   "requestFramePermissions": [
     "microphone"
   ],

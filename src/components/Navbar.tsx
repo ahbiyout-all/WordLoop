@@ -24,6 +24,7 @@ import {
   Shuffle,
   X,
   ChevronDown,
+  Heart,
 } from 'lucide-react';
 import { ActiveTab, UserProfile } from '../types';
 import {
@@ -36,6 +37,12 @@ import { UpdateCheckResult } from '../services/githubUpdateService';
 import { RealtimeAudioSpeedWidget } from './RealtimeAudioSpeedWidget';
 import { StudentLevelInfo } from '../services/studentGamificationService';
 import { APP_VERSION } from '../constants/version';
+import {
+  PetCompanionState,
+  PET_UPDATED_EVENT,
+  getEvolutionStatus,
+  loadPetState,
+} from '../services/petCompanionService';
 
 interface NavbarProps {
   activeTab: ActiveTab;
@@ -62,6 +69,7 @@ interface NavbarProps {
   onOpenNativeDllModal?: () => void;
   onOpenRecordingHistory?: () => void;
   onOpenJsonBackup?: () => void;
+  onOpenPetSanctuary?: () => void;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
@@ -88,15 +96,28 @@ export const Navbar: React.FC<NavbarProps> = ({
   onOpenNativeDllModal,
   onOpenRecordingHistory,
   onOpenJsonBackup,
+  onOpenPetSanctuary,
 }) => {
   const [hasCustomKey, setHasCustomKey] = useState<boolean>(() => Boolean(getUserGeminiKey()));
   const [engineMode, setEngineMode] = useState<AiEngineMode>(() => getAiEngineMode());
   const [isExploreMenuOpen, setIsExploreMenuOpen] = useState<boolean>(false);
   const [isToolsMenuOpen, setIsToolsMenuOpen] = useState<boolean>(false);
   const [isMobileSheetOpen, setIsMobileSheetOpen] = useState<boolean>(false);
+  const [petState, setPetState] = useState<PetCompanionState>(() => loadPetState());
 
   const exploreMenuRef = useRef<HTMLDivElement>(null);
   const toolsMenuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const syncPet = (e: Event) => {
+      const detail = (e as CustomEvent<PetCompanionState>).detail;
+      setPetState(detail || loadPetState());
+    };
+    window.addEventListener(PET_UPDATED_EVENT, syncPet);
+    return () => window.removeEventListener(PET_UPDATED_EVENT, syncPet);
+  }, []);
+
+  const petReadyToEvolve = getEvolutionStatus(petState).isReadyToEvolve;
 
   useEffect(() => {
     const syncKey = () => {
@@ -156,7 +177,7 @@ export const Navbar: React.FC<NavbarProps> = ({
     icon: React.ComponentType<{ className?: string }>;
   }> = [
     { id: 'quiz', label: '8종 실전 퀴즈', sub: '취약 복습 · 망각곡선', icon: Trophy },
-    { id: 'game', label: '14종 아케이드 게임', sub: '플래시카드 · 버블팝', icon: Gamepad2 },
+    { id: 'game', label: '16종 인지 · 아케이드 게임', sub: '메타인지 결투 · 문맥추론', icon: Gamepad2 },
     { id: 'roleplay', label: 'AI 원어민 롤플레잉', sub: '상황별 실전 회화', icon: MessageSquare },
     { id: 'ai-gen', label: 'AI 맞춤 단어 생성', sub: '주제별 단어장 빌드', icon: Sparkles },
     { id: 'dictionary', label: '글로벌 상용 사전', sub: '어원 · 파생어 검색', icon: Search },
@@ -316,6 +337,22 @@ export const Navbar: React.FC<NavbarProps> = ({
               <RealtimeAudioSpeedWidget onOpenFullSettings={onOpenAudioSettings} />
             </div>
 
+            {onOpenPetSanctuary && (
+              <button
+                type="button"
+                onClick={onOpenPetSanctuary}
+                aria-label={`${petState.name} 키우기 방 열기`}
+                title={`${petState.name} (Stage ${petState.stage}) · 키우기 방`}
+                className="relative min-h-[40px] px-2.5 rounded-xl border border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200 flex items-center gap-1.5 text-xs font-semibold transition-colors cursor-pointer"
+              >
+                <Heart className={`w-3.5 h-3.5 ${petReadyToEvolve ? 'text-amber-500' : 'text-rose-500'}`} />
+                <span className="hidden sm:inline max-w-[68px] truncate">{petState.name}</span>
+                {petReadyToEvolve && (
+                  <span className="w-2 h-2 rounded-full bg-amber-500 absolute -top-0.5 -right-0.5" />
+                )}
+              </button>
+            )}
+
             {onOpenJsonBackup && (
               <button
                 type="button"
@@ -368,6 +405,24 @@ export const Navbar: React.FC<NavbarProps> = ({
               {isToolsMenuOpen && (
                 <div className="absolute right-0 mt-2 w-64 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-xl p-1.5 z-50 space-y-0.5">
                   <div className="px-3 py-1.5 text-[11px] font-semibold text-slate-400">학습 루틴 & 오디오</div>
+                  {onOpenPetSanctuary && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        onOpenPetSanctuary();
+                        setIsToolsMenuOpen(false);
+                      }}
+                      className="w-full min-h-[40px] px-3 rounded-xl text-xs font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center justify-between cursor-pointer"
+                    >
+                      <span className="flex items-center gap-2.5">
+                        <Heart className="w-4 h-4 text-rose-500" />
+                        <span>{petState.name} 키우기 방</span>
+                      </span>
+                      <span className="text-[11px] font-mono-tabular text-indigo-600 dark:text-indigo-400">
+                        Lv.{petState.stage}
+                      </span>
+                    </button>
+                  )}
                   {onOpenDailyQuest && (
                     <button
                       type="button"
@@ -630,6 +685,24 @@ export const Navbar: React.FC<NavbarProps> = ({
               <div>
                 <div className="text-[11px] font-semibold text-slate-400 mb-2">루틴 · 백업 · 시스템</div>
                 <div className="divide-y divide-slate-100 dark:divide-slate-800 rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden">
+                  {onOpenPetSanctuary && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsMobileSheetOpen(false);
+                        onOpenPetSanctuary();
+                      }}
+                      className="w-full min-h-[48px] px-4 flex items-center justify-between text-xs font-semibold text-slate-800 dark:text-slate-100 bg-white dark:bg-slate-900"
+                    >
+                      <span className="flex items-center gap-2.5">
+                        <Heart className="w-4 h-4 text-rose-500" />
+                        <span>{petState.name} 키우기 방</span>
+                      </span>
+                      <span className="font-mono-tabular text-[11px] text-indigo-600 dark:text-indigo-400">
+                        Stage {petState.stage} · {petState.coins}코인
+                      </span>
+                    </button>
+                  )}
                   {onOpenJsonBackup && (
                     <button
                       type="button"

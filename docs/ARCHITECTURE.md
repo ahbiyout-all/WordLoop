@@ -1,4 +1,4 @@
-# WordLoop - 시스템 아키텍처 및 구조 설계서 (v4.6.0)
+# WordLoop - 시스템 아키텍처 및 구조 설계서 (v4.8.0)
 
 ## 🏗 전체 시스템 구조 (Overview)
 
@@ -12,14 +12,16 @@
 │     │              │               │                  │                    │
 │     ▼              ▼               ▼                  ▼                    │
 │  TodayHub &     VocabList &     Pronunciation      StatsDashboard (3탭)    │
-│  FocusRoutine   Quiz / Games    Modal + AI         & JsonBackupModal       │
-│  (SM-2 SRS)     (React.lazy)    Phoneme Report     (Schema v2 / Diff)      │
+│  FocusRoutine   Quiz / Games    Modal + AI         & PetSanctuaryModal     │
+│  (SM-2 SRS)     (React.lazy)    Phoneme Report     & JsonBackupModal       │
 │     │              │               │                  │                    │
 │     └──────────────┴───────┬───────┴──────────────────┘                    │
 │                            ▼                                               │
 │  ┌──────────────────────────────────────────────────────────────────────┐  │
 │  │ Core Services (/src/services & /src/utils)                           │  │
 │  │  • srsEngineService.ts       (SM-2 복습 간격 · Today 큐 생성)        │  │
+│  │  • cognitiveGameEngine.ts    (ZPD 난이도 · JOL 보정 · 3단계 비계)     │  │
+│  │  • petCompanionService.ts    (5단계 진화 펫 · 코인 · 스트릭 보호막)   │  │
 │  │  • persistentStorageEngine.ts(IndexedDB Blob · Gzip · 로컬폴더 동기화)│  │
 │  │  • deviceStorageService.ts   (Compact v2 델타 · Schema v3 .json.gz)  │  │
 │  │  • autoSavePersistenceService.ts (종료 동기 델타 스냅샷 보호)         │  │
@@ -36,7 +38,7 @@
 │                      Express API Proxy Server (server.ts)                  │
 │                                                                            │
 │  • Security Middlewares: Origin/Referer 검증 · Dual-Tier Rate Limiting     │
-│  • GET  /api/health                  (서버 상태 및 live 4.6.0 버전/코드)   │
+│  • GET  /api/health                  (서버 상태 및 live 4.8.0 버전/코드)   │
 │  • GET  /api/apk/info                (디스크 검증 기반 live APK 메타)      │
 │  • GET  /api/dictionary/lookup       (FreeDictionary + Wiktionary + AI)    │
 │  • POST /api/ai/pronunciation-report (3MB JSON · 오디오 MIME 검증 + 무료AI)│
@@ -75,8 +77,8 @@
   - `BUILT_IN_VOCAB_ID_PREFIXES` 및 `BUILT_IN_SENTENCE_ID_PREFIXES` 판별을 통해 기본 3,210단어는 진도 델타만 저장하고, `CompressionStream('gzip')` 기반 `.json.gz` 내보내기 및 `parseAndPreviewBackupBytes()`를 통해 Schema v1/v2/v3 백업을 모두 검증·병합합니다.
 - **`autoSavePersistenceService.ts`**:
   - 페이지 이탈(`beforeunload`/`visibilitychange`) 긴급 스냅샷(`wordloop_emergency_exit_snapshot`) 저장 시에도 `DEFAULT_VOCAB`/`DEFAULT_SENTENCES`를 전달해 Compact v2 경량 포맷을 유지합니다.
-- **`srsEngineService.ts`**:
-  - SM-2 알고리즘(`easeFactor`, `intervalDays`, `repetitions`, `nextReviewAt`)으로 오늘의 복습 큐를 산출하며 기존 3단계 `masteryLevel`과 양방향 동기화됩니다.
+- **`srsEngineService.ts` & `cognitiveGameEngine.ts`**:
+  - `srsEngineService.ts`의 SM-2 알고리즘(`easeFactor`, `intervalDays`, `repetitions`, `nextReviewAt`)과 `cognitiveGameEngine.ts`의 인지 인터리빙 큐(`buildAdaptiveVocabQueue`, `buildAdaptiveSentenceQueue`), 반응속도 기반 ZPD 5단계, 3단계 비계 힌트, JOL 4사분면 보정, 유사도 기반 혼동 보기 추출이 16종 학습 게임과 양방향 연동됩니다.
 
 ### 3. 백엔드 API 프록시 & 7중 키리스 무료 AI 워터폴 (`server.ts`, `freeAiService.ts`)
 - **API 키 없는 7중 무료 오픈 AI 체인**:
@@ -86,5 +88,5 @@
 - **선택적 개인 Gemini SDK (`@google/genai`) 및 엄격 BYOK 격리**:
   - `generateGeminiContent()`가 `["gemini-4-hydrogen", "gemini-3.1-flash-lite"]` 폴백 체인으로 호출하며, `gemini_byok` 모드에서는 개인 키 누락·인증 실패(`401`/`429`) 시 서버 키나 가짜 성공으로 우회하지 않습니다.
 - **동적 버전/APK 메타데이터 & 스키마 정규화**:
-  - `package.json`에서 버전(`4.6.0`)과 `SERVER_VERSION_CODE`(`40600`)를 동적 파싱해 `/api/health`와 `/api/apk/info`에 일관되게 응답하며, 래핑 JSON 배열 언래핑(`unwrapArrayFromAiPayload`) 및 롤플레잉/음소 필드 정규화를 양단에 적용합니다.
+  - `package.json`에서 버전(`4.7.0`)과 `SERVER_VERSION_CODE`(`40700`)를 동적 파싱해 `/api/health`와 `/api/apk/info`에 일관되게 응답하며, 래핑 JSON 배열 언래핑(`unwrapArrayFromAiPayload`) 및 롤플레잉/음소 필드 정규화를 양단에 적용합니다.
   - 정적 웹 배포(GitHub Pages) 시 `vendor-react` 청크(`react`, `react-dom`, `scheduler`) 통합으로 ESM 순환 참조 부팅 오류를 차단하며, `/api/*` HTML 404 응답 시 `safeParseApiJson()`으로 안전 폴백합니다.

@@ -19,6 +19,7 @@ interface MainLauncherDashboardProps {
   onStartFocusRoutine?: () => void;
   onOpenJsonBackup?: () => void;
   onChangeMastery?: (id: string, level: 0 | 1 | 2) => void;
+  onOpenPetSanctuary?: () => void;
 }
 
 export const MainLauncherDashboard: React.FC<MainLauncherDashboardProps> = (props) => {

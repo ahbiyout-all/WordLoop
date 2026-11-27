@@ -1,4 +1,4 @@
-# WordLoop 사용자 가이드 (User Guide · v4.6.0)
+# WordLoop 사용자 가이드 (User Guide · v4.8.0)
 
 ---
 
@@ -46,3 +46,11 @@ WordLoop는 별도 API 키 없이도 **전 세계 무료 AI 7중 자동 체인**
    - **무료 AI 7중 자동 워터폴 (추천):** OVHcloud 70B/DeepSeek · Kilo 550B · Pollinations · Workers AI · LLM7 · MLVoca · 온디바이스 Gemini Nano를 자동 순환 연결합니다.
    - **개별 무료 엔진:** `Kilo AI Gateway (550B · 프록시)`, `OVHcloud EU AI (DeepSeek V4.1/Llama 70B · 브라우저 직결)`, `Pollinations AI`, `Cloudflare Workers AI`, `LLM7 Open Gateway`, `MLVoca Ollama (DeepSeek R1/TinyLlama)`, `Chrome 내장 온디바이스 AI (Gemini Nano)`.
 3. 녹음된 원음 오디오를 직접 청취하는 멀티모달 발음 진단을 원할 때만 선택적으로 Google AI Studio 키(`x-gemini-api-key`)를 입력해 활용하세요.
+
+---
+
+## 6. 학습 펫 키우기 & 스트릭 보호막 (`TodayHub` · `키우기 방`)
+1. **`[오늘 학습]`** 홈 위젯과 상단 내비게이션의 **`♥ 루미`** 버튼을 통해 언제든 학습 펫을 돌보고 **`키우기 방`** 모달을 열 수 있습니다.
+2. **먹이·성장·5단계 진화:** 단어를 암기하거나 AI 발음 평가, 3분 집중 루틴, 일일 퀘스트, 16종 인지게임을 완료하면 **코인 · 펫 EXP · 단어 간식 · 특별 영양식**이 자동 적립됩니다. EXP가 충족되면 **`진화하기`** 버튼을 눌러 Stage 5 전설 마스코트까지 성장시킬 수 있습니다.
+3. **방 꾸미기 & 코스튬:** **`[방 · 코스튬]`** 탭에서 학습 코인으로 4종 배경 방(햇살 공부방·식물원 온실·별빛 다락방·그랜드 도서관)과 5종 코스튬(금테 안경·니트 머플러·탐험가 모자·별빛 망토·황금 월계관)을 해금해 펫을 꾸밀 수 있습니다.
+4. **연속 학습 스트릭 보호막:** **`[보호막 · 버프]`** 탭에서 보호막(150코인, 최대 3칸)을 충전해 두면, 하루 이상 접속을 놓쳐도 보호막이 자동 소모되어 연속 학습일(`streakDays`)을 안전하게 지켜줍니다.

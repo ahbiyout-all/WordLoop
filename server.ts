@@ -827,12 +827,12 @@ function mapGeminiErrorStatus(error: any): { statusCode: number; message: string
 
 // 📦 Android APK Download & Metadata Endpoints
 const APK_PUBLIC_DIR = path.join(process.cwd(), "public", "downloads");
-let SERVER_APP_VERSION = "4.6.0";
+let SERVER_APP_VERSION = "4.8.0";
 try {
   const pkgData = JSON.parse(fs.readFileSync(path.join(process.cwd(), "package.json"), "utf8"));
   if (pkgData.version) SERVER_APP_VERSION = pkgData.version;
 } catch {}
-const [vMaj = 4, vMin = 6, vPat = 0] = SERVER_APP_VERSION.split(".").map((n) => parseInt(n, 10) || 0);
+const [vMaj = 4, vMin = 8, vPat = 0] = SERVER_APP_VERSION.split(".").map((n) => parseInt(n, 10) || 0);
 const SERVER_VERSION_CODE = vMaj * 10000 + vMin * 100 + vPat;
 const APK_FILENAME = `WordLoop-v${SERVER_APP_VERSION}.apk`;
 

@@ -35,6 +35,7 @@ import {
 } from '../services/habitQuestService';
 import { simulate24hInactivity } from '../services/inactivityQuizService';
 import { speechService } from '../services/speechService';
+import { rewardPetStudyAction } from '../services/petCompanionService';
 
 interface DailyQuestModalProps {
   isOpen: boolean;
@@ -103,8 +104,13 @@ export const DailyQuestModal: React.FC<DailyQuestModalProps> = ({
     const updated = { ...quest, isClaimed: true };
     setQuest(updated);
     saveDailyQuestProgress(updated);
+    const petReward = rewardPetStudyAction('daily_quest');
     setShowConfetti(true);
-    setToastMsg('🎉 축하합니다! 오늘의 3분 퀘스트 마스터 배지를 획득했습니다!');
+    setToastMsg(
+      petReward.awarded
+        ? `🎉 마스터 배지 & 펫 보상(+${petReward.coinsDelta}코인 · 영양식 ${petReward.specialTreatsDelta}개) 획득!`
+        : '🎉 축하합니다! 오늘의 3분 퀘스트 마스터 배지를 획득했습니다!'
+    );
     setTimeout(() => setToastMsg(null), 4000);
   };
 

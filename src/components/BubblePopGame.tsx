@@ -16,6 +16,12 @@ import { VocabItem, QAMode } from '../types';
 import { speechService } from '../services/speechService';
 import { getCleanKoreanMeaning, getEnglishDefinition, QA_MODES_CONFIG } from '../utils/meaningUtils';
 import { QAModeSelector } from './QAModeSelector';
+import {
+  buildAdaptiveVocabQueue,
+  getZpdProfile,
+  loadCognitiveStats,
+  shuffleFisherYates,
+} from '../services/cognitiveGameEngine';
 
 interface BubblePopGameProps {
   words: VocabItem[];
@@ -107,16 +113,18 @@ export const BubblePopGame: React.FC<BubblePopGameProps> = ({
     return `${item.word} [${item.partOfSpeech || 'n.'}] (뜻: ${getCleanKoreanMeaning(item)})`;
   };
 
-  // Initialize Game Round
+  // Initialize Game Round with SRS + ZPD priority
   const initGame = useCallback(() => {
     if (words.length === 0) return;
-    const shuffled = [...words].sort(() => Math.random() - 0.5).slice(0, TOTAL_WORDS_PER_ROUND);
-    setWordList(shuffled);
+    const stats = loadCognitiveStats();
+    const zpd = getZpdProfile(stats.zpdLevel);
+    const curated = buildAdaptiveVocabQueue(words, stats, TOTAL_WORDS_PER_ROUND, 'adaptive');
+    setWordList(curated);
     setWordIndex(0);
     setSpelledLetters([]);
     setScore(0);
     setStreak(0);
-    setTimeLeft(60);
+    setTimeLeft(Math.round(60 * zpd.timeBonusFactor));
     setIsGameOver(false);
     setIsPaused(false);
     setIsGameStarted(true);
@@ -135,14 +143,18 @@ export const BubblePopGame: React.FC<BubblePopGameProps> = ({
 
     const isMobileScreen = typeof window !== 'undefined' && window.innerWidth < 640;
     const targetLetters = currentWordObj.word.toUpperCase().split('');
-    const maxTotalBubbles = isMobileScreen ? Math.max(9, targetLetters.length + 4) : Math.max(12, targetLetters.length + 5);
-    const extraDistractors = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'
-      .split('')
-      .filter((l) => !targetLetters.includes(l))
-      .sort(() => Math.random() - 0.5)
-      .slice(0, Math.max(4, maxTotalBubbles - targetLetters.length));
+    const zpd = getZpdProfile(loadCognitiveStats().zpdLevel);
+    const extraNoise = 3 + zpd.extraSpellingNoise;
+    const maxTotalBubbles = isMobileScreen
+      ? Math.max(8, targetLetters.length + extraNoise)
+      : Math.max(10, targetLetters.length + extraNoise + 1);
+    const extraDistractors = shuffleFisherYates(
+      'ABCDEFGHIJKLMNOPQRSTUVWXYZ'
+        .split('')
+        .filter((l) => !targetLetters.includes(l))
+    ).slice(0, Math.max(3, maxTotalBubbles - targetLetters.length));
 
-    const allLetters = [...targetLetters, ...extraDistractors].sort(() => Math.random() - 0.5);
+    const allLetters = shuffleFisherYates([...targetLetters, ...extraDistractors]);
     const cols = isMobileScreen ? 4 : 5;
 
     const generated: Bubble[] = allLetters.map((letter, idx) => {

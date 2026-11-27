@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import { SentenceItem } from '../../types';
 import { speechService } from '../../services/speechService';
+import { buildAdaptiveSentenceQueue, shuffleFisherYates } from '../../services/cognitiveGameEngine';
 
 interface SentenceScrambleGameProps {
   sentences: SentenceItem[];
@@ -34,7 +35,7 @@ export const SentenceScrambleGame: React.FC<SentenceScrambleGameProps> = ({
 }) => {
   const [shuffledSentences, setShuffledSentences] = useState<SentenceItem[]>(() => {
     const list = sentences.filter((s) => s.text && s.text.trim().split(/\s+/).length >= 3);
-    return [...list].sort(() => 0.5 - Math.random());
+    return buildAdaptiveSentenceQueue(list);
   });
 
   const [currentIndex, setCurrentIndex] = useState(0);
@@ -47,7 +48,7 @@ export const SentenceScrambleGame: React.FC<SentenceScrambleGameProps> = ({
 
   useEffect(() => {
     const list = sentences.filter((s) => s.text && s.text.trim().split(/\s+/).length >= 3);
-    setShuffledSentences([...list].sort(() => 0.5 - Math.random()));
+    setShuffledSentences(buildAdaptiveSentenceQueue(list));
     setCurrentIndex(0);
   }, [sentences]);
 
@@ -69,8 +70,8 @@ export const SentenceScrambleGame: React.FC<SentenceScrambleGameProps> = ({
       text: token,
     }));
 
-    // Shuffle tiles ensuring it's not in exact same order
-    const shuffled = [...tiles].sort(() => 0.5 - Math.random());
+    // Shuffle tiles uniformly
+    const shuffled = shuffleFisherYates(tiles);
     setAvailableWords(shuffled);
     setPlacedWords([]);
     setStatus('playing');

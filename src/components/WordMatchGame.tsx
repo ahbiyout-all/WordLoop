@@ -29,6 +29,7 @@ import {
 import { VocabItem, QAMode } from '../types';
 import { speechService } from '../services/speechService';
 import { getCleanKoreanMeaning, getEnglishDefinition } from '../utils/meaningUtils';
+import { buildAdaptiveVocabQueue, loadCognitiveStats, shuffleFisherYates } from '../services/cognitiveGameEngine';
 
 interface WordMatchGameProps {
   words: VocabItem[];
@@ -249,9 +250,13 @@ export const WordMatchGame: React.FC<WordMatchGameProps> = ({
     const pairCount = getPairCount(targetMode, targetStage);
     setTotalPairs(pairCount);
 
-    // Pick random unique words from pool
-    const shuffledPool = [...currentWords].sort(() => Math.random() - 0.5);
-    const selectedWords = shuffledPool.slice(0, Math.min(pairCount, shuffledPool.length));
+    // Curate SRS/ZPD-prioritized words for memory retrieval
+    const selectedWords = buildAdaptiveVocabQueue(
+      currentWords,
+      loadCognitiveStats(),
+      Math.min(pairCount, currentWords.length),
+      'adaptive'
+    );
 
     const newCards: MemoryMatchCard[] = [];
     selectedWords.forEach((wordItem, idx) => {
@@ -288,8 +293,8 @@ export const WordMatchGame: React.FC<WordMatchGameProps> = ({
       });
     });
 
-    // Shuffle cards uniformly
-    const shuffledCards = newCards.sort(() => Math.random() - 0.5);
+    // Shuffle cards uniformly with Fisher-Yates
+    const shuffledCards = shuffleFisherYates(newCards);
 
     setCards(shuffledCards);
     setFlippedCardIds([]);

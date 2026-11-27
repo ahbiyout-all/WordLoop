@@ -22,6 +22,11 @@ import { getCleanKoreanMeaning, getEnglishDefinition, QA_MODES_CONFIG } from '..
 import { DEFAULT_VOCAB } from '../data/defaultVocab';
 import { speechService } from '../services/speechService';
 import { QAModeSelector } from './QAModeSelector';
+import {
+  buildAdaptiveVocabQueue,
+  loadCognitiveStats,
+  selectZpdDistractors,
+} from '../services/cognitiveGameEngine';
 
 interface SwipeMatchGameProps {
   words: VocabItem[];
@@ -78,14 +83,21 @@ export const SwipeMatchGame: React.FC<SwipeMatchGameProps> = ({
   const [swipeDirection, setSwipeDirection] = useState<'right' | 'left' | null>(null);
 
   const startPos = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
+  const wordsRef = useRef(words);
+  wordsRef.current = words;
 
   // Generate new deck
   const initGame = useCallback(() => {
-    const activeWords = words && words.length >= 2 ? words : DEFAULT_VOCAB;
+    const activeWords = wordsRef.current && wordsRef.current.length >= 2 ? wordsRef.current : DEFAULT_VOCAB;
     if (!activeWords || activeWords.length < 2) return;
 
-    const shuffledVocab = [...activeWords].sort(() => Math.random() - 0.5);
-    const selectedVocab = shuffledVocab.slice(0, TOTAL_CARDS_PER_ROUND);
+    const stats = loadCognitiveStats();
+    const selectedVocab = buildAdaptiveVocabQueue(
+      activeWords,
+      stats,
+      TOTAL_CARDS_PER_ROUND,
+      'adaptive'
+    );
 
     const generatedDeck: SwipeCardItem[] = selectedVocab.map((item, idx) => {
       const isCorrectMatch = Math.random() > 0.5;
@@ -104,8 +116,8 @@ export const SwipeMatchGame: React.FC<SwipeMatchGameProps> = ({
         if (isCorrectMatch) {
           candidateText = item.word;
         } else {
-          const others = activeWords.filter((w) => w.word.toLowerCase() !== item.word.toLowerCase());
-          candidateText = others.length > 0 ? others[Math.floor(Math.random() * others.length)].word : item.word;
+          const zpdDistractors = selectZpdDistractors(item, activeWords, stats.zpdLevel, 1, (w) => w.word);
+          candidateText = zpdDistractors[0]?.word || item.word;
         }
         candidateLabel = '제시된 영어 단어가 맞나요?';
         finalIsCorrect = candidateText.toLowerCase() === item.word.toLowerCase();
@@ -115,8 +127,8 @@ export const SwipeMatchGame: React.FC<SwipeMatchGameProps> = ({
         if (isCorrectMatch) {
           candidateText = item.word;
         } else {
-          const others = activeWords.filter((w) => w.word.toLowerCase() !== item.word.toLowerCase());
-          candidateText = others.length > 0 ? others[Math.floor(Math.random() * others.length)].word : item.word;
+          const zpdDistractors = selectZpdDistractors(item, activeWords, stats.zpdLevel, 1, (w) => w.word);
+          candidateText = zpdDistractors[0]?.word || item.word;
         }
         candidateLabel = '제시된 영어 단어가 맞나요?';
         finalIsCorrect = candidateText.toLowerCase() === item.word.toLowerCase();
@@ -127,10 +139,14 @@ export const SwipeMatchGame: React.FC<SwipeMatchGameProps> = ({
         if (isCorrectMatch) {
           candidateText = realMeaning;
         } else {
-          const others = activeWords.filter(
-            (w) => getCleanKoreanMeaning(w) !== realMeaning
+          const zpdDistractors = selectZpdDistractors(
+            item,
+            activeWords,
+            stats.zpdLevel,
+            1,
+            (w) => getCleanKoreanMeaning(w)
           );
-          candidateText = others.length > 0 ? getCleanKoreanMeaning(others[Math.floor(Math.random() * others.length)]) : realMeaning;
+          candidateText = zpdDistractors[0] ? getCleanKoreanMeaning(zpdDistractors[0]) : realMeaning;
         }
         candidateLabel = '제시된 한국어 뜻이 맞나요?';
         finalIsCorrect = candidateText === realMeaning;
@@ -159,11 +175,11 @@ export const SwipeMatchGame: React.FC<SwipeMatchGameProps> = ({
     setIsPaused(false);
     setDragOffset({ x: 0, y: 0 });
     setSwipeDirection(null);
-  }, [words, activeQAMode]);
+  }, [activeQAMode]);
 
   useEffect(() => {
     initGame();
-  }, [initGame]);
+  }, [initGame, gradeName]);
 
   const currentCard = deck[currentIndex];
 

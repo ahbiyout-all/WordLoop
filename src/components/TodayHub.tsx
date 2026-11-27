@@ -16,6 +16,11 @@ import {
   ChevronRight,
   CheckCircle2,
   AlertCircle,
+  Heart,
+  Utensils,
+  Shield,
+  Coins,
+  ArrowUpCircle,
 } from 'lucide-react';
 import { ActiveTab, UserProfile, VocabItem, SentenceItem, Goal, DailyGoalHistory } from '../types';
 import { speechService } from '../services/speechService';
@@ -23,6 +28,16 @@ import { getCleanKoreanMeaning } from '../utils/meaningUtils';
 import { calculateStudentLevel } from '../services/studentGamificationService';
 import { getDailySrsSummary, buildTodayRoutineQueue, formatNextReviewLabel } from '../services/srsEngineService';
 import { getDeviceStorageStats } from '../services/deviceStorageService';
+import {
+  PetCompanionState,
+  PET_UPDATED_EVENT,
+  feedPet,
+  generatePetDialogue,
+  getEvolutionStatus,
+  loadPetState,
+  petInteract,
+} from '../services/petCompanionService';
+import { PetCompanionVisual } from './PetCompanionVisual';
 
 interface TodayHubProps {
   userProfile: UserProfile | null;
@@ -41,6 +56,7 @@ interface TodayHubProps {
   onStartFocusRoutine: () => void;
   onOpenJsonBackup?: () => void;
   onChangeMastery?: (id: string, level: 0 | 1 | 2) => void;
+  onOpenPetSanctuary?: () => void;
 }
 
 export const TodayHub: React.FC<TodayHubProps> = ({
@@ -60,6 +76,7 @@ export const TodayHub: React.FC<TodayHubProps> = ({
   onStartFocusRoutine,
   onOpenJsonBackup,
   onChangeMastery,
+  onOpenPetSanctuary,
 }) => {
   const userName = userProfile?.name || '학습자';
   const streak = userProfile?.streakDays || 1;
@@ -82,15 +99,68 @@ export const TodayHub: React.FC<TodayHubProps> = ({
 
   const completedGoalsCount = goals.filter((g) => g.isCompleted).length;
   const [storageVersion, setStorageVersion] = useState(0);
+  const [petState, setPetState] = useState<PetCompanionState>(() => loadPetState());
+  const [petNotice, setPetNotice] = useState<string | null>(null);
+  const [petBurst, setPetBurst] = useState<boolean>(false);
+  const [petDialogueSeed, setPetDialogueSeed] = useState<number>(0);
+
   useEffect(() => {
     const refresh = () => setStorageVersion((v) => v + 1);
+    const refreshPet = (e: Event) => {
+      const detail = (e as CustomEvent<PetCompanionState>).detail;
+      setPetState(detail || loadPetState());
+    };
     window.addEventListener('wordloop_storage_updated', refresh);
     window.addEventListener('wordloop_device_saved', refresh);
+    window.addEventListener(PET_UPDATED_EVENT, refreshPet);
     return () => {
       window.removeEventListener('wordloop_storage_updated', refresh);
       window.removeEventListener('wordloop_device_saved', refresh);
+      window.removeEventListener(PET_UPDATED_EVENT, refreshPet);
     };
   }, []);
+
+  const evoStatus = useMemo(() => getEvolutionStatus(petState), [petState]);
+  const petDialogue = useMemo(
+    () =>
+      generatePetDialogue({
+        state: petState,
+        dueCount: srsSummary.dueCount,
+        streakDays: streak,
+        masteredCount: srsSummary.masteredCount,
+        featuredWord: todayQueue[0] || null,
+        seedOffset: petDialogueSeed,
+      }),
+    [petState, srsSummary.dueCount, srsSummary.masteredCount, streak, todayQueue, petDialogueSeed]
+  );
+
+  const triggerPetNotice = (msg: string) => {
+    setPetNotice(msg);
+    setTimeout(() => setPetNotice((prev) => (prev === msg ? null : prev)), 2800);
+  };
+
+  const handleQuickPet = () => {
+    const res = petInteract();
+    setPetState(res.state);
+    setPetDialogueSeed((s) => s + 1);
+    setPetBurst(true);
+    setTimeout(() => setPetBurst(false), 240);
+    if (!res.cooldownActive) {
+      triggerPetNotice(`친밀도 +${res.bondGain} · EXP +${res.expGain}`);
+    }
+  };
+
+  const handleQuickFeed = () => {
+    const res = feedPet('snack');
+    setPetState(res.state);
+    if (res.success) {
+      setPetBurst(true);
+      setTimeout(() => setPetBurst(false), 240);
+      setPetDialogueSeed((s) => s + 1);
+    }
+    triggerPetNotice(res.success ? `간식 냠냠! 포만감 ${res.state.fullness}% · EXP +${res.expGain}` : res.message);
+  };
+
   const storageStats = useMemo(
     () => getDeviceStorageStats(),
     [vocabList.length, totalRepeatsCount, storageVersion]
@@ -113,8 +183,8 @@ export const TodayHub: React.FC<TodayHubProps> = ({
     },
     {
       id: 'game',
-      title: '14종 아케이드 게임',
-      desc: '플래시카드 · 버블팝 · 크로스워드',
+      title: '16종 인지 · 아케이드 게임',
+      desc: '메타인지 결투 · 문맥추론 · 플래시카드',
       icon: Gamepad2,
       onClick: () => onNavigateTab('game'),
     },
@@ -296,6 +366,127 @@ export const TodayHub: React.FC<TodayHubProps> = ({
               완료 암기 {srsSummary.masteredCount.toLocaleString()} / {vocabList.length.toLocaleString()}개
             </div>
           </button>
+        </div>
+      </section>
+
+      {/* 1.5. Study Companion Pet Widget (Single-Elevation, Zero-Pill Metadata) */}
+      <section
+        aria-label="학습 펫 동반자 위젯"
+        className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4 sm:p-5 space-y-4"
+      >
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div className="flex items-start sm:items-center gap-3.5 sm:gap-4 min-w-0 flex-1">
+            <PetCompanionVisual
+              stage={petState.stage}
+              roomId={petState.equippedRoom}
+              costume={petState.equippedCostume}
+              petName={petState.name}
+              mode="compact"
+              isReadyToEvolve={evoStatus.isReadyToEvolve}
+              reactionBurst={petBurst}
+              onTapPet={handleQuickPet}
+            />
+
+            <div className="min-w-0 flex-1 space-y-1.5">
+              <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs">
+                <span className="font-display text-base font-extrabold text-slate-900 dark:text-white">
+                  {petState.name}
+                </span>
+                <span className="text-slate-300 dark:text-slate-700">·</span>
+                <span className="font-mono-tabular font-semibold text-indigo-600 dark:text-indigo-400">
+                  Stage {petState.stage}/5 {evoStatus.currentStage.title}
+                </span>
+                <span className="text-slate-300 dark:text-slate-700">·</span>
+                <span className="font-mono-tabular text-amber-600 dark:text-amber-400 font-semibold inline-flex items-center gap-1">
+                  <Coins className="w-3 h-3" />
+                  {petState.coins.toLocaleString()}
+                </span>
+                <span className="text-slate-300 dark:text-slate-700">·</span>
+                <span className="font-mono-tabular text-emerald-600 dark:text-emerald-400 font-semibold inline-flex items-center gap-1">
+                  <Shield className="w-3 h-3" />
+                  보호막 {petState.streakShields}/{evoStatus.currentStage.maxShields}
+                </span>
+              </div>
+
+              {/* Contextual Bilingual Speech */}
+              <div className="flex items-start gap-2">
+                <div className="min-w-0 flex-1">
+                  <p className="text-xs sm:text-sm font-semibold text-slate-800 dark:text-slate-100 leading-snug">
+                    “{petDialogue.en}”
+                  </p>
+                  <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5 truncate">
+                    {petNotice || petDialogue.ko}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => speechService.speakOnce(petDialogue.en)}
+                  aria-label="펫 영어 한마디 발음 듣기"
+                  title="영어 한마디 듣기"
+                  className="min-w-[44px] min-h-[44px] rounded-xl border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 text-indigo-600 dark:text-indigo-400 flex items-center justify-center shrink-0 cursor-pointer"
+                >
+                  <Volume2 className="w-4 h-4" />
+                </button>
+              </div>
+
+              {/* Thin Evolution & Fullness Line */}
+              <div className="flex items-center gap-3 pt-0.5">
+                <div className="flex-1 h-1.5 rounded-full bg-slate-100 dark:bg-slate-800 overflow-hidden">
+                  <div
+                    className={`h-full rounded-full transition-all duration-300 ${
+                      evoStatus.isReadyToEvolve ? 'bg-amber-500' : 'bg-indigo-600 dark:bg-indigo-400'
+                    }`}
+                    style={{ width: `${evoStatus.progressPercent}%` }}
+                  />
+                </div>
+                <span className="text-[11px] font-mono-tabular text-slate-500 dark:text-slate-400 shrink-0">
+                  {evoStatus.isReadyToEvolve
+                    ? '진화 가능!'
+                    : `포만감 ${petState.fullness}% · EXP ${evoStatus.progressPercent}%`}
+                </span>
+              </div>
+            </div>
+          </div>
+
+          {/* Action Buttons (>=44px touch targets) */}
+          <div className="grid grid-cols-3 md:flex md:items-center gap-2 shrink-0">
+            <button
+              type="button"
+              onClick={handleQuickPet}
+              className="min-h-[44px] px-3 rounded-xl border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200 text-xs font-semibold inline-flex items-center justify-center gap-1.5 cursor-pointer"
+            >
+              <Heart className="w-3.5 h-3.5 text-rose-500" />
+              <span>쓰다듬기</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={handleQuickFeed}
+              className="min-h-[44px] px-3 rounded-xl border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200 text-xs font-semibold inline-flex items-center justify-center gap-1.5 cursor-pointer"
+            >
+              <Utensils className="w-3.5 h-3.5 text-amber-500" />
+              <span>간식 ({petState.snacks})</span>
+            </button>
+
+            {onOpenPetSanctuary && (
+              <button
+                type="button"
+                onClick={onOpenPetSanctuary}
+                className={`min-h-[44px] px-3.5 rounded-xl text-xs font-semibold inline-flex items-center justify-center gap-1.5 transition-colors cursor-pointer ${
+                  evoStatus.isReadyToEvolve
+                    ? 'bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold'
+                    : 'bg-slate-900 dark:bg-white hover:opacity-90 text-white dark:text-slate-950'
+                }`}
+              >
+                {evoStatus.isReadyToEvolve ? (
+                  <ArrowUpCircle className="w-4 h-4" />
+                ) : (
+                  <Sparkles className="w-3.5 h-3.5" />
+                )}
+                <span>{evoStatus.isReadyToEvolve ? '진화하기' : '키우기 방'}</span>
+              </button>
+            )}
+          </div>
         </div>
       </section>
 

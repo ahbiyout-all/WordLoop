@@ -29,6 +29,7 @@ import { VocabItem, QAMode } from '../types';
 import { speechService } from '../services/speechService';
 import { getCleanKoreanMeaning, getEnglishDefinition, QA_MODES_CONFIG } from '../utils/meaningUtils';
 import { QAModeSelector } from './QAModeSelector';
+import { buildAdaptiveVocabQueue, loadCognitiveStats } from '../services/cognitiveGameEngine';
 
 interface CrosswordGameProps {
   words: VocabItem[];
@@ -146,6 +147,8 @@ export const CrosswordGame: React.FC<CrosswordGameProps> = ({
   const [checkResults, setCheckResults] = useState<boolean | null>(null);
 
   const inputRefs = useRef<{ [key: string]: HTMLInputElement | null }>({});
+  const wordsRef = useRef(words);
+  wordsRef.current = words;
 
   // Trigger visual ripple/highlight feedback on virtual keyboard
   const triggerKeyVisualFeedback = useCallback((keyName: string) => {
@@ -182,22 +185,23 @@ export const CrosswordGame: React.FC<CrosswordGameProps> = ({
       }))
     );
 
-    // Filter valid words (length 3 to 8, alphabetic)
-    const candidates = words
-      .filter((w) => {
-        const cleaned = w.word.trim().toUpperCase();
-        return /^[A-Z]+$/.test(cleaned) && cleaned.length >= 3 && cleaned.length <= 8;
-      })
-      .map((w) => ({
-        vocabId: w.id,
-        word: w.word.trim().toUpperCase(),
-        meaning: getCleanKoreanMeaning(w),
-        englishDef: getEnglishDefinition(w),
-        partOfSpeech: w.partOfSpeech || 'n.',
-      }));
-
-    // Shuffle candidates
-    const shuffled = [...candidates].sort(() => Math.random() - 0.5);
+    const validVocab = wordsRef.current.filter((w) => {
+      const cleaned = w.word.trim().toUpperCase();
+      return /^[A-Z]+$/.test(cleaned) && cleaned.length >= 3 && cleaned.length <= 8;
+    });
+    const adaptiveCandidates = buildAdaptiveVocabQueue(
+      validVocab,
+      loadCognitiveStats(),
+      Math.min(40, validVocab.length),
+      'adaptive'
+    );
+    const shuffled = adaptiveCandidates.map((w) => ({
+      vocabId: w.id,
+      word: w.word.trim().toUpperCase(),
+      meaning: getCleanKoreanMeaning(w),
+      englishDef: getEnglishDefinition(w),
+      partOfSpeech: w.partOfSpeech || 'n.',
+    }));
     const placedClues: CrosswordClue[] = [];
 
     if (shuffled.length === 0) {
@@ -397,11 +401,11 @@ export const CrosswordGame: React.FC<CrosswordGameProps> = ({
     setIsCompleted(false);
     setScore(0);
     setCheckResults(null);
-  }, [words]);
+  }, []);
 
   useEffect(() => {
     generatePuzzle();
-  }, [generatePuzzle]);
+  }, [generatePuzzle, gradeName]);
 
   // Handle cell selection
   const handleCellClick = (r: number, c: number) => {

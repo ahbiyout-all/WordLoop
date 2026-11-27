@@ -1,8 +1,25 @@
 # WordLoop 프로젝트 작업 로그 (WorkLog)
 
-**최종 작업 일시:** 2026-11-25  
-**현재 버전:** WordLoop v4.6.0 (`40600`)  
+**최종 작업 일시:** 2026-11-27  
+**현재 버전:** WordLoop v4.8.0 (`40800`)  
 **GitHub 리포지토리:** https://github.com/ahbiyout-all/WordLoop
+
+---
+
+## 📌 Milestone: v4.8.0 — 학습 연동 5단계 진화 펫 키우기 시스템 (먹이 · 방 꾸미기 · 코스튬 · 영어 TTS · 스트릭 보호막)
+- **펫 성장 엔진 & 중복 방지 보상 (`src/services/petCompanionService.ts`, `src/App.tsx`)**:
+  - Stage 1~5 진화 상태 머신, 단어/발음/3분 루틴/퀘스트/16종 게임/오디오 마일스톤 학습 보상(`rewardPetStudyAction`), 일일 중복 적립 방지, Web Audio 효과음 및 `evaluateStreakWithPetShield` 자동 스트릭 보호막 발동 구현.
+- **TodayHub 동반자 위젯 & 3탭 키우기 방 UI (`src/components/PetCompanionVisual.tsx`, `src/components/PetSanctuaryModal.tsx`, `src/components/TodayHub.tsx`, `src/components/Navbar.tsx`)**:
+  - 생성형 5단계 펫 일러스트 + 4종 테마 방 배경 + SVG 착용 코스튬 5종(`scholar_glasses`, `cozy_scarf`, `explorer_hat`, `starlight_cape`, `golden_laurel`) 통합, 상황별 영어 응원 TTS 재생 및 IndexedDB/`.json.gz` 백업 병합(`deviceStorageService.ts`, `persistentStorageEngine.ts`) 연동 완료.
+
+---
+
+## 📌 Milestone: v4.7.0 — 학습과학 기반 공통 인지게임 엔진 · 신규 인지게임 2종 · 16종 게임 전수 고도화
+- **공통 인지과학 엔진 & 3단계 비계 UI (`src/services/cognitiveGameEngine.ts`, `src/components/GameScaffoldingBar.tsx`)**:
+  - SM-2 복습 우선순위 인터리빙 큐(`buildAdaptiveVocabQueue`, `buildAdaptiveSentenceQueue`), 반응속도(`ms`)·정답률 윈도우 기반 ZPD 5단계 자동 적응(`getZpdProfile`, `recordCognitiveAttempt`), 유사도/품사 기반 혼동 보기 선택(`selectZpdDistractors`), 3단계 점진적 비계 힌트(`buildFadedScaffoldingHints`) 및 Fisher-Yates 셔플 구현.
+- **신규 인지게임 2종 & 기존 14종 전수 연동 (`MetacognitiveDuelGame.tsx`, `ScaffoldedContextGame.tsx`, `StudentWordGame.tsx`, `FlashcardRecallGame.tsx` 등)**:
+  - **메타인지 확신도 결투**(`확실함/헷갈림` 4사분면 JOL 진단 + 지연 재인출) 및 **문맥·어근 3단계 추론**(마스킹 예문 + 보기 소거) 추가.
+  - 기존 단어 게임 9종·문장 게임 5종 모두 인지 인터리빙 큐·ZPD 난이도·SM-2 실시간 반영(`onUpdateVocabSrs`)과 게임 허브 인지 준비도 HUD를 통합.
 
 ---
 

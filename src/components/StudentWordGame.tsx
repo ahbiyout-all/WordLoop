@@ -33,7 +33,9 @@ import {
   Mic,
   MessageSquare,
   BookOpen,
-  Camera
+  Camera,
+  Compass,
+  Activity
 } from 'lucide-react';
 import { VocabItem, SentenceItem, QAMode, UserProfile } from '../types';
 import { OFFICIAL_CURRICULUM_3000_LIST } from '../data/officialCurriculum3000';
@@ -45,6 +47,23 @@ import { ComboFeedbackOverlay } from './ComboFeedbackOverlay';
 import { getCleanKoreanMeaning, getEnglishDefinition, QA_MODES_CONFIG } from '../utils/meaningUtils';
 import { QAModeSelector } from './QAModeSelector';
 import { LazyLoadingFallback } from './LazyLoadingFallback';
+import { SrsRating, getDailySrsSummary } from '../services/srsEngineService';
+import {
+  buildAdaptiveVocabQueue,
+  buildAdaptiveSentenceQueue,
+  selectZpdDistractors,
+  recordCognitiveAttempt,
+  loadCognitiveStats,
+  calculateCalibrationSummary,
+  getZpdProfile,
+  shuffleFisherYates,
+  playCognitiveCueSound,
+  maskTargetWordInSentence,
+  COGNITIVE_UPDATED_EVENT,
+  WordLoopCognitiveStats,
+} from '../services/cognitiveGameEngine';
+import { GameScaffoldingBar } from './GameScaffoldingBar';
+import { rewardPetStudyAction } from '../services/petCompanionService';
 
 const WordMatchGame = React.lazy(() => import('./WordMatchGame').then((m) => ({ default: m.WordMatchGame })));
 const CrosswordGame = React.lazy(() => import('./CrosswordGame').then((m) => ({ default: m.CrosswordGame })));
@@ -58,6 +77,8 @@ const SentenceSpeedRushGame = React.lazy(() => import('./SentenceGames/SentenceS
 const SentenceTrueFalseGame = React.lazy(() => import('./SentenceGames/SentenceTrueFalseGame').then((m) => ({ default: m.SentenceTrueFalseGame })));
 const SentenceShadowingGame = React.lazy(() => import('./SentenceGames/SentenceShadowingGame').then((m) => ({ default: m.SentenceShadowingGame })));
 const FlashcardRecallGame = React.lazy(() => import('./FlashcardRecallGame').then((m) => ({ default: m.FlashcardRecallGame })));
+const MetacognitiveDuelGame = React.lazy(() => import('./MetacognitiveDuelGame').then((m) => ({ default: m.MetacognitiveDuelGame })));
+const ScaffoldedContextGame = React.lazy(() => import('./ScaffoldedContextGame').then((m) => ({ default: m.ScaffoldedContextGame })));
 import {
   DEFAULT_MOM_PHOTO,
   DEFAULT_DAD_PHOTO,
@@ -68,6 +89,7 @@ interface StudentWordGameProps {
   vocabList: VocabItem[];
   sentenceList?: SentenceItem[];
   onChangeMastery?: (id: string, level: 0 | 1 | 2) => void;
+  onUpdateVocabSrs?: (id: string, rating: SrsRating) => void;
   onSelectGame?: (game: GameType) => void;
   initialGame?: GameType | null;
   userProfile?: UserProfile | null;
@@ -77,6 +99,8 @@ interface StudentWordGameProps {
 
 type SchoolGrade = 'all' | 'elementary' | 'middle' | 'high_sat';
 export type GameType =
+  | 'metacognitive_duel'
+  | 'context_decoder'
   | 'flashcard_recall'
   | 'memory'
   | 'spelling'
@@ -157,6 +181,7 @@ export const StudentWordGame: React.FC<StudentWordGameProps> = ({
   vocabList,
   sentenceList = [],
   onChangeMastery,
+  onUpdateVocabSrs,
   onSelectGame,
   initialGame,
   userProfile,
@@ -170,6 +195,16 @@ export const StudentWordGame: React.FC<StudentWordGameProps> = ({
   const [lastPlayedGame, setLastPlayedGame] = useState<GameType | null>(null);
   const [qaMode, setQaMode] = useState<QAMode>('ko_to_en');
   const [showGameOptionsModal, setShowGameOptionsModal] = useState<boolean>(false);
+  const [focusSrsPriority, setFocusSrsPriority] = useState<boolean>(true);
+  const [cognitiveStats, setCognitiveStats] = useState<WordLoopCognitiveStats>(() =>
+    loadCognitiveStats()
+  );
+
+  useEffect(() => {
+    const syncStats = () => setCognitiveStats(loadCognitiveStats());
+    window.addEventListener(COGNITIVE_UPDATED_EVENT, syncStats);
+    return () => window.removeEventListener(COGNITIVE_UPDATED_EVENT, syncStats);
+  }, []);
 
   // Mandatory Mom & Dad photo registration check
   const hasParentPhotos = Boolean(userProfile?.momPhotoUrl && userProfile?.dadPhotoUrl);
@@ -344,19 +379,53 @@ export const StudentWordGame: React.FC<StudentWordGameProps> = ({
       .join(',');
   }, [vocabList, selectedGrade]);
 
-  // Unified word bank for selected grade (memoized to prevent infinite re-render loops in child games)
+  // Deduplicated word bank for selected grade preserving user SRS IDs
   const currentGradeWords = useMemo(() => {
+    const dedupByWord = (primary: VocabItem[], fallback: VocabItem[]) => {
+      const map = new Map<string, VocabItem>();
+      for (const item of primary) {
+        if (item.word) map.set(item.word.toLowerCase(), item);
+      }
+      for (const item of fallback) {
+        if (item.word && !map.has(item.word.toLowerCase())) {
+          map.set(item.word.toLowerCase(), item);
+        }
+      }
+      return Array.from(map.values());
+    };
+
     if (selectedGrade === 'all') {
       const officialAll = STATIC_OFFICIAL_WORDS_BY_GRADE['all'] || [];
-      return vocabList.length > 0 ? [...vocabList, ...officialAll] : officialAll;
+      return vocabList.length > 0 ? dedupByWord(vocabList, officialAll) : officialAll;
     }
     const filteredUser = vocabList.filter((v) => v.categoryId === selectedGrade);
     if (filteredUser.length >= 8) return filteredUser;
 
     const officialFiltered = STATIC_OFFICIAL_WORDS_BY_GRADE[selectedGrade] || [];
-    return [...filteredUser, ...officialFiltered];
+    return dedupByWord(filteredUser, officialFiltered);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedGrade, userWordsGradeKey, vocabList]);
+  }, [selectedGrade, userWordsGradeKey]);
+
+  const srsSummary = useMemo(() => getDailySrsSummary(vocabList), [vocabList]);
+
+  const adaptiveGradeWords = useMemo(() => {
+    return buildAdaptiveVocabQueue(
+      currentGradeWords,
+      cognitiveStats,
+      currentGradeWords.length,
+      focusSrsPriority ? 'weak_only' : 'adaptive'
+    );
+  }, [currentGradeWords, cognitiveStats, focusSrsPriority]);
+
+  const userSentencesGradeKey = useMemo(() => {
+    if (selectedGrade === 'all') {
+      return sentenceList.map((s) => s.id).join(',');
+    }
+    return sentenceList
+      .filter((s) => s.categoryId === selectedGrade)
+      .map((s) => s.id)
+      .join(',');
+  }, [sentenceList, selectedGrade]);
 
   // Unified sentence bank for selected grade
   const currentGradeSentences = useMemo(() => {
@@ -377,7 +446,38 @@ export const StudentWordGame: React.FC<StudentWordGameProps> = ({
     }
     const merged = Array.from(map.values());
     return merged.length > 0 ? merged : officialFiltered;
-  }, [selectedGrade, sentenceList]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedGrade, userSentencesGradeKey]);
+
+  const adaptiveGradeSentences = useMemo(
+    () => buildAdaptiveSentenceQueue(currentGradeSentences),
+    [currentGradeSentences]
+  );
+
+  // Shared cognitive telemetry + SM-2 SRS bridge for all word games
+  const handleSharedGameMastery = useCallback(
+    (id: string, level: 0 | 1 | 2) => {
+      const target =
+        vocabList.find((v) => v.id === id) ||
+        currentGradeWords.find((v) => v.id === id);
+      const isCorrect = level >= 1;
+      const evalResult = recordCognitiveAttempt({
+        itemId: id,
+        isCorrect,
+        latencyMs: cognitiveStats.avgLatencyMs || 2400,
+        hintTierUsed: level === 1 ? 2 : 0,
+        confidence: level >= 1 ? 'sure' : 'unsure',
+        srsState: target?.srs,
+        fallbackMastery: target?.masteryLevel ?? 0,
+      });
+      if (onUpdateVocabSrs && target && vocabList.some((v) => v.id === id)) {
+        onUpdateVocabSrs(id, evalResult.srsRating);
+      } else if (onChangeMastery) {
+        onChangeMastery(id, level);
+      }
+    },
+    [vocabList, currentGradeWords, cognitiveStats.avgLatencyMs, onUpdateVocabSrs, onChangeMastery]
+  );
 
   // High Scores in LocalStorage
   const getHighScoreKey = useCallback((game: GameType, grade: SchoolGrade) => `wordloop_game_score_${game}_${grade}`, []);
@@ -392,8 +492,9 @@ export const StudentWordGame: React.FC<StudentWordGameProps> = ({
   }, [activeGame, selectedGrade, getHighScoreKey]);
 
   const updateHighScore = useCallback((score: number) => {
-    // Record game done for Daily 3-minute Quest
+    // Record game done for Daily 3-minute Quest & Pet Companion study rewards (cooldown-guarded)
     recordGameDone();
+    rewardPetStudyAction('game_round', { score });
     const saved = localStorage.getItem(getHighScoreKey(activeGame, selectedGrade));
     const currentMax = saved ? parseInt(saved, 10) : 0;
     if (score > currentMax) {
@@ -403,7 +504,7 @@ export const StudentWordGame: React.FC<StudentWordGameProps> = ({
   }, [activeGame, selectedGrade, getHighScoreKey]);
 
   // ==========================================
-  // GAME 2: SPELLING UNSCRAMBLE BUBBLE (알파벳 맞추기)
+  // GAME 2: SPELLING UNSCRAMBLE BUBBLE (ZPD + 3-Tier Scaffolding)
   // ==========================================
   const [spellingPool, setSpellingPool] = useState<VocabItem[]>([]);
   const [spellingIndex, setSpellingIndex] = useState(0);
@@ -411,38 +512,46 @@ export const StudentWordGame: React.FC<StudentWordGameProps> = ({
   const [userLetters, setUserLetters] = useState<string[]>([]);
   const [availableBubbles, setAvailableBubbles] = useState<{ id: string; letter: string; isUsed: boolean }[]>([]);
   const [spellingResult, setSpellingResult] = useState<'idle' | 'correct' | 'wrong'>('idle');
-  const [showSpellingHint, setShowSpellingHint] = useState(false);
+  const [spellingHintTier, setSpellingHintTier] = useState<0 | 1 | 2 | 3>(0);
+  const [spellingFluencyNote, setSpellingFluencyNote] = useState<string | null>(null);
+  const spellingStartRef = useRef<number>(Date.now());
 
   const currentSpellingItem = useMemo(() => {
     if (spellingPool.length > 0) {
       return spellingPool[spellingIndex % spellingPool.length];
     }
-    return currentGradeWords[spellingIndex % currentGradeWords.length];
-  }, [spellingPool, spellingIndex, currentGradeWords]);
+    return adaptiveGradeWords[spellingIndex % (adaptiveGradeWords.length || 1)];
+  }, [spellingPool, spellingIndex, adaptiveGradeWords]);
 
   const initSpellingRound = (item: VocabItem) => {
     if (!item) return;
     const cleanWord = item.word.replace(/[^a-zA-Z]/g, '').toLowerCase();
     const letters = cleanWord.split('');
 
-    // Add 1 or 2 extra random letters for difficulty in Middle/High
-    if (selectedGrade !== 'elementary' && letters.length <= 6) {
-      const extraChars = 'abcdefghijklmnopqrstuvwxyz';
+    const zpd = getZpdProfile(cognitiveStats.zpdLevel);
+    const extraChars = 'abcdefghijklmnopqrstuvwxyz';
+    const noiseCount =
+      selectedGrade === 'elementary'
+        ? Math.min(1, zpd.extraSpellingNoise)
+        : zpd.extraSpellingNoise;
+    for (let k = 0; k < noiseCount && letters.length < 10; k++) {
       letters.push(extraChars[Math.floor(Math.random() * extraChars.length)]);
     }
 
-    const bubbles = letters
-      .map((char, i) => ({
+    const bubbles = shuffleFisherYates(
+      letters.map((char, i) => ({
         id: `${char}-${i}-${Math.random()}`,
         letter: char,
         isUsed: false,
       }))
-      .sort(() => 0.5 - Math.random());
+    );
 
     setAvailableBubbles(bubbles);
     setUserLetters([]);
     setSpellingResult('idle');
-    setShowSpellingHint(false);
+    setSpellingHintTier(0);
+    setSpellingFluencyNote(null);
+    spellingStartRef.current = Date.now();
   };
 
   const handleBubbleClick = (bubbleId: string, letter: string) => {
@@ -483,10 +592,23 @@ export const StudentWordGame: React.FC<StudentWordGameProps> = ({
     if (!currentSpellingItem) return;
     const targetWord = currentSpellingItem.word.replace(/[^a-zA-Z]/g, '').toLowerCase();
     const userWord = userLetters.join('').toLowerCase();
+    const latencyMs = Date.now() - spellingStartRef.current;
 
     if (userWord === targetWord) {
       setSpellingResult('correct');
-      const addPts = showSpellingHint ? 10 : 20;
+      const evalRes = recordCognitiveAttempt({
+        itemId: currentSpellingItem.id,
+        isCorrect: true,
+        latencyMs,
+        hintTierUsed: spellingHintTier,
+        confidence: spellingHintTier <= 1 ? 'sure' : 'unsure',
+        srsState: currentSpellingItem.srs,
+        fallbackMastery: currentSpellingItem.masteryLevel ?? 0,
+      });
+      setSpellingFluencyNote(`${evalRes.fluencyLabel} · SRS ${evalRes.srsRating.toUpperCase()}`);
+      playCognitiveCueSound(evalRes.zpdChanged === 'up' ? 'zpd_up' : 'correct');
+
+      const addPts = Math.max(8, 25 - spellingHintTier * 5);
       setSpellingScore((prev) => {
         const nextScore = prev + addPts;
         updateHighScore(nextScore);
@@ -494,12 +616,27 @@ export const StudentWordGame: React.FC<StudentWordGameProps> = ({
       });
       speechService.playItem(currentSpellingItem.id, currentSpellingItem.word, undefined, 1);
 
-      if (onChangeMastery) {
-        onChangeMastery(currentSpellingItem.id, 2);
+      if (onUpdateVocabSrs && vocabList.some((v) => v.id === currentSpellingItem.id)) {
+        onUpdateVocabSrs(currentSpellingItem.id, evalRes.srsRating);
+      } else if (onChangeMastery) {
+        onChangeMastery(currentSpellingItem.id, evalRes.nextMastery);
       }
     } else {
       setSpellingResult('wrong');
-      setTimeout(() => setSpellingResult('idle'), 1000);
+      playCognitiveCueSound('illusion');
+      recordCognitiveAttempt({
+        itemId: currentSpellingItem.id,
+        isCorrect: false,
+        latencyMs,
+        hintTierUsed: spellingHintTier,
+        confidence: 'sure',
+        srsState: currentSpellingItem.srs,
+        fallbackMastery: currentSpellingItem.masteryLevel ?? 0,
+      });
+      if (onUpdateVocabSrs && vocabList.some((v) => v.id === currentSpellingItem.id)) {
+        onUpdateVocabSrs(currentSpellingItem.id, 'again');
+      }
+      setTimeout(() => setSpellingResult('idle'), 900);
     }
   };
 
@@ -507,7 +644,12 @@ export const StudentWordGame: React.FC<StudentWordGameProps> = ({
     let pool = spellingPool;
     let nextIdx = spellingIndex + 1;
     if (pool.length === 0 || nextIdx >= pool.length) {
-      pool = [...currentGradeWords].sort(() => 0.5 - Math.random());
+      pool = buildAdaptiveVocabQueue(
+        currentGradeWords,
+        loadCognitiveStats(),
+        currentGradeWords.length,
+        focusSrsPriority ? 'weak_only' : 'adaptive'
+      );
       setSpellingPool(pool);
       nextIdx = 0;
     }
@@ -521,7 +663,12 @@ export const StudentWordGame: React.FC<StudentWordGameProps> = ({
   const shuffleToNewRandomWord = () => {
     let pool = spellingPool;
     if (pool.length <= 1) {
-      pool = [...currentGradeWords].sort(() => 0.5 - Math.random());
+      pool = buildAdaptiveVocabQueue(
+        currentGradeWords,
+        loadCognitiveStats(),
+        currentGradeWords.length,
+        focusSrsPriority ? 'weak_only' : 'adaptive'
+      );
       setSpellingPool(pool);
     }
     const nextIdx = (spellingIndex + 1) % (pool.length || 1);
@@ -533,7 +680,7 @@ export const StudentWordGame: React.FC<StudentWordGameProps> = ({
   };
 
   // ==========================================
-  // GAME 3: SPEED TIME-ATTACK CHALLENGE (스피드 타임어택)
+  // GAME 3: SPEED TIME-ATTACK CHALLENGE (ZPD Latency + Distractors)
   // ==========================================
   const [speedPool, setSpeedPool] = useState<VocabItem[]>([]);
   const [speedIndex, setSpeedIndex] = useState(0);
@@ -543,7 +690,9 @@ export const StudentWordGame: React.FC<StudentWordGameProps> = ({
   const [isSpeedPlaying, setIsSpeedPlaying] = useState(false);
   const [isSpeedGameOver, setIsSpeedGameOver] = useState(false);
   const [speedOptions, setSpeedOptions] = useState<string[]>([]);
+  const [speedMissedItems, setSpeedMissedItems] = useState<VocabItem[]>([]);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
+  const speedQuestionStartRef = useRef<number>(Date.now());
 
   const currentSpeedItem = useMemo(() => {
     if (speedPool.length > 0) {
@@ -557,66 +706,75 @@ export const StudentWordGame: React.FC<StudentWordGameProps> = ({
     const sourcePool = poolWords && poolWords.length >= 4 ? poolWords : currentGradeWords;
     if (qaMode === 'ko_to_en') {
       const correct = target.word;
-      const otherWords = Array.from(
-        new Set(
-          sourcePool
-            .map((v) => v.word)
-            .filter((w) => w && w.toLowerCase() !== correct.toLowerCase())
-        )
-      ).sort(() => 0.5 - Math.random()).slice(0, 3);
+      const distractors = selectZpdDistractors(
+        target,
+        sourcePool,
+        cognitiveStats.zpdLevel,
+        3,
+        (v) => v.word
+      );
       return {
         prompt: `"${getCleanKoreanMeaning(target)}"`,
         subtext: '한국어 뜻에 맞는 올바른 영단어는?',
-        options: [correct, ...otherWords].sort(() => 0.5 - Math.random()),
+        options: shuffleFisherYates([correct, ...distractors.map((d) => d.word)]),
         correct,
       };
     } else if (qaMode === 'en_def_to_en') {
       const correct = target.word;
-      const otherWords = Array.from(
-        new Set(
-          sourcePool
-            .map((v) => v.word)
-            .filter((w) => w && w.toLowerCase() !== correct.toLowerCase())
-        )
-      ).sort(() => 0.5 - Math.random()).slice(0, 3);
+      const distractors = selectZpdDistractors(
+        target,
+        sourcePool,
+        cognitiveStats.zpdLevel,
+        3,
+        (v) => v.word
+      );
       return {
         prompt: `"${getEnglishDefinition(target)}"`,
         subtext: '영영 정의에 맞는 올바른 영단어는?',
-        options: [correct, ...otherWords].sort(() => 0.5 - Math.random()),
+        options: shuffleFisherYates([correct, ...distractors.map((d) => d.word)]),
         correct,
       };
     } else {
-      // en_to_ko
       const correct = getCleanKoreanMeaning(target);
-      const otherMeanings = Array.from(
-        new Set(
-          sourcePool
-            .map((v) => getCleanKoreanMeaning(v))
-            .filter((m) => m && m !== correct)
-        )
-      ).sort(() => 0.5 - Math.random()).slice(0, 3);
+      const distractors = selectZpdDistractors(
+        target,
+        sourcePool,
+        cognitiveStats.zpdLevel,
+        3,
+        (v) => getCleanKoreanMeaning(v)
+      );
       return {
         prompt: target.word,
         subtext: target.ipa ? `[${target.ipa}] 뜻에 맞는 올바른 한국어는?` : '단어 뜻에 맞는 올바른 한국어는?',
-        options: [correct, ...otherMeanings].sort(() => 0.5 - Math.random()),
+        options: shuffleFisherYates([correct, ...distractors.map((d) => getCleanKoreanMeaning(d))]),
         correct,
       };
     }
-  }, [currentGradeWords, qaMode]);
+  }, [currentGradeWords, qaMode, cognitiveStats.zpdLevel]);
 
-  const startSpeedGame = () => {
-    const shuffled = [...currentGradeWords].sort(() => 0.5 - Math.random());
-    setSpeedPool(shuffled);
+  const startSpeedGame = (customSubset?: VocabItem[]) => {
+    const zpd = getZpdProfile(loadCognitiveStats().zpdLevel);
+    const curated = customSubset && customSubset.length >= 4
+      ? shuffleFisherYates(customSubset)
+      : buildAdaptiveVocabQueue(
+          currentGradeWords,
+          loadCognitiveStats(),
+          currentGradeWords.length,
+          focusSrsPriority ? 'weak_only' : 'adaptive'
+        );
+    setSpeedPool(curated);
+    setSpeedMissedItems([]);
     setIsSpeedPlaying(true);
     setIsSpeedGameOver(false);
     setSpeedScore(0);
     setSpeedCombo(0);
-    setTimeLeft(25);
+    setTimeLeft(Math.round(25 * zpd.timeBonusFactor));
     setSpeedIndex(0);
+    speedQuestionStartRef.current = Date.now();
 
-    const firstItem = shuffled[0] || currentGradeWords[0];
+    const firstItem = curated[0] || currentGradeWords[0];
     if (firstItem) {
-      const q = getSpeedTargetAndOptions(firstItem, shuffled);
+      const q = getSpeedTargetAndOptions(firstItem, currentGradeWords);
       setSpeedOptions(q.options);
     }
   };
@@ -650,10 +808,27 @@ export const StudentWordGame: React.FC<StudentWordGameProps> = ({
   const handleSpeedAnswer = (selectedChoice: string) => {
     if (!isSpeedPlaying || !currentSpeedItem) return;
 
-    const currentQ = getSpeedTargetAndOptions(currentSpeedItem, speedPool);
+    const latencyMs = Date.now() - speedQuestionStartRef.current;
+    const currentQ = getSpeedTargetAndOptions(currentSpeedItem, currentGradeWords);
+    const isCorrect = selectedChoice === currentQ.correct;
 
-    if (selectedChoice === currentQ.correct) {
-      // Correct!
+    const evalRes = recordCognitiveAttempt({
+      itemId: currentSpeedItem.id,
+      isCorrect,
+      latencyMs,
+      hintTierUsed: 0,
+      confidence: 'sure',
+      srsState: currentSpeedItem.srs,
+      fallbackMastery: currentSpeedItem.masteryLevel ?? 0,
+    });
+
+    if (onUpdateVocabSrs && vocabList.some((v) => v.id === currentSpeedItem.id)) {
+      onUpdateVocabSrs(currentSpeedItem.id, evalRes.srsRating);
+    } else if (onChangeMastery) {
+      onChangeMastery(currentSpeedItem.id, isCorrect ? evalRes.nextMastery : 0);
+    }
+
+    if (isCorrect) {
       const comboMultiplier = Math.min(speedCombo + 1, 5);
       const pts = 10 * comboMultiplier;
       const nextS = speedScore + pts;
@@ -662,36 +837,37 @@ export const StudentWordGame: React.FC<StudentWordGameProps> = ({
       updateHighScore(nextS);
       setSpeedCombo(nextCombo);
 
-      // Student Gamification: Trigger Confetti on milestones!
       if (nextCombo === 3 || nextCombo === 5 || nextCombo % 5 === 0) {
         confettiService.fire({ particleCount: 35, spread: 60 });
       }
-
-      // Bonus time for streak
       if (nextCombo % 3 === 0) {
         setTimeLeft((prev) => Math.min(prev + 3, 30));
       }
-
-      if (onChangeMastery) {
-        onChangeMastery(currentSpeedItem.id, 2);
-      }
     } else {
-      // Wrong
       setSpeedCombo(0);
       setTimeLeft((prev) => Math.max(prev - 2, 0));
+      setSpeedMissedItems((prev) =>
+        prev.some((p) => p.id === currentSpeedItem.id) ? prev : [...prev, currentSpeedItem]
+      );
     }
 
     let pool = speedPool;
     let nextIdx = speedIndex + 1;
     if (pool.length === 0 || nextIdx >= pool.length) {
-      pool = [...currentGradeWords].sort(() => 0.5 - Math.random());
+      pool = buildAdaptiveVocabQueue(
+        currentGradeWords,
+        loadCognitiveStats(),
+        currentGradeWords.length,
+        focusSrsPriority ? 'weak_only' : 'adaptive'
+      );
       setSpeedPool(pool);
       nextIdx = 0;
     }
     setSpeedIndex(nextIdx);
+    speedQuestionStartRef.current = Date.now();
     const nextItem = pool[nextIdx];
     if (nextItem) {
-      const nextQ = getSpeedTargetAndOptions(nextItem, pool);
+      const nextQ = getSpeedTargetAndOptions(nextItem, currentGradeWords);
       setSpeedOptions(nextQ.options);
     }
   };
@@ -699,12 +875,17 @@ export const StudentWordGame: React.FC<StudentWordGameProps> = ({
   // Re-init current game whenever grade or game tab changes
   useEffect(() => {
     if (activeGame === 'spelling') {
-      const shuffled = [...currentGradeWords].sort(() => 0.5 - Math.random());
-      setSpellingPool(shuffled);
+      const curated = buildAdaptiveVocabQueue(
+        currentGradeWords,
+        loadCognitiveStats(),
+        currentGradeWords.length,
+        focusSrsPriority ? 'weak_only' : 'adaptive'
+      );
+      setSpellingPool(curated);
       setSpellingIndex(0);
       setSpellingScore(0);
-      if (shuffled.length > 0) {
-        initSpellingRound(shuffled[0]);
+      if (curated.length > 0) {
+        initSpellingRound(curated[0]);
       }
     } else if (activeGame === 'speed') {
       setIsSpeedPlaying(false);
@@ -717,10 +898,24 @@ export const StudentWordGame: React.FC<StudentWordGameProps> = ({
 
   const wordGamesCatalog = [
     {
+      id: 'metacognitive_duel' as GameType,
+      title: '🧠 메타인지 확신도 결투',
+      badge: 'JOL 캘리브레이션',
+      desc: '확신도 체크로 아는 착각과 운 좋은 정답을 잡아내는 인지과학 게임',
+      icon: <Activity className="w-6 h-6 text-indigo-500" />,
+    },
+    {
+      id: 'context_decoder' as GameType,
+      title: '🧬 문맥·어근 3단계 추론',
+      badge: '단계적 비계 추론',
+      desc: '문맥 예문과 음운·형태소 단서를 단계별로 열며 단어를 추론',
+      icon: <Compass className="w-6 h-6 text-teal-500" />,
+    },
+    {
       id: 'flashcard_recall' as GameType,
       title: '📇 플래시카드 리콜',
       badge: '4지선다 리콜',
-      desc: '제시된 영단어의 정확한 한국어 뜻을 4지선다에서 선택하며 암기 레벨 승급',
+      desc: 'SM-2 복습 우선순위에 맞춘 4지선다 인출 연습 및 암기 승급',
       icon: <BookOpen className="w-6 h-6 text-emerald-500" />,
     },
     {
@@ -734,14 +929,14 @@ export const StudentWordGame: React.FC<StudentWordGameProps> = ({
       id: 'spelling' as GameType,
       title: '✏️ 스펠링 완성 퀴즈',
       badge: '스펠링 빌더',
-      desc: '흩어진 알파벳 블록을 조합하여 정확한 단어를 완성',
+      desc: '3단계 비계 힌트와 함께 알파벳 블록을 조합해 단어 완성',
       icon: <Brain className="w-6 h-6 text-emerald-500" />,
     },
     {
       id: 'speed' as GameType,
       title: '⚡ 스피드 타임어택',
       badge: '순발력 25초',
-      desc: '제한시간 동안 최대한 많은 정답을 맞추는 스피드 게임',
+      desc: 'ZPD 적응형 보기와 함께 반응속도 자동화를 기르는 타임어택',
       icon: <Timer className="w-6 h-6 text-rose-500" />,
     },
     {
@@ -762,7 +957,7 @@ export const StudentWordGame: React.FC<StudentWordGameProps> = ({
       id: 'swipe' as GameType,
       title: '👆 단어 스와이프 매칭',
       badge: '좌우 스와이프',
-      desc: '단어와 뜻의 일치 여부를 좌우 스와이프로 빠르게 판단',
+      desc: '유사 혼동 보기를 좌우 스와이프로 빠르게 판별',
       icon: <Flame className="w-6 h-6 text-orange-500" />,
     },
     {
@@ -776,7 +971,7 @@ export const StudentWordGame: React.FC<StudentWordGameProps> = ({
       id: 'rhythm' as GameType,
       title: '🎵 비트 타임어택',
       badge: '리듬 액션',
-      desc: '신나는 비트 리듬에 맞춰 단어를 맞추는 리듬 게임',
+      desc: 'ZPD 비트 속도에 맞춰 내려오는 단어를 맞히는 리듬 게임',
       icon: <Music className="w-6 h-6 text-pink-500" />,
     },
   ];
@@ -822,6 +1017,8 @@ export const StudentWordGame: React.FC<StudentWordGameProps> = ({
   const allGamesCatalog = [...wordGamesCatalog, ...sentenceGamesCatalog];
   const activeCatalog = gameCategory === 'word' ? wordGamesCatalog : sentenceGamesCatalog;
   const activeGameItem = allGamesCatalog.find((g) => g.id === activeGame);
+  const zpdProfile = getZpdProfile(cognitiveStats.zpdLevel);
+  const calibrationSummary = calculateCalibrationSummary(cognitiveStats);
 
   return (
     <>
@@ -831,22 +1028,18 @@ export const StudentWordGame: React.FC<StudentWordGameProps> = ({
         <div className="p-3 sm:p-3.5 rounded-2xl bg-gradient-to-br from-indigo-900 via-slate-900 to-purple-950 text-white shadow-md border border-indigo-500/20 space-y-2">
           <div className="flex items-center justify-between gap-2">
             <div>
-              <div className="flex items-center gap-2">
-                <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-amber-400 text-slate-950 uppercase tracking-wider flex items-center gap-1">
-                  <Sparkles className="w-3 h-3" />
-                  학생 눈높이 어휘 & 문장 챌린지
-                </span>
-                <span className="text-[11px] text-indigo-200">클릭 시 100dvh 전체화면 실행</span>
-              </div>
-              <h2 className="text-base sm:text-lg font-black tracking-tight mt-0.5">🎮 신나는 영단어·문장 게임 천국</h2>
+              <p className="text-[11px] text-indigo-200 font-semibold">
+                인출 연습 · 간격 반복 · ZPD 적응형 엔진
+              </p>
+              <h2 className="text-base sm:text-lg font-black tracking-tight mt-0.5">🎮 영단어·문장 인지 학습 게임</h2>
             </div>
 
-            {/* High Score Badge */}
+            {/* High Score Display */}
             <div className="bg-white/10 px-2.5 py-1 rounded-xl border border-white/20 flex items-center gap-2 shrink-0">
               <Trophy className="w-4 h-4 text-amber-300" />
               <div className="text-right">
                 <span className="text-[9px] text-indigo-200 block leading-tight">최고 기록</span>
-                <span className="text-xs font-black text-amber-300 leading-tight">{highScore}점</span>
+                <span className="text-xs font-black font-mono tabular-nums text-amber-300 leading-tight">{highScore}점</span>
               </div>
             </div>
           </div>
@@ -855,7 +1048,7 @@ export const StudentWordGame: React.FC<StudentWordGameProps> = ({
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5 pt-1.5 border-t border-indigo-500/25">
             <button
               onClick={() => setSelectedGrade('all')}
-              className={`py-1.5 px-2 rounded-xl font-extrabold text-[11px] transition-all flex items-center justify-center gap-1 ${
+              className={`min-h-[36px] py-1.5 px-2 rounded-xl font-extrabold text-[11px] transition-all flex items-center justify-center gap-1 cursor-pointer ${
                 selectedGrade === 'all'
                   ? 'bg-amber-400 text-slate-950 shadow-sm ring-1 ring-amber-300 font-black'
                   : 'bg-white/10 text-slate-200 hover:bg-white/20'
@@ -865,7 +1058,7 @@ export const StudentWordGame: React.FC<StudentWordGameProps> = ({
             </button>
             <button
               onClick={() => setSelectedGrade('elementary')}
-              className={`py-1.5 px-2 rounded-xl font-extrabold text-[11px] transition-all flex items-center justify-center gap-1 ${
+              className={`min-h-[36px] py-1.5 px-2 rounded-xl font-extrabold text-[11px] transition-all flex items-center justify-center gap-1 cursor-pointer ${
                 selectedGrade === 'elementary'
                   ? 'bg-emerald-500 text-slate-950 shadow-sm font-black'
                   : 'bg-white/10 text-slate-200 hover:bg-white/20'
@@ -875,7 +1068,7 @@ export const StudentWordGame: React.FC<StudentWordGameProps> = ({
             </button>
             <button
               onClick={() => setSelectedGrade('middle')}
-              className={`py-1.5 px-2 rounded-xl font-extrabold text-[11px] transition-all flex items-center justify-center gap-1 ${
+              className={`min-h-[36px] py-1.5 px-2 rounded-xl font-extrabold text-[11px] transition-all flex items-center justify-center gap-1 cursor-pointer ${
                 selectedGrade === 'middle'
                   ? 'bg-blue-500 text-white shadow-sm font-black'
                   : 'bg-white/10 text-slate-200 hover:bg-white/20'
@@ -885,7 +1078,7 @@ export const StudentWordGame: React.FC<StudentWordGameProps> = ({
             </button>
             <button
               onClick={() => setSelectedGrade('high_sat')}
-              className={`py-1.5 px-2 rounded-xl font-extrabold text-[11px] transition-all flex items-center justify-center gap-1 ${
+              className={`min-h-[36px] py-1.5 px-2 rounded-xl font-extrabold text-[11px] transition-all flex items-center justify-center gap-1 cursor-pointer ${
                 selectedGrade === 'high_sat'
                   ? 'bg-purple-500 text-white shadow-sm font-black'
                   : 'bg-white/10 text-slate-200 hover:bg-white/20'
@@ -896,39 +1089,67 @@ export const StudentWordGame: React.FC<StudentWordGameProps> = ({
           </div>
         </div>
 
-        {/* Category Mode Switcher: 🔤 단어 게임 (9종) vs 💬 문장 게임 (5종) */}
+        {/* Cognitive Readiness & ZPD Telemetry Strip (Zero-pill inline metadata) */}
+        <div className="p-3 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 flex flex-wrap items-center justify-between gap-2 text-xs">
+          <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-slate-700 dark:text-slate-300 font-mono tabular-nums">
+            <span className="font-bold text-indigo-600 dark:text-indigo-400">
+              {zpdProfile.label}
+            </span>
+            <span>·</span>
+            <span>복습 대기 {srsSummary.dueCount}개</span>
+            <span>·</span>
+            <span>평균 인출 {(cognitiveStats.avgLatencyMs / 1000).toFixed(1)}s</span>
+            {calibrationSummary.totalCalibrated > 0 && (
+              <>
+                <span>·</span>
+                <span>메타인지 보정 {calibrationSummary.calibrationAccuracyPct}%</span>
+              </>
+            )}
+          </div>
+
+          <button
+            type="button"
+            onClick={() => setFocusSrsPriority((v) => !v)}
+            className={`min-h-[36px] px-3 py-1 rounded-xl font-bold text-[11px] transition-colors cursor-pointer ${
+              focusSrsPriority
+                ? 'bg-indigo-600 text-white'
+                : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300'
+            }`}
+          >
+            {focusSrsPriority ? 'SRS 복습·취약 우선 출제 ON' : '일반 균형 출제'}
+          </button>
+        </div>
+
+        {/* Category Mode Switcher: 단어 게임 (11종) vs 문장 게임 (5종) */}
         <div className="flex items-center gap-2 p-1 rounded-2xl bg-slate-200/80 dark:bg-slate-800/80 border border-slate-300 dark:border-slate-700 shadow-inner">
           <button
             onClick={() => setGameCategory('word')}
-            className={`flex-1 py-2 px-3 rounded-xl font-black text-xs sm:text-sm transition-all flex items-center justify-center gap-1.5 ${
+            className={`min-h-[42px] flex-1 py-2 px-3 rounded-xl font-black text-xs sm:text-sm transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
               gameCategory === 'word'
                 ? 'bg-white dark:bg-slate-900 text-indigo-600 dark:text-indigo-400 shadow-md ring-1 ring-black/5 dark:ring-white/10'
                 : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
             }`}
           >
-            <span>🔤 단어 게임 (9종)</span>
+            <span>🔤 단어 게임 (11종)</span>
           </button>
           <button
             onClick={() => setGameCategory('sentence')}
-            className={`flex-1 py-2 px-3 rounded-xl font-black text-xs sm:text-sm transition-all flex items-center justify-center gap-1.5 ${
+            className={`min-h-[42px] flex-1 py-2 px-3 rounded-xl font-black text-xs sm:text-sm transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
               gameCategory === 'sentence'
                 ? 'bg-white dark:bg-slate-900 text-purple-600 dark:text-purple-400 shadow-md ring-1 ring-black/5 dark:ring-white/10'
                 : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
             }`}
           >
             <span>💬 문장 게임 (5종)</span>
-            <span className="px-1.5 py-0.5 rounded-full text-[9px] font-black bg-purple-600 text-white">
-              🎲 랜덤 출제
-            </span>
           </button>
         </div>
 
-        {/* Sentence Game Random Delivery Banner */}
+        {/* Sentence Game Delivery Banner */}
         {gameCategory === 'sentence' && (
-          <div className="px-3.5 py-2.5 rounded-2xl bg-gradient-to-r from-purple-500/10 via-indigo-500/10 to-pink-500/10 border border-purple-500/20 flex items-center justify-between gap-2 text-xs">
+          <div className="px-3.5 py-2.5 rounded-2xl bg-purple-500/10 border border-purple-500/20 flex items-center justify-between gap-2 text-xs">
             <div className="flex items-center gap-2 text-purple-700 dark:text-purple-300 font-bold">
               <Sparkles className="w-4 h-4 text-amber-500 shrink-0" />
-              <span>🎲 500+ 고품질 실전 예문이 무작위 랜덤으로 출제되어 풍부한 응용력을 기를 수 있습니다!</span>
+              <span>미암기·학습중·완벽암기 예문이 인지 인터리빙 비율로 출제됩니다.</span>
             </div>
           </div>
         )}
@@ -953,20 +1174,10 @@ export const StudentWordGame: React.FC<StudentWordGameProps> = ({
                     <div className="p-2 rounded-xl bg-slate-100 dark:bg-slate-800 group-hover:scale-105 transition-transform">
                       {item.icon}
                     </div>
-                    <div className="flex items-center gap-1">
-                      {!hasParentPhotos && (
-                        <span className="px-1.5 py-0.5 rounded-md text-[9px] font-extrabold bg-rose-500/15 text-rose-600 dark:text-rose-400 border border-rose-500/30 flex items-center gap-0.5">
-                          <span>📸 사진 필요</span>
-                        </span>
-                      )}
-                      {isRecentlyPlayed && (
-                        <span className="px-1.5 py-0.5 rounded-md text-[9px] font-black bg-emerald-500 text-slate-950 shadow-xs">
-                          방금 플레이
-                        </span>
-                      )}
-                      <span className="px-1.5 py-0.5 rounded-md text-[9px] font-bold bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border border-indigo-500/20">
-                        {item.badge}
-                      </span>
+                    <div className="text-[10px] font-bold text-slate-500 dark:text-slate-400 text-right truncate">
+                      {!hasParentPhotos && <span className="text-rose-500 mr-1">사진 필요 ·</span>}
+                      {isRecentlyPlayed && <span className="text-emerald-600 dark:text-emerald-400 mr-1">최근 ·</span>}
+                      <span>{item.badge}</span>
                     </div>
                   </div>
 
@@ -1066,10 +1277,11 @@ export const StudentWordGame: React.FC<StudentWordGameProps> = ({
       <Suspense fallback={<LazyLoadingFallback label="미니게임을 불러오는 중입니다..." />}>
 
       {/* ==================================================== */}
-      {/* GAME 0 UI: FLASHCARD RECALL (4지선다 리콜 & 암기 승급) */}
+      {/* NEW COGNITIVE GAME A: METACOGNITIVE CONFIDENCE DUEL  */}
       {/* ==================================================== */}
-      {activeGame === 'flashcard_recall' && (
-        <FlashcardRecallGame
+      {activeGame === 'metacognitive_duel' && (
+        <MetacognitiveDuelGame
+          key={selectedGrade}
           words={currentGradeWords}
           gradeName={
             selectedGrade === 'all'
@@ -1083,7 +1295,56 @@ export const StudentWordGame: React.FC<StudentWordGameProps> = ({
           qaMode={qaMode}
           onChangeQAMode={setQaMode}
           onUpdateHighScore={updateHighScore}
-          onChangeMastery={onChangeMastery}
+          onChangeMastery={handleSharedGameMastery}
+          onUpdateVocabSrs={onUpdateVocabSrs}
+          onQuit={handleCloseGame}
+        />
+      )}
+
+      {/* ==================================================== */}
+      {/* NEW COGNITIVE GAME B: SCAFFOLDED CONTEXT DECODER     */}
+      {/* ==================================================== */}
+      {activeGame === 'context_decoder' && (
+        <ScaffoldedContextGame
+          key={selectedGrade}
+          words={currentGradeWords}
+          gradeName={
+            selectedGrade === 'all'
+              ? '전체 통합'
+              : selectedGrade === 'elementary'
+              ? '초등 필수'
+              : selectedGrade === 'middle'
+              ? '중등 필수'
+              : '고등·수능'
+          }
+          onUpdateHighScore={updateHighScore}
+          onChangeMastery={handleSharedGameMastery}
+          onUpdateVocabSrs={onUpdateVocabSrs}
+          onQuit={handleCloseGame}
+        />
+      )}
+
+      {/* ==================================================== */}
+      {/* GAME 0 UI: FLASHCARD RECALL (4지선다 리콜 & 암기 승급) */}
+      {/* ==================================================== */}
+      {activeGame === 'flashcard_recall' && (
+        <FlashcardRecallGame
+          key={selectedGrade}
+          words={currentGradeWords}
+          gradeName={
+            selectedGrade === 'all'
+              ? '전체 통합'
+              : selectedGrade === 'elementary'
+              ? '초등 필수'
+              : selectedGrade === 'middle'
+              ? '중등 필수'
+              : '고등·수능'
+          }
+          qaMode={qaMode}
+          onChangeQAMode={setQaMode}
+          onUpdateHighScore={updateHighScore}
+          onChangeMastery={handleSharedGameMastery}
+          onUpdateVocabSrs={onUpdateVocabSrs}
           onQuit={handleCloseGame}
         />
       )}
@@ -1107,7 +1368,7 @@ export const StudentWordGame: React.FC<StudentWordGameProps> = ({
           qaMode={qaMode}
           onChangeQAMode={setQaMode}
           onUpdateHighScore={updateHighScore}
-          onChangeMastery={onChangeMastery}
+          onChangeMastery={handleSharedGameMastery}
           onQuit={handleCloseGame}
         />
       )}
@@ -1156,25 +1417,33 @@ export const StudentWordGame: React.FC<StudentWordGameProps> = ({
                     : getCleanKoreanMeaning(currentSpellingItem)}
                 </h3>
                 <div className="flex items-center justify-center gap-2">
-                  <span className="text-[10px] sm:text-xs px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-500 font-bold">
-                    품사: {currentSpellingItem.partOfSpeech}
+                  <span className="text-[10px] sm:text-xs font-bold text-slate-500 dark:text-slate-400">
+                    품사 {currentSpellingItem.partOfSpeech}
                   </span>
                   <button
                     onClick={() => {
                       speechService.playItem(currentSpellingItem.id, currentSpellingItem.word, undefined, 1);
                     }}
-                    className="p-1 rounded-full bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-500/20 transition-all"
+                    className="p-1.5 rounded-full bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-500/20 transition-all cursor-pointer"
                     title="발음 듣기"
                   >
                     <Volume2 className="w-3.5 h-3.5" />
                   </button>
                 </div>
 
-                {showSpellingHint && (
-                  <p className="text-[11px] font-semibold text-amber-600 dark:text-amber-400 animate-in fade-in">
-                    💡 힌트 (첫글자): <strong className="text-xs font-mono uppercase">{currentSpellingItem.word[0]}</strong> ...
-                  </p>
-                )}
+                <div className="max-w-xl mx-auto pt-1">
+                  <GameScaffoldingBar
+                    item={currentSpellingItem}
+                    hintTier={spellingHintTier}
+                    onAdvanceHint={() =>
+                      setSpellingHintTier((t) => (t < 3 ? ((t + 1) as 0 | 1 | 2 | 3) : t))
+                    }
+                    zpdLevel={cognitiveStats.zpdLevel}
+                    lastFeedbackLabel={spellingFluencyNote}
+                    disabled={spellingResult === 'correct'}
+                    hideAnswerInTier3={spellingResult !== 'correct'}
+                  />
+                </div>
               </div>
 
               {/* Target Word & Spelling Slots */}
@@ -1261,14 +1530,16 @@ export const StudentWordGame: React.FC<StudentWordGameProps> = ({
                         ))}
                       </div>
 
-                      {/* Example sentence / Context Word (Enlarged) */}
+                      {/* Example sentence / Context Word (Masked until solved) */}
                       {currentSpellingItem.sentence && (
                         <div className="p-3 sm:p-4 rounded-2xl bg-indigo-50/80 dark:bg-indigo-950/40 border border-indigo-200/70 dark:border-indigo-800/70 text-center space-y-1">
                           <span className="text-[11px] sm:text-xs font-black text-indigo-600 dark:text-indigo-400 uppercase tracking-wider block">
-                            📖 예문 (Example Sentence)
+                            📖 문맥 예문
                           </span>
                           <p className="text-base sm:text-lg md:text-xl font-bold text-slate-800 dark:text-slate-100 leading-snug">
-                            {currentSpellingItem.sentence}
+                            {spellingResult === 'correct'
+                              ? currentSpellingItem.sentence
+                              : maskTargetWordInSentence(currentSpellingItem.sentence, currentSpellingItem.word)}
                           </p>
                           {currentSpellingItem.sentenceMeaning && (
                             <p className="text-xs sm:text-sm font-medium text-slate-500 dark:text-slate-400">
@@ -1285,36 +1556,49 @@ export const StudentWordGame: React.FC<StudentWordGameProps> = ({
               {/* Action buttons & Feedback */}
               <div className="flex items-center justify-between gap-2 pt-2 border-t border-slate-100 dark:border-slate-800 shrink-0">
                 <button
-                  onClick={() => setShowSpellingHint(true)}
-                  disabled={showSpellingHint}
-                  className="px-2.5 py-1.5 rounded-xl text-[11px] sm:text-xs font-bold text-amber-600 dark:text-amber-400 bg-amber-500/10 hover:bg-amber-500/20 transition-all flex items-center gap-1"
+                  type="button"
+                  onClick={() => {
+                    if (spellingHintTier < 3) {
+                      playCognitiveCueSound('hint');
+                      setSpellingHintTier((t) => (t < 3 ? ((t + 1) as 0 | 1 | 2 | 3) : t));
+                    }
+                  }}
+                  disabled={spellingHintTier >= 3 || spellingResult === 'correct'}
+                  className="min-h-[38px] px-3 py-1.5 rounded-xl text-[11px] sm:text-xs font-bold text-amber-700 dark:text-amber-300 bg-amber-500/10 hover:bg-amber-500/20 disabled:opacity-45 transition-all flex items-center gap-1 font-mono tabular-nums cursor-pointer"
                 >
                   <HelpCircle className="w-3.5 h-3.5" />
-                  <span>힌트</span>
+                  <span>{spellingHintTier >= 3 ? '힌트 최대' : `비계 힌트 (${spellingHintTier}/3)`}</span>
                 </button>
 
                 <div className="flex items-center gap-1.5">
                   {spellingResult === 'correct' ? (
                     <div className="flex items-center gap-2">
-                      <span className="text-[11px] sm:text-xs font-bold text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
-                        <CheckCircle2 className="w-3.5 h-3.5" /> 정답! (+{showSpellingHint ? 10 : 20}점)
+                      <span className="text-[11px] sm:text-xs font-bold text-emerald-600 dark:text-emerald-400 flex items-center gap-1 font-mono tabular-nums">
+                        <CheckCircle2 className="w-3.5 h-3.5" /> 정답 (+{Math.max(8, 25 - spellingHintTier * 5)}점)
                       </span>
                       <button
                         onClick={nextSpellingRound}
-                        className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-extrabold text-xs shadow-md transition-all flex items-center gap-1"
+                        className="min-h-[38px] px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-extrabold text-xs shadow-md transition-all flex items-center gap-1 cursor-pointer"
                       >
                         <span>다음</span>
                         <ArrowRight className="w-3.5 h-3.5" />
                       </button>
                     </div>
                   ) : (
-                    <button
-                      onClick={checkSpellingAnswer}
-                      disabled={userLetters.length === 0}
-                      className="px-4 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 disabled:opacity-50 text-slate-950 font-black text-xs shadow-md transition-all"
-                    >
-                      정답 확인 ➔
-                    </button>
+                    <div className="flex items-center gap-2">
+                      {spellingResult === 'wrong' && (
+                        <span className="text-[11px] font-bold text-rose-600 dark:text-rose-400">
+                          철자를 다시 확인해 보세요
+                        </span>
+                      )}
+                      <button
+                        onClick={checkSpellingAnswer}
+                        disabled={userLetters.length === 0}
+                        className="min-h-[38px] px-4 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 disabled:opacity-50 text-slate-950 font-black text-xs shadow-md transition-all cursor-pointer"
+                      >
+                        정답 확인 ➔
+                      </button>
+                    </div>
                   )}
                 </div>
               </div>
@@ -1349,48 +1633,91 @@ export const StudentWordGame: React.FC<StudentWordGameProps> = ({
                 <Zap className="w-6 h-6 sm:w-8 sm:h-8" />
               </div>
               <div>
-                <h3 className="text-lg sm:text-xl font-black text-slate-900 dark:text-white">⚡ 25초 스피드 타임어택</h3>
-                <p className="text-xs text-slate-500 max-w-sm mx-auto mt-1">
-                  제한시간 동안 빠르게 정답을 고르세요! 3연속 정답 시 보너스 시간 +3초!
+                <h3 className="text-lg sm:text-xl font-black text-slate-900 dark:text-white">
+                  ⚡ ZPD 스피드 타임어택 ({Math.round(25 * zpdProfile.timeBonusFactor)}초)
+                </h3>
+                <p className="text-xs text-slate-500 dark:text-slate-400 max-w-sm mx-auto mt-1">
+                  {zpdProfile.label} 난이도에 맞춘 혼동 보기로 반응속도를 훈련합니다. 3연속 정답 시 +3초 보너스!
                 </p>
               </div>
 
               <button
-                onClick={startSpeedGame}
-                className="px-6 py-2.5 sm:px-8 sm:py-3 rounded-2xl bg-rose-500 hover:bg-rose-400 text-white font-black text-xs sm:text-sm shadow-md shadow-rose-500/20 transition-all inline-flex items-center gap-2 active:scale-95"
+                onClick={() => startSpeedGame()}
+                className="min-h-[44px] px-6 py-2.5 sm:px-8 sm:py-3 rounded-2xl bg-rose-500 hover:bg-rose-400 text-white font-black text-xs sm:text-sm shadow-md shadow-rose-500/20 transition-all inline-flex items-center gap-2 active:scale-95 cursor-pointer"
               >
                 <Play className="w-4 h-4 sm:w-5 sm:h-5 fill-current" />
                 <span>타임어택 시작하기</span>
               </button>
             </div>
           ) : isSpeedGameOver ? (
-            <div className="p-5 sm:p-8 text-center rounded-2xl sm:rounded-3xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 space-y-3 my-auto">
+            <div className="p-5 sm:p-8 text-center rounded-2xl sm:rounded-3xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 space-y-4 my-auto">
               <div className="w-12 h-12 sm:w-16 sm:h-16 bg-amber-500/10 text-amber-500 rounded-full flex items-center justify-center mx-auto">
                 <Award className="w-6 h-6 sm:w-8 sm:h-8" />
               </div>
               <div>
-                <h3 className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white">⏰ 타임어택 종료!</h3>
+                <h3 className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white">⏰ 타임어택 종료</h3>
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 font-mono tabular-nums">
+                  {zpdProfile.label} · 평균 인출 {(cognitiveStats.avgLatencyMs / 1000).toFixed(1)}s
+                </p>
               </div>
 
               <div className="p-3 sm:p-4 rounded-xl sm:rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 max-w-xs mx-auto">
                 <span className="text-xs text-slate-500 font-bold block">최종 스코어</span>
-                <span className="text-3xl font-black text-rose-500">{speedScore}점</span>
+                <span className="text-3xl font-black font-mono tabular-nums text-rose-500">{speedScore}점</span>
               </div>
 
+              {speedMissedItems.length > 0 && (
+                <div className="max-w-md mx-auto p-3 rounded-2xl bg-rose-50/80 dark:bg-rose-950/30 border border-rose-200 dark:border-rose-800/50 text-left space-y-2">
+                  <p className="text-xs font-extrabold text-rose-700 dark:text-rose-300 font-mono tabular-nums">
+                    오답 {speedMissedItems.length}개 지연 재인출 대기
+                  </p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {speedMissedItems.slice(0, 6).map((item) => (
+                      <span
+                        key={item.id}
+                        className="text-xs font-semibold text-slate-800 dark:text-slate-200 bg-white dark:bg-slate-900 px-2 py-1 rounded-lg border border-rose-200 dark:border-rose-800"
+                      >
+                        {item.word} ({getCleanKoreanMeaning(item)})
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+
               <div className="flex flex-wrap items-center justify-center gap-2">
+                {speedMissedItems.length > 0 && (
+                  <button
+                    onClick={() => {
+                      const remediationSet =
+                        speedMissedItems.length >= 4
+                          ? speedMissedItems
+                          : [
+                              ...speedMissedItems,
+                              ...adaptiveGradeWords.filter(
+                                (w) => !speedMissedItems.some((m) => m.id === w.id)
+                              ),
+                            ].slice(0, Math.min(8, Math.max(4, currentGradeWords.length)));
+                      startSpeedGame(remediationSet);
+                    }}
+                    className="min-h-[44px] px-4 py-2.5 rounded-xl sm:rounded-2xl bg-rose-600 hover:bg-rose-500 text-white font-black text-xs shadow-md transition-all inline-flex items-center gap-1.5 cursor-pointer"
+                  >
+                    <Brain className="w-4 h-4" />
+                    <span>오답 {speedMissedItems.length}개 집중 재인출</span>
+                  </button>
+                )}
                 <button
-                  onClick={startSpeedGame}
-                  className="px-5 py-2.5 rounded-xl sm:rounded-2xl bg-indigo-600 hover:bg-indigo-500 text-white font-black text-xs shadow-md transition-all inline-flex items-center gap-2"
+                  onClick={() => startSpeedGame()}
+                  className="min-h-[44px] px-5 py-2.5 rounded-xl sm:rounded-2xl bg-indigo-600 hover:bg-indigo-500 text-white font-black text-xs shadow-md transition-all inline-flex items-center gap-2 cursor-pointer"
                 >
                   <RotateCcw className="w-4 h-4" />
                   <span>한 번 더 도전</span>
                 </button>
                 <button
                   onClick={handleCloseGame}
-                  className="px-5 py-2.5 rounded-xl sm:rounded-2xl bg-slate-200 hover:bg-slate-300 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-800 dark:text-slate-100 font-black text-xs shadow-sm transition-all inline-flex items-center gap-1.5"
+                  className="min-h-[44px] px-5 py-2.5 rounded-xl sm:rounded-2xl bg-slate-200 hover:bg-slate-300 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-800 dark:text-slate-100 font-black text-xs shadow-sm transition-all inline-flex items-center gap-1.5 cursor-pointer"
                 >
                   <ArrowLeft className="w-4 h-4" />
-                  <span>게임 목록으로 돌아가기</span>
+                  <span>게임 목록</span>
                 </button>
               </div>
             </div>
@@ -1399,20 +1726,21 @@ export const StudentWordGame: React.FC<StudentWordGameProps> = ({
               {/* Timer Bar & Combo */}
               <ComboFeedbackOverlay combo={speedCombo} label="스피드 정답!" />
               <div className="space-y-1.5">
-                <div className="flex items-center justify-between text-xs font-black">
-                  <div className="flex items-center gap-1 text-rose-500">
+                <div className="flex items-center justify-between text-xs font-black font-mono tabular-nums">
+                  <div className="flex items-center gap-1.5 text-rose-500">
                     <Timer className="w-3.5 h-3.5 animate-spin" />
-                    <span className="text-xs sm:text-sm">남은 시간: {timeLeft}초</span>
+                    <span className="text-xs sm:text-sm">남은 시간 {timeLeft}초</span>
+                    <span className="text-[11px] text-slate-500 dark:text-slate-400">· {zpdProfile.label}</span>
                   </div>
 
                   <div className="flex items-center gap-2">
                     {speedCombo > 1 && (
-                      <span className="px-2 py-0.5 rounded-full bg-amber-500 text-slate-950 text-[10px] sm:text-[11px] font-black animate-bounce flex items-center gap-1">
-                        <Flame className="w-3 h-3" />
-                        {speedCombo}x COMBO!
+                      <span className="text-amber-600 dark:text-amber-400 text-[11px] font-black flex items-center gap-1">
+                        <Flame className="w-3.5 h-3.5" />
+                        {speedCombo}x COMBO
                       </span>
                     )}
-                    <span className="text-indigo-600 dark:text-indigo-400 text-xs sm:text-sm">점수: {speedScore}점</span>
+                    <span className="text-indigo-600 dark:text-indigo-400 text-xs sm:text-sm">점수 {speedScore}점</span>
                   </div>
                 </div>
 
@@ -1420,7 +1748,9 @@ export const StudentWordGame: React.FC<StudentWordGameProps> = ({
                 <div className="w-full bg-slate-100 dark:bg-slate-800 h-2 rounded-full overflow-hidden">
                   <div
                     className="bg-rose-500 h-full transition-all duration-1000"
-                    style={{ width: `${(timeLeft / 25) * 100}%` }}
+                    style={{
+                      width: `${Math.min(100, (timeLeft / Math.max(15, Math.round(25 * zpdProfile.timeBonusFactor))) * 100)}%`,
+                    }}
                   />
                 </div>
               </div>
@@ -1475,7 +1805,7 @@ export const StudentWordGame: React.FC<StudentWordGameProps> = ({
           qaMode={qaMode}
           onChangeQAMode={setQaMode}
           onUpdateHighScore={updateHighScore}
-          onChangeMastery={onChangeMastery}
+          onChangeMastery={handleSharedGameMastery}
           onQuit={handleCloseGame}
         />
       )}
@@ -1499,7 +1829,7 @@ export const StudentWordGame: React.FC<StudentWordGameProps> = ({
           qaMode={qaMode}
           onChangeQAMode={setQaMode}
           onUpdateHighScore={updateHighScore}
-          onChangeMastery={onChangeMastery}
+          onChangeMastery={handleSharedGameMastery}
           onQuit={handleCloseGame}
         />
       )}
@@ -1522,7 +1852,7 @@ export const StudentWordGame: React.FC<StudentWordGameProps> = ({
           qaMode={qaMode}
           onChangeQAMode={setQaMode}
           onUpdateHighScore={updateHighScore}
-          onChangeMastery={onChangeMastery}
+          onChangeMastery={handleSharedGameMastery}
           onQuit={handleCloseGame}
         />
       )}
@@ -1545,7 +1875,7 @@ export const StudentWordGame: React.FC<StudentWordGameProps> = ({
           qaMode={qaMode}
           onChangeQAMode={setQaMode}
           onUpdateHighScore={updateHighScore}
-          onChangeMastery={onChangeMastery}
+          onChangeMastery={handleSharedGameMastery}
           onQuit={handleCloseGame}
         />
       )}
@@ -1568,7 +1898,7 @@ export const StudentWordGame: React.FC<StudentWordGameProps> = ({
           qaMode={qaMode}
           onChangeQAMode={setQaMode}
           onUpdateHighScore={updateHighScore}
-          onChangeMastery={onChangeMastery}
+          onChangeMastery={handleSharedGameMastery}
           onQuit={handleCloseGame}
         />
       )}
@@ -1578,7 +1908,7 @@ export const StudentWordGame: React.FC<StudentWordGameProps> = ({
       {/* ==================================================== */}
       {activeGame === 'sentence_scramble' && (
         <SentenceScrambleGame
-          sentences={currentGradeSentences}
+          sentences={adaptiveGradeSentences}
           gradeName={
             selectedGrade === 'all'
               ? '전체 통합'
@@ -1599,7 +1929,7 @@ export const StudentWordGame: React.FC<StudentWordGameProps> = ({
       {/* ==================================================== */}
       {activeGame === 'sentence_listening' && (
         <SentenceListeningFillGame
-          sentences={currentGradeSentences}
+          sentences={adaptiveGradeSentences}
           gradeName={
             selectedGrade === 'all'
               ? '전체 통합'
@@ -1620,7 +1950,7 @@ export const StudentWordGame: React.FC<StudentWordGameProps> = ({
       {/* ==================================================== */}
       {activeGame === 'sentence_speed' && (
         <SentenceSpeedRushGame
-          sentences={currentGradeSentences}
+          sentences={adaptiveGradeSentences}
           gradeName={
             selectedGrade === 'all'
               ? '전체 통합'
@@ -1641,7 +1971,7 @@ export const StudentWordGame: React.FC<StudentWordGameProps> = ({
       {/* ==================================================== */}
       {activeGame === 'sentence_truefalse' && (
         <SentenceTrueFalseGame
-          sentences={currentGradeSentences}
+          sentences={adaptiveGradeSentences}
           gradeName={
             selectedGrade === 'all'
               ? '전체 통합'
@@ -1662,7 +1992,7 @@ export const StudentWordGame: React.FC<StudentWordGameProps> = ({
       {/* ==================================================== */}
       {activeGame === 'sentence_shadowing' && (
         <SentenceShadowingGame
-          sentences={currentGradeSentences}
+          sentences={adaptiveGradeSentences}
           gradeName={
             selectedGrade === 'all'
               ? '전체 통합'
@@ -1914,11 +2244,16 @@ export const StudentWordGame: React.FC<StudentWordGameProps> = ({
                 onClick={() => {
                   setShowGameOptionsModal(false);
                   if (activeGame === 'spelling') {
-                    const shuffled = [...currentGradeWords].sort(() => 0.5 - Math.random());
-                    setSpellingPool(shuffled);
+                    const curated = buildAdaptiveVocabQueue(
+                      currentGradeWords,
+                      loadCognitiveStats(),
+                      currentGradeWords.length,
+                      focusSrsPriority ? 'weak_only' : 'adaptive'
+                    );
+                    setSpellingPool(curated);
                     setSpellingIndex(0);
-                    if (shuffled.length > 0) {
-                      initSpellingRound(shuffled[0]);
+                    if (curated.length > 0) {
+                      initSpellingRound(curated[0]);
                     }
                   }
                   if (activeGame === 'speed') startSpeedGame();

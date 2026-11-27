@@ -395,3 +395,70 @@
 .animate-sound-bar-2 { animation: soundBarPulse 0.4s ease-in-out infinite 0.1s; }
 .animate-sound-bar-3 { animation: soundBarPulse 0.4s ease-in-out infinite 0.2s; }
 .animate-sound-bar-4 { animation: soundBarPulse 0.4s ease-in-out infinite 0.3s; }
+
+/* Pet Sanctuary Dynamic Sentiment Click Reactions */
+@keyframes petReactJump {
+  0% { transform: translateY(0) scale(1); }
+  25% { transform: translateY(-16px) scale(1.22) rotate(-6deg); }
+  50% { transform: translateY(2px) scale(0.95) rotate(4deg); }
+  75% { transform: translateY(-8px) scale(1.12) rotate(-2deg); }
+  100% { transform: translateY(0) scale(1) rotate(0deg); }
+}
+
+@keyframes petReactSparkle {
+  0% { transform: scale(1) rotate(0deg); filter: brightness(1); }
+  30% { transform: scale(1.32) rotate(-14deg); filter: brightness(1.25) drop-shadow(0 0 10px rgba(251, 191, 36, 0.85)); }
+  65% { transform: scale(1.2) rotate(14deg); filter: brightness(1.15) drop-shadow(0 0 8px rgba(251, 191, 36, 0.7)); }
+  100% { transform: scale(1) rotate(0deg); filter: brightness(1); }
+}
+
+@keyframes petReactRedAlert {
+  0%, 100% { transform: translateX(0) scale(1); }
+  18% { transform: translateX(-6px) scale(1.12) rotate(-5deg); }
+  36% { transform: translateX(6px) scale(1.14) rotate(5deg); }
+  54% { transform: translateX(-5px) scale(1.1) rotate(-3deg); }
+  72% { transform: translateX(4px) scale(1.06) rotate(2deg); }
+}
+
+@keyframes petReactHop {
+  0%, 100% { transform: translateY(0) rotate(0deg) scale(1); }
+  40% { transform: translateY(-9px) rotate(-8deg) scale(1.14); }
+  70% { transform: translateY(-2px) rotate(6deg) scale(1.06); }
+}
+
+@keyframes petBurstFloat {
+  0% { transform: translateY(4px) scale(0.6); opacity: 0; }
+  25% { transform: translateY(-6px) scale(1.15); opacity: 1; }
+  100% { transform: translateY(-22px) scale(0.85); opacity: 0; }
+}
+
+.animate-pet-react-jump {
+  animation: petReactJump 0.65s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.animate-pet-react-sparkle {
+  animation: petReactSparkle 0.7s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.animate-pet-react-red-alert {
+  animation: petReactRedAlert 0.58s ease-in-out;
+}
+
+.animate-pet-react-hop {
+  animation: petReactHop 0.52s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.animate-pet-burst-float {
+  animation: petBurstFloat 0.72s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-pet-react-jump,
+  .animate-pet-react-sparkle,
+  .animate-pet-react-red-alert,
+  .animate-pet-react-hop,
+  .animate-pet-burst-float {
+    animation: none;
+  }
+}
+
